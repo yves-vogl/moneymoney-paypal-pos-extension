@@ -35,3 +35,6 @@ globals[#globals+1] = "M_mapping"
 globals[#globals+1] = "DEBUG"
 
 ignore = { "212" }  -- 212: variable set but not accessed (acceptable for stubs)
+
+-- Exclude project-local LuaRocks tree (third-party code) and build output
+exclude_files = { ".luarocks/", "lua_modules/", "dist/" }
