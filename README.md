@@ -107,6 +107,12 @@ Eine erfolgreiche Verifikation gibt `Good signature from "Yves Vogl <yves@kadenz
 
 ---
 
+## Unterstützen
+
+Wer diese Extension nützlich findet und die Weiterentwicklung unterstützen möchte: [GitHub Sponsors → @yves-vogl](https://github.com/sponsors/yves-vogl). Sponsoring ist freiwillig und ändert nichts am Funktionsumfang oder am Open-Source-Status — die Extension bleibt MIT-lizenziert und kostenlos.
+
+---
+
 ## Beitragen
 
 Beiträge sind willkommen — egal ob Bug-Report, Test-Fixture aus einem ungewöhnlichen Sale-Setup oder Pull Request.
