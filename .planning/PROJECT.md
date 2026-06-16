@@ -30,7 +30,7 @@ If everything else is good but the data is wrong, incomplete, or stale, the proj
 - [ ] Extension presents the PayPal POS account as `AccountTypeGiro` with both `balance` (paid-out) and `pendingBalance` (not yet settled)
 - [ ] Each card sale becomes one transaction (gross amount, including VAT and tips, marked with the customer-facing label and timestamp)
 - [ ] Each refund becomes one negative transaction referencing the original sale
-- [ ] Each PayPal POS transaction fee becomes one separate negative transaction (booked per-sale if the API exposes it that way, otherwise as a daily aggregate)
+- [ ] Each PayPal POS transaction fee becomes one separate negative transaction, linked per-sale via the Finance API `originatingTransactionUuid` field (primary); daily-aggregate fee booking remains a documented fallback for environments where the linkage fails or is unavailable
 - [ ] Each payout from PayPal POS to the merchant's bank becomes one negative transaction labelled as "Auszahlung an Bankkonto"
 - [ ] VAT breakdown (e.g. `19% MwSt: 3,83 EUR`) appears in the transaction `purpose` field when the API delivers it
 - [ ] Tip amount appears in the transaction `purpose` field when the API delivers it as a separate field
@@ -50,6 +50,8 @@ If everything else is good but the data is wrong, incomplete, or stale, the proj
 - **MoneyMoney RSA signature** — Lua extensions can only be RSA-signed by the MoneyMoney maintainer (MRH applications). Third parties cannot self-sign. We ship as a community extension; users must enable "Inoffizielle Extensions erlauben" in MoneyMoney settings. Stretch goal (out of v1 scope): PR to the official MoneyMoney extension repository after stabilization, so MRH can sign it.
 - **Apple Developer ID code-signing of the `.lua` file** — `codesign` and Apple notarization apply to Mach-O binaries, frameworks, and app bundles; they have no semantic effect on a plain Lua text file as MoneyMoney interprets it. The Apple Developer account stays unused for this project.
 - **OAuth browser flow** — the user supplies a pre-issued API key. Pursuing the OAuth2 authorization-code flow inside a MoneyMoney extension is not supported by the extension API (no browser handoff, no callback URL).
+- **TLS certificate pinning** — the extension relies on MoneyMoney's `Connection()` default TLS verification against the system trust store. No certificate pinning is attempted; the trade-off (pinning breaks silently on legitimate cert rotation) is not worth the marginal gain in a single-merchant client.
+- **Auto-update / telemetry / outbound calls beyond the API** — strict egress allowlist (`oauth.zettle.com`, `purchase.izettle.com`, `finance.izettle.com`). No update pings, no usage analytics, no error reporting to third parties. CI enforces with a grep of the shipped artifact against the allowlist.
 - **Write operations** — the extension is read-only. It does not initiate refunds, payouts, or any state-changing call against PayPal POS.
 - **Multi-merchant / multi-account in a single extension instance** — one extension instance = one PayPal POS merchant. A user with multiple merchant accounts adds the extension multiple times.
 - **Non-German currencies as primary scope** — primary user is the German merchant. The extension will not reject other currencies, but VAT-related conveniences and German UI strings are the design focus.
@@ -60,7 +62,7 @@ If everything else is good but the data is wrong, incomplete, or stale, the proj
 ## Context
 
 **MoneyMoney extension ecosystem:**
-- Extensions are plain Lua scripts placed in `~/Library/Containers/com.moneymoney-app.retail/Data/Library/Application Support/MoneyMoney/Extensions`
+- Extensions are plain Lua scripts. Sandboxed App-Store build: `~/Library/Containers/com.moneymoney-app.retail/Data/Library/Application Support/MoneyMoney/Extensions/`. Non-sandboxed direct-download build: `~/Library/Application Support/MoneyMoney/Extensions/`. Users find the right folder via `Hilfe → Erweiterungen im Finder zeigen` — README documents both paths and points to this menu entry.
 - Required entry points: `SupportsBank`, `InitializeSession` (or `InitializeSession2` for credential-array auth), `ListAccounts`, `RefreshAccount`, `EndSession`
 - Networking: built-in `Connection()`, `JSON()`, `HTML()`, `PDF()` helpers
 - Account type constants: `AccountTypeGiro`, `AccountTypeCreditCard`, `AccountTypePortfolio`, `AccountTypeOther`, etc.
@@ -69,8 +71,8 @@ If everything else is good but the data is wrong, incomplete, or stale, the proj
 
 **PayPal POS / Zettle context:**
 - "PayPal POS" is the rebranded German market name for what was previously sold as PayPal Zettle (and earlier as iZettle). The technical API surface lives at `developer.zettle.com` (PayPal in-person overview at `developer.paypal.com/docs/in-person/` redirects merchants to Zettle for the SDK/API specifics).
-- Authentication: OAuth2 client-credentials with a merchant-issued API key (to be verified in research phase — likely `assertion`-grant on `oauth.zettle.com/token`).
-- Relevant API surfaces: Purchase API (transactions), Finance API (payouts/settlement), Products API (optional).
+- Authentication: OAuth2 **JWT-bearer assertion grant** against `POST https://oauth.zettle.com/token` with `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer`, `client_id=<uuid>`, `assertion=<API_KEY>`. Access tokens TTL 7200 s, no refresh-token rotation — re-mint on cache miss. Verified against the iZettle authorization docs.
+- Relevant API surfaces: Purchase API (`purchase.izettle.com/purchases/v2`, cursor pagination via `lastPurchaseHash`), Finance API (`finance.izettle.com/v2/accounts/liquid/...` — host pending Phase-1 live verification).
 - Settlement cadence: typically 1–2 working days from sale to bank deposit.
 - Target geography for v1: Germany (EUR, German tax conventions, German UI).
 
@@ -91,11 +93,11 @@ If everything else is good but the data is wrong, incomplete, or stale, the proj
 
 ## Constraints
 
-- **Tech stack — Lua 5.x** as enforced by MoneyMoney's embedded interpreter. No external Lua C modules (MoneyMoney runs in a sandboxed environment). No native dependencies of any kind in the shipped artifact.
+- **Tech stack — Lua 5.4** (current MoneyMoney embeds 5.4.8); CI matrix pins the same. No external Lua C modules (MoneyMoney runs in a sandboxed environment). No native dependencies of any kind in the shipped artifact.
 - **Tech stack — test harness must run Lua + busted + luacheck outside MoneyMoney** so CI can execute without a macOS+MoneyMoney runtime. MoneyMoney-specific globals (`Connection`, `JSON`, etc.) are mocked.
-- **Distribution — single `.lua` file**, no Lua module/package system, no `require()` of sibling files. If we split source for maintainability, the build step concatenates / inlines into one file before release.
+- **Distribution — single `.lua` file**, no Lua module/package system, no `require()` of sibling files. Source is split under `src/` for maintainability and testability; a custom ~150-line `tools/build.lua` amalgamator concatenates the modules into one deterministic artifact at build time (canonical `lua-amalg` rejected: its `package.preload` output does not fit MoneyMoney's top-level-script load model).
 - **Security — API keys are never logged, never written to debug output, never echoed back to the user**. MoneyMoney's credentials API is the only persistence path.
-- **Performance — single full refresh must complete within MoneyMoney's network timeout** (conservative target: under 30 s for a typical merchant's incremental refresh of last 90 days).
+- **Performance — incremental refresh under 30 s** for a typical merchant's last-90-days delta. First-time sync of historical data (Zettle preserves 3 years) is multi-cycle and documented; MoneyMoney's per-call timeout is not breached.
 - **Compatibility — extension must work on the current stable MoneyMoney release** and the previous one. No reliance on undocumented internal APIs.
 - **Compliance — no telemetry, no third-party calls beyond PayPal/Zettle API endpoints**. README explicitly states this.
 - **Localization — primary user strings German**; English strings only for technical contributor-facing material (CONTRIBUTING.md, ADRs, code comments).
@@ -111,7 +113,7 @@ If everything else is good but the data is wrong, incomplete, or stale, the proj
 | Account model: `AccountTypeGiro` with `balance` + `pendingBalance` | Matches PayPal POS reality (settled vs pending); native MoneyMoney support; semantically clearer than "credit card" or "two accounts" | — Pending |
 | Transaction granularity: four types (Sale gross, Refund gross, Fee, Payout) as separate transactions | Bookkeeping-correct for German VAT and business expense tracking; gives operator full transparency | — Pending |
 | VAT and tip details embedded in `purpose` field as text metadata | MoneyMoney has no structured VAT/tip fields; text in `purpose` is searchable and exportable | — Pending |
-| Auth via `InitializeSession2` with API-key credential field | Matches OAuth2 client-credentials grant of PayPal POS API; native MoneyMoney UI for custom credential fields | — Pending |
+| Auth via `InitializeSession2` with API-key credential field; fail-fast profile-ping inside `InitializeSession2` | Matches OAuth2 JWT-bearer-assertion grant of PayPal POS API; native MoneyMoney UI for custom credential fields. The fail-fast ping surfaces an invalid API key synchronously at add-account time rather than during the first refresh hours later. | — Pending |
 | Signing strategy: GPG-signed commits/tags + community-extension distribution (no MoneyMoney signature in v1) | Apple Developer ID does not apply to Lua scripts; MoneyMoney's RSA signing is maintainer-controlled. GPG + reproducible builds provide the trust chain available to third parties | — Pending |
 | Localization: German primary UI/README, English contributor docs | Target audience is German merchants; contributors are international developers | — Pending |
 | Testing strategy: Lua + busted + luacheck in CI; MoneyMoney globals mocked; fixtures recorded from real and sandbox API responses | Enables CI without macOS+MoneyMoney runtime; high coverage is enforceable | — Pending |
