@@ -7,12 +7,39 @@ function SupportsBank(protocol, bankCode)
 end
 
 function InitializeSession2(protocol, bankCode, step, credentials, interactive) -- luacheck: ignore 431
+  -- First call with no credentials: declare the credential we want MoneyMoney
+  -- to ask for. MM uses this to render an API-Key prompt; if MM does not honour
+  -- the object it falls back to the default Username+Password UI, and the
+  -- defensive extraction below still resolves the user input.
+  if credentials == nil then
+    return {
+      title     = M_i18n.t("credential.api_key.label"),
+      challenge = M_i18n.t("credential.api_key.label"),
+      label     = M_i18n.t("credential.api_key.label"),
+    }
+  end
+
+  -- Credential extraction handles every shape MM has been observed to pass:
+  --   "x"                              single string
+  --   {"x"} or {"x", "y"}              positional array of strings
+  --   {{value = "x"}, ...}             challenge-style array of {label, value}
+  --   {username = "x", password = "y"} default UI fallback
   local api_key
   if type(credentials) == "string" then
     api_key = credentials
-  else
-    api_key = credentials and credentials[1] and credentials[1].value
+  elseif type(credentials) == "table" then
+    if credentials[1] then
+      if type(credentials[1]) == "table" and credentials[1].value then
+        api_key = credentials[1].value
+      elseif type(credentials[1]) == "string" then
+        api_key = credentials[1]
+      end
+    end
+    if api_key == nil then
+      api_key = credentials.password or credentials.username
+    end
   end
+
   if api_key == nil or api_key == "" then
     return M_i18n.t("error.invalid_grant")
   end
