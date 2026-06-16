@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+permissions:
+  contents: read
+
+env:
+  LC_ALL: C
+
+jobs:
+  test:
+    name: Lint + tests + reproducible build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Lua 5.4
+        uses: leafo/gh-actions-lua@v13
+        with:
+          luaVersion: "5.4"
+
+      - name: Set up LuaRocks
+        uses: leafo/gh-actions-luarocks@v6.1.0
+
+      - name: Install Lua dependencies (busted, luacheck, luacov, dkjson)
+        run: |
+          luarocks install busted
+          luarocks install luacheck
+          luarocks install luacov
+          luarocks install dkjson
+
+      - name: Lint with luacheck
+        run: luacheck .
+
+      - name: Run busted test suite (with coverage)
+        run: busted --coverage spec/
+
+      - name: Build amalgamated artifact
+        run: lua tools/build.lua
+
+      - name: Verify byte-identical build
+        run: lua tools/build.lua --verify
+
+      - name: SEC-04 gate — confirm DEBUG = false in shipped artifact
+        run: |
+          grep -q 'DEBUG = false' dist/paypal-pos.lua \
+            || { echo "FAIL: DEBUG = false missing from dist/paypal-pos.lua"; exit 1; }
+          echo "OK: DEBUG = false present"
+
+      - name: Egress allowlist gate — only zettle/izettle hosts in artifact
+        run: |
+          set -e
+          BAD=$(grep -Eo 'https?://[^"'"'"' ]+' dist/paypal-pos.lua \
+            | grep -v 'oauth\.zettle\.com\|purchase\.izettle\.com\|finance\.izettle\.com' \
+            || true)
+          if [ -n "$BAD" ]; then
+            echo "FAIL: unexpected hosts in dist/paypal-pos.lua:"
+            echo "$BAD"
+            exit 1
+          fi
+          echo "OK: only allowlisted hosts in dist/paypal-pos.lua"
+
+      - name: No-AI-attribution gate
+        run: |
+          set -e
+          MATCH=$(git grep -nE 'Co-Authored-By:[[:space:]]*Claude|Generated with Claude|🤖' \
+            -- . ':!.planning' ':!CLAUDE.md' || true)
+          if [ -n "$MATCH" ]; then
+            echo "FAIL: AI-attribution patterns found:"
+            echo "$MATCH"
+            exit 1
+          fi
+          echo "OK: no AI-attribution patterns"
