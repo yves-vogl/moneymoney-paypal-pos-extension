@@ -7,7 +7,7 @@ on:
     branches: ["**"]
 
 permissions:
-  contents: read
+  contents: write  # needed for the self-hosted coverage badge push to coverage-badge branch (only fires on push to main)
 
 env:
   LC_ALL: C
@@ -49,7 +49,8 @@ jobs:
           luacov
           tail -20 luacov.report.out
           TOTAL_LINE=$(grep -E "^Total" luacov.report.out | tail -1)
-          TOTAL_COV=$(echo "$TOTAL_LINE" | awk '{print $NF}' | sed 's/%//' | cut -d. -f1)
+          TOTAL_COV_FULL=$(echo "$TOTAL_LINE" | awk '{print $NF}' | sed 's/%//')
+          TOTAL_COV=$(echo "$TOTAL_COV_FULL" | cut -d. -f1)
           if [ -z "$TOTAL_COV" ]; then
             echo "FAIL: could not parse coverage percentage from luacov.report.out"
             exit 1
@@ -59,6 +60,63 @@ jobs:
             exit 1
           fi
           echo "OK: coverage ${TOTAL_COV}% meets the 85% threshold"
+          # Persist the full % string for the badge-generation step.
+          echo "COVERAGE_PCT=${TOTAL_COV_FULL}" >> "$GITHUB_ENV"
+          echo "COVERAGE_INT=${TOTAL_COV}"      >> "$GITHUB_ENV"
+
+      - name: Generate self-hosted coverage badge (SVG)
+        if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          set -e
+          PCT="${COVERAGE_INT}"
+          if   [ "$PCT" -ge 90 ]; then COLOR="#4c1";    LABEL_BG="#555";
+          elif [ "$PCT" -ge 80 ]; then COLOR="#97ca00"; LABEL_BG="#555";
+          elif [ "$PCT" -ge 70 ]; then COLOR="#dfb317"; LABEL_BG="#555";
+          else                          COLOR="#e05d44"; LABEL_BG="#555";
+          fi
+          mkdir -p /tmp/badge
+          cat > /tmp/badge/coverage.svg <<SVG
+          <svg xmlns="http://www.w3.org/2000/svg" width="104" height="20" role="img" aria-label="coverage: ${COVERAGE_PCT}%">
+            <title>coverage: ${COVERAGE_PCT}%</title>
+            <linearGradient id="s" x2="0" y2="100%">
+              <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+              <stop offset="1" stop-opacity=".1"/>
+            </linearGradient>
+            <clipPath id="r"><rect width="104" height="20" rx="3" fill="#fff"/></clipPath>
+            <g clip-path="url(#r)">
+              <rect width="61" height="20" fill="${LABEL_BG}"/>
+              <rect x="61" width="43" height="20" fill="${COLOR}"/>
+              <rect width="104" height="20" fill="url(#s)"/>
+            </g>
+            <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110">
+              <text x="315" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="510">coverage</text>
+              <text x="315" y="140" transform="scale(.1)" fill="#fff" textLength="510">coverage</text>
+              <text x="815" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="330">${COVERAGE_PCT}%</text>
+              <text x="815" y="140" transform="scale(.1)" fill="#fff" textLength="330">${COVERAGE_PCT}%</text>
+            </g>
+          </svg>
+          SVG
+          echo "Generated badge for ${COVERAGE_PCT}% (color ${COLOR})"
+
+      - name: Push coverage badge to coverage-badge branch
+        if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          set -e
+          STAGE=$(mktemp -d)
+          cd "$STAGE"
+          git init -q
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp /tmp/badge/coverage.svg .
+          git checkout -q -b coverage-badge
+          git add coverage.svg
+          git commit -q -m "ci: refresh coverage badge (${COVERAGE_PCT}%)"
+          git push -q --force \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:refs/heads/coverage-badge
+          echo "Pushed badge to coverage-badge branch"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build amalgamated artifact
         run: lua tools/build.lua
