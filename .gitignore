@@ -10,6 +10,9 @@
 *.swp
 *~
 
+# Claude Code session data (per-machine, never committed)
+.claude/
+
 # Lua
 *.luac
 luacov.stats.out
