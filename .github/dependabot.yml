@@ -1,0 +1,26 @@
+version: 2
+
+updates:
+  # Keep GitHub Actions pinned to current major versions. Dependabot
+  # opens one PR per outdated action; auto-merge policy is documented
+  # in CONTRIBUTING.md (lands in Phase 6). For now, every PR runs CI
+  # and merges manually after green.
+  #
+  # LuaRocks is not supported by Dependabot. Lua tooling versions are
+  # pinned by the rockspec resolution at install time; CI installs the
+  # latest published version of each tool, which keeps the toolchain
+  # current without manual bumps.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    commit-message:
+      prefix: ci
+      include: scope
+    labels:
+      - dependencies
+      - github-actions
+    open-pull-requests-limit: 5
