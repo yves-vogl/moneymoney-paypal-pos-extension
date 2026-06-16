@@ -18,7 +18,7 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
 
 ## Phases
 
-- [ ] **Phase 1: Foundations & Sandbox Probes** — Stand up the build pipeline, mocks, infra modules, and pin Lua-sandbox capabilities via 8 live probes before any auth code is written.
+- [x] **Phase 1: Foundations & Sandbox Probes** — Stand up the build pipeline, mocks, infra modules, and pin Lua-sandbox capabilities via 8 live probes before any auth code is written. **Completed 2026-06-17.**
 - [ ] **Phase 2: Authenticated Network Layer** — Implement the JWT-bearer OAuth flow, hostname-allowlisted HTTP wrapper, token cache in LocalStorage, and `ListAccounts` so the user can add a PayPal POS account and a bad key fails fast.
 - [ ] **Phase 3: Sale Spine (first user-visible slice)** — End-to-end `RefreshAccount` that returns card sales as MoneyMoney transactions with stable identity, idempotent on double-refresh; the first phase a real user can see working.
 - [ ] **Phase 4: Enrichment — Refunds, Fees, Payouts, Balance, VAT, Tips** — Layer the remaining transaction kinds and per-purpose metadata onto the spine; the slice that justifies this extension's existence over CSV export.
