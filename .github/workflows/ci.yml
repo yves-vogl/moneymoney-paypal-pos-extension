@@ -30,11 +30,12 @@ jobs:
       - name: Set up LuaRocks
         uses: leafo/gh-actions-luarocks@v6.1.0
 
-      - name: Install Lua dependencies (busted, luacheck, luacov, dkjson)
+      - name: Install Lua dependencies
         run: |
           luarocks install busted
           luarocks install luacheck
           luarocks install luacov
+          luarocks install luacov-reporter-lcov
           luarocks install dkjson
 
       - name: Lint with luacheck
@@ -42,6 +43,34 @@ jobs:
 
       - name: Run busted test suite (with coverage)
         run: busted --coverage spec/
+
+      - name: Generate text coverage report and enforce 85% threshold
+        run: |
+          set -e
+          luacov
+          tail -20 luacov.report.out
+          TOTAL_LINE=$(grep -E "^Total" luacov.report.out | tail -1)
+          TOTAL_COV=$(echo "$TOTAL_LINE" | awk '{print $NF}' | sed 's/%//' | cut -d. -f1)
+          if [ -z "$TOTAL_COV" ]; then
+            echo "FAIL: could not parse coverage percentage from luacov.report.out"
+            exit 1
+          fi
+          if [ "$TOTAL_COV" -lt 85 ]; then
+            echo "FAIL: coverage ${TOTAL_COV}% < 85% threshold"
+            exit 1
+          fi
+          echo "OK: coverage ${TOTAL_COV}% meets the 85% threshold"
+
+      - name: Generate LCOV coverage report for Codecov upload
+        run: luacov -r lcov
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./luacov.report.out
+          flags: unittests
+          name: paypal-pos-coverage
+          fail_ci_if_error: false
 
       - name: Build amalgamated artifact
         run: lua tools/build.lua

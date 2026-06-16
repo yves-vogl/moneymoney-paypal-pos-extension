@@ -1,9 +1,12 @@
 -- .luacov
--- KNOWN ISSUE (Phase 6 follow-up): luacov 0.17.0 + busted 2.3.0 on Lua 5.4
--- does not produce non-empty stats with our current spec layout (specs load
--- the amalgamated dist/paypal-pos.lua via dofile rather than individual src/
--- modules). Strict threshold is deferred to Phase 6 when CI is hardened.
--- Tracked in .planning/phases/01-foundations-sandbox-probes/KNOWN_ISSUES.md
-include = { "src/.+%.lua$", "dist/paypal%-pos%.lua$" }
-exclude = { "src/webbanking_header%.lua$" }
-threshold = 0
+-- Coverage is measured on the amalgamated artifact dist/paypal-pos.lua because
+-- specs dofile() that file directly. The src/ glob is retained for the day
+-- specs are refactored to load individual modules.
+--
+-- IMPORTANT: luacov strips the ".lua" suffix before matching include/exclude
+-- patterns, so patterns must not include "%.lua$" themselves. Two earlier
+-- versions of this file used "src/.+%.lua$" and silently matched nothing —
+-- the symptom was a zero-byte luacov.stats.out (logged as KI-01, now closed).
+include = { "^src/", "^dist/paypal%-pos$" }
+exclude = { "^src/webbanking_header$" }
+threshold = 85

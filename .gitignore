@@ -18,6 +18,9 @@ luacov.report.out
 # Build output
 dist/
 
+# Local scratch files (e.g. ad-hoc .luacov overrides during debugging)
+.luacov-*
+
 # Local secrets / fixtures with live data
 .env
 .env.local
