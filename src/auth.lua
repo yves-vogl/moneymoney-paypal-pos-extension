@@ -1,0 +1,3 @@
+-- src/auth.lua
+-- Phase 2 stub. Implementation lands in Phase 2; see ROADMAP.md.
+-- The M_auth table is predeclared in src/webbanking_header.lua.

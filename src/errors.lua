@@ -1,0 +1,3 @@
+-- src/errors.lua
+-- Phase 5 stub. Implementation lands in Phase 5; see ROADMAP.md.
+-- The M_errors table is predeclared in src/webbanking_header.lua.
