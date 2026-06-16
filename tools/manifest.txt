@@ -1,0 +1,17 @@
+# tools/manifest.txt
+# Module concatenation order for paypal-pos.lua
+# Lines starting with # are comments; blank lines are ignored.
+# webbanking_header.lua and entry.lua are emitted verbatim (top-level).
+webbanking_header
+log
+errors
+i18n
+model
+http
+auth
+pagination
+purchases
+payouts
+balance
+mapping
+entry
