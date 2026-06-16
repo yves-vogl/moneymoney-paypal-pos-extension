@@ -19,21 +19,26 @@
 
 ## Current Position
 
-**Phase:** 1 — Foundations & Sandbox Probes
+**Phase:** 1 — Foundations & Sandbox Probes — **COMPLETE**
 **Plan:** `.planning/phases/01-foundations-sandbox-probes/PLAN.md` (13 tasks T01–T13)
-**Status:** In Progress — T01-T11 implemented and CI-verified on feature branch `phase-1/foundations-sandbox-probes`; awaiting maintainer-driven T12 (probe install in MoneyMoney → fill ADR-0003) and T13 (walking-skeleton manual verification).
-**Progress:** `[██████░░░░░░░░░░░░░░] T11/T13 in phase 1 · 0/6 phases overall complete`
+**Status:** Done — all 13 tasks closed; ADR-0003 ACCEPTED with the data captured from live MoneyMoney 2.4.72 on macOS 26.4.1 ARM; walking-skeleton round-trip verified (account created, fixture transaction rendered with full German i18n purpose). Ready for PR to `main`.
+**Progress:** `[████░░░░░░░░░░░░░░░░] 1/6 phases complete`
 
 ```
-Phase 1: Foundations & Sandbox Probes      [T01-T11 DONE · CI GREEN · T12/T13 MANUAL]  ← current
-Phase 2: Authenticated Network Layer       [BLOCKED on Phase 1]
+Phase 1: Foundations & Sandbox Probes      [DONE ✅ — PR ready]
+Phase 2: Authenticated Network Layer       [next — unblocked once Phase 1 merges]
 Phase 3: Sale Spine                        [BLOCKED on Phase 2]
 Phase 4: Enrichment                        [BLOCKED on Phase 3]
 Phase 5: Resilience & Error Handling       [BLOCKED on Phase 4]
 Phase 6: Release & Polish                  [BLOCKED on Phase 5]
 ```
 
-**Branch state:** `phase-1/foundations-sandbox-probes` is ahead of `main` by ~17 commits, all GPG-signed, all CI-green. Coverage 99.19 % (luacov, self-hosted badge on `coverage-badge` branch). 40 busted tests pass. Build is byte-reproducible. PR to `main` is intentionally not opened yet — T12/T13 close out first.
+**Branch state:** `phase-1/foundations-sandbox-probes` is ahead of `main` by 24+ commits, all GPG-signed, all CI-green. Coverage 99.26 % (luacov, self-hosted badge). 43 busted tests pass (was 40 before the credential-extraction fix added 3 cases). Build is byte-reproducible (SHA-256 `362b7451…`). PR body pre-drafted at `.planning/phases/01-foundations-sandbox-probes/PR_DRAFT.md`.
+
+**Phase-2 inputs surfaced from Phase 1 (recorded here for the planner):**
+- MM 2.4.72 does NOT honour the InitializeSession2 challenge object shape `{title, challenge, label}`; falls back to default Username+Password UI. Phase 2 must research the actual challenge-schema format MM accepts.
+- `pcall()` does NOT catch `Connection()` SSL / network errors. Phase 2 `http.lua` must rely on MM's documented error-return pattern (`nil + error string` typical).
+- LocalStorage cross-restart persistence is unobserved — Phase 2 token cache designs defensively for both outcomes; log line on cache-miss surfaces actual behaviour retroactively.
 
 ---
 
