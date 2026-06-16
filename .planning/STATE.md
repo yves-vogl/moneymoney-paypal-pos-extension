@@ -1,7 +1,7 @@
 # Project State: MoneyMoney PayPal POS Extension
 
 **Initialized:** 2026-06-16
-**Last updated:** 2026-06-16 (post-roadmap)
+**Last updated:** 2026-06-16 (post-plan-phase-1)
 
 ---
 
@@ -20,12 +20,12 @@
 ## Current Position
 
 **Phase:** 1 — Foundations & Sandbox Probes
-**Plan:** (none yet — awaiting `/gsd-plan-phase 1`)
-**Status:** ready
+**Plan:** `.planning/phases/01-foundations-sandbox-probes/PLAN.md` (13 tasks T01–T13)
+**Status:** Planned — verified PASS, ready for `/gsd-execute-phase 1`
 **Progress:** `[░░░░░░░░░░░░░░░░░░░░] 0/6 phases (0%)`
 
 ```
-Phase 1: Foundations & Sandbox Probes      [READY]    ← current
+Phase 1: Foundations & Sandbox Probes      [PLANNED]  ← current
 Phase 2: Authenticated Network Layer       [BLOCKED on Phase 1]
 Phase 3: Sale Spine                        [BLOCKED on Phase 2]
 Phase 4: Enrichment                        [BLOCKED on Phase 3]
@@ -66,8 +66,8 @@ The 37 canonical decisions are pinned in `.planning/research/SUMMARY.md §2`. Hi
 
 ### Active Todos
 
-- Run `/gsd-plan-phase 1` to decompose Phase 1 into executable plans.
-- Probe extension (Q1–Q8) must execute against a live MoneyMoney instance — schedule with maintainer access.
+- Run `/gsd-execute-phase 1` to implement T01–T11 (scaffold → amalgamator → infra modules → mocks → specs → walking-skeleton entry → coverage gate → probe extension → ADRs → local e2e → CI workflow).
+- After T11 lands green: maintainer-driven T12 (run probe extension in live MoneyMoney, transcribe results into ADR-0003) and T13 (manual walking-skeleton install + fixture observation in MoneyMoney).
 
 ### Blockers
 
@@ -90,19 +90,13 @@ The 37 canonical decisions are pinned in `.planning/research/SUMMARY.md §2`. Hi
 
 ## Session Continuity
 
-**Last action:** `/gsd-roadmap` created `ROADMAP.md`, initialized `STATE.md`, populated `REQUIREMENTS.md` traceability table.
+**Last action:** `/gsd-plan-phase 1` produced RESEARCH.md (76k), CONTEXT.md (14k), PLAN.md (37k, 13 tasks), SKELETON.md (13k), and VERIFICATION.md (PASS after one orchestrator closeout edit).
 
-**Next action:** `/gsd-plan-phase 1` — decompose Phase 1 (Foundations & Sandbox Probes) into ordered plans. Plans likely include:
-1. Repo skeleton (`src/`, `spec/`, `tools/`, `.luacheckrc`, `.busted`, `.luacov`, minimal `ci.yml`)
-2. `tools/build.lua` amalgamator + `tools/manifest.txt`
-3. `spec/helpers/mm_mocks.lua` (Connection/JSON/LocalStorage/MM mocks)
-4. Infra modules: `model`, `i18n`, `errors`, `log` with `redact()`
-5. Probe extension + execution against live MoneyMoney + ADR `0003-sandbox-probe-results.md`
-6. Phase-1 gate: `busted` green, `lua tools/build.lua --verify` byte-identical, all 8 probes in ADR.
+**Next action:** `/gsd-execute-phase 1` — implement T01–T11 sequentially with GPG-signed atomic commits per task. T12 and T13 are maintainer-driven gates after T11.
 
 **Session resume prompt template** (if context lost):
 
-> We are working on the MoneyMoney PayPal POS Extension. ROADMAP.md is committed with 6 phases. We are at the start of Phase 1 (Foundations & Sandbox Probes). Run `/gsd-plan-phase 1` to decompose into executable plans. Granularity: standard. Mode: mvp / yolo. See `.planning/ROADMAP.md` and `.planning/research/SUMMARY.md` for canonical context.
+> We are working on the MoneyMoney PayPal POS Extension. Phase 1 is PLANNED with 13 tasks in `.planning/phases/01-foundations-sandbox-probes/PLAN.md`. Walking-Skeleton mode active. Run `/gsd-execute-phase 1` to start implementation. Granularity: standard. Mode: mvp / yolo. All commits GPG-signed (`FDE07046A6178E89ADB57FD3DE300C53D8E18642`); no Claude/AI attribution in commits, PRs, or shipped code.
 
 ---
 
