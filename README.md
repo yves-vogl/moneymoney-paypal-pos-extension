@@ -4,6 +4,7 @@
 
 [![CI](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/actions/workflows/ci.yml)
 [![Codecov](https://codecov.io/gh/yves-vogl/moneymoney-paypal-pos-extension/branch/main/graph/badge.svg)](https://codecov.io/gh/yves-vogl/moneymoney-paypal-pos-extension)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/yves-vogl?logo=githubsponsors&logoColor=white&label=Sponsors&color=ea4aaa)](https://github.com/sponsors/yves-vogl)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status: Pre-Release](https://img.shields.io/badge/Status-Pre--Release-orange.svg)](#status)
 [![Lua 5.4](https://img.shields.io/badge/Lua-5.4-blue.svg?logo=lua&logoColor=white)](https://www.lua.org/)
