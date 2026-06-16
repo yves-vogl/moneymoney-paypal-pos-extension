@@ -1,0 +1,3 @@
+-- src/mapping.lua
+-- Phase 3 stub. Implementation lands in Phase 3; see ROADMAP.md.
+-- The M_mapping table is predeclared in src/webbanking_header.lua.

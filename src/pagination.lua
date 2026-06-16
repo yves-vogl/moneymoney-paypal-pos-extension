@@ -1,0 +1,3 @@
+-- src/pagination.lua
+-- Phase 2 stub. Implementation lands in Phase 2; see ROADMAP.md.
+-- The M_pagination table is predeclared in src/webbanking_header.lua.

@@ -1,0 +1,3 @@
+-- src/model.lua
+-- Phase 1 stub. Implementation lands in Phase 1; see ROADMAP.md.
+-- The M_model table is predeclared in src/webbanking_header.lua.

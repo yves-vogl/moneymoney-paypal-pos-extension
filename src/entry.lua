@@ -1,0 +1,3 @@
+-- src/entry.lua
+-- Phase 1 stub (walking skeleton). Full implementation lands in T06; see ROADMAP.md.
+-- Emitted verbatim (top-level) by tools/build.lua. MoneyMoney callbacks are defined here.

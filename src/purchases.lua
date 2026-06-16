@@ -1,0 +1,3 @@
+-- src/purchases.lua
+-- Phase 3 stub. Implementation lands in Phase 3; see ROADMAP.md.
+-- The M_purchases table is predeclared in src/webbanking_header.lua.
