@@ -1,3 +1,17 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0.0
+milestone_name: has stabilized in production for several weeks.
+status: verifying
+last_updated: "2026-06-16T23:16:33.938Z"
+progress:
+  total_phases: 6
+  completed_phases: 0
+  total_plans: 1
+  completed_plans: 0
+  percent: 0
+---
+
 # Project State: MoneyMoney PayPal POS Extension
 
 **Initialized:** 2026-06-16
@@ -36,6 +50,7 @@ Phase 6: Release & Polish                  [BLOCKED on Phase 5]
 **Branch state:** `phase-1/foundations-sandbox-probes` is ahead of `main` by 24+ commits, all GPG-signed, all CI-green. Coverage 99.26 % (luacov, self-hosted badge). 43 busted tests pass (was 40 before the credential-extraction fix added 3 cases). Build is byte-reproducible (SHA-256 `362b7451…`). PR body pre-drafted at `.planning/phases/01-foundations-sandbox-probes/PR_DRAFT.md`.
 
 **Phase-2 inputs surfaced from Phase 1 (recorded here for the planner):**
+
 - MM 2.4.72 does NOT honour the InitializeSession2 challenge object shape `{title, challenge, label}`; falls back to default Username+Password UI. Phase 2 must research the actual challenge-schema format MM accepts.
 - `pcall()` does NOT catch `Connection()` SSL / network errors. Phase 2 `http.lua` must rely on MM's documented error-return pattern (`nil + error string` typical).
 - LocalStorage cross-restart persistence is unobserved — Phase 2 token cache designs defensively for both outcomes; log line on cache-miss surfaces actual behaviour retroactively.
