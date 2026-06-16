@@ -1,0 +1,29 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*~
+
+# Lua
+*.luac
+luacov.stats.out
+luacov.report.out
+.luacov
+
+# Build output
+dist/
+
+# Local secrets / fixtures with live data
+.env
+.env.local
+spec/fixtures/local/
+
+# Dependency lock caches (LuaRocks tree pinned via Rockfile, not tracked tree)
+.luarocks/
+lua_modules/
