@@ -53,26 +53,47 @@ describe("entry.lua callbacks", function()
   -- InitializeSession2
   -- -------------------------------------------------------------------------
 
-  it("InitializeSession2 returns German error string on empty credential", function()
-    local err = InitializeSession2(ProtocolWebBanking, "PayPal POS", 1,
+  it("InitializeSession2 returns an API-Key challenge object on nil credentials", function()
+    local challenge = InitializeSession2(ProtocolWebBanking, "PayPal POS", 1, nil, false)
+    assert.is_table(challenge)
+    assert.equals(M_i18n.t("credential.api_key.label"), challenge.label)
+    assert.equals(M_i18n.t("credential.api_key.label"), challenge.title)
+    assert.equals(M_i18n.t("credential.api_key.label"), challenge.challenge)
+  end)
+
+  it("InitializeSession2 returns German error string on empty challenge credential", function()
+    local err = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
                                    { { value = "" } }, false)
     assert.equals(M_i18n.t("error.invalid_grant"), err)
   end)
 
-  it("InitializeSession2 returns German error string on nil credentials", function()
-    local err = InitializeSession2(ProtocolWebBanking, "PayPal POS", 1, nil, false)
-    assert.equals(M_i18n.t("error.invalid_grant"), err)
-  end)
-
-  it("InitializeSession2 returns nil on non-empty credential", function()
-    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 1,
+  it("InitializeSession2 returns nil on non-empty challenge credential (array form)", function()
+    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
                                       { { value = "any-non-empty" } }, false)
     assert.is_nil(result)
   end)
 
   it("InitializeSession2 accepts a string credential as well", function()
-    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 1,
+    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
                                       "any-non-empty", false)
+    assert.is_nil(result)
+  end)
+
+  it("InitializeSession2 accepts a positional array of strings", function()
+    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
+                                      { "any-non-empty" }, false)
+    assert.is_nil(result)
+  end)
+
+  it("InitializeSession2 accepts a hash table with password key (default UI fallback)", function()
+    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
+                                      { username = "foo", password = "any-non-empty" }, false)
+    assert.is_nil(result)
+  end)
+
+  it("InitializeSession2 accepts a hash table with only username (default UI fallback)", function()
+    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
+                                      { username = "any-non-empty" }, false)
     assert.is_nil(result)
   end)
 
