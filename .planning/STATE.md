@@ -21,17 +21,19 @@
 
 **Phase:** 1 — Foundations & Sandbox Probes
 **Plan:** `.planning/phases/01-foundations-sandbox-probes/PLAN.md` (13 tasks T01–T13)
-**Status:** Planned — verified PASS, ready for `/gsd-execute-phase 1`
-**Progress:** `[░░░░░░░░░░░░░░░░░░░░] 0/6 phases (0%)`
+**Status:** In Progress — T01-T11 implemented and CI-verified on feature branch `phase-1/foundations-sandbox-probes`; awaiting maintainer-driven T12 (probe install in MoneyMoney → fill ADR-0003) and T13 (walking-skeleton manual verification).
+**Progress:** `[██████░░░░░░░░░░░░░░] T11/T13 in phase 1 · 0/6 phases overall complete`
 
 ```
-Phase 1: Foundations & Sandbox Probes      [PLANNED]  ← current
+Phase 1: Foundations & Sandbox Probes      [T01-T11 DONE · CI GREEN · T12/T13 MANUAL]  ← current
 Phase 2: Authenticated Network Layer       [BLOCKED on Phase 1]
 Phase 3: Sale Spine                        [BLOCKED on Phase 2]
 Phase 4: Enrichment                        [BLOCKED on Phase 3]
 Phase 5: Resilience & Error Handling       [BLOCKED on Phase 4]
 Phase 6: Release & Polish                  [BLOCKED on Phase 5]
 ```
+
+**Branch state:** `phase-1/foundations-sandbox-probes` is ahead of `main` by ~17 commits, all GPG-signed, all CI-green. Coverage 99.19 % (luacov, self-hosted badge on `coverage-badge` branch). 40 busted tests pass. Build is byte-reproducible. PR to `main` is intentionally not opened yet — T12/T13 close out first.
 
 ---
 
