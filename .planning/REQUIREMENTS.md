@@ -161,86 +161,86 @@ Acknowledged but not in current roadmap.
 
 ## Traceability
 
-Filled in during roadmap creation. Each v1 requirement maps to exactly one phase.
+Each v1 requirement maps to exactly one phase. Phase definitions live in `.planning/ROADMAP.md`.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| AUTH-01 | TBD | Pending |
-| AUTH-02 | TBD | Pending |
-| AUTH-03 | TBD | Pending |
-| AUTH-04 | TBD | Pending |
-| AUTH-05 | TBD | Pending |
-| AUTH-06 | TBD | Pending |
-| ACCT-01 | TBD | Pending |
-| ACCT-02 | TBD | Pending |
-| ACCT-03 | TBD | Pending |
-| ACCT-04 | TBD | Pending |
-| SALE-01 | TBD | Pending |
-| SALE-02 | TBD | Pending |
-| SALE-03 | TBD | Pending |
-| SALE-04 | TBD | Pending |
-| SALE-05 | TBD | Pending |
-| SALE-06 | TBD | Pending |
-| SALE-07 | TBD | Pending |
-| SALE-08 | TBD | Pending |
-| REF-01 | TBD | Pending |
-| REF-02 | TBD | Pending |
-| REF-03 | TBD | Pending |
-| FEE-01 | TBD | Pending |
-| FEE-02 | TBD | Pending |
-| FEE-03 | TBD | Pending |
-| PAYOUT-01 | TBD | Pending |
-| PAYOUT-02 | TBD | Pending |
-| PAYOUT-03 | TBD | Pending |
-| META-01 | TBD | Pending |
-| META-02 | TBD | Pending |
-| META-03 | TBD | Pending |
-| I18N-01 | TBD | Pending |
-| I18N-02 | TBD | Pending |
-| I18N-03 | TBD | Pending |
-| ERR-01 | TBD | Pending |
-| ERR-02 | TBD | Pending |
-| ERR-03 | TBD | Pending |
-| ERR-04 | TBD | Pending |
-| ERR-05 | TBD | Pending |
-| ERR-06 | TBD | Pending |
-| SEC-01 | TBD | Pending |
-| SEC-02 | TBD | Pending |
-| SEC-03 | TBD | Pending |
-| SEC-04 | TBD | Pending |
-| SEC-05 | TBD | Pending |
-| BUILD-01 | TBD | Pending |
-| BUILD-02 | TBD | Pending |
-| BUILD-03 | TBD | Pending |
-| BUILD-04 | TBD | Pending |
-| BUILD-05 | TBD | Pending |
-| BUILD-06 | TBD | Pending |
-| CI-01 | TBD | Pending |
-| CI-02 | TBD | Pending |
-| CI-03 | TBD | Pending |
-| CI-04 | TBD | Pending |
-| CI-05 | TBD | Pending |
-| CI-06 | TBD | Pending |
-| TEST-01 | TBD | Pending |
-| TEST-02 | TBD | Pending |
-| TEST-03 | TBD | Pending |
-| TEST-04 | TBD | Pending |
-| DOC-01 | TBD | Pending |
-| DOC-02 | TBD | Pending |
-| DOC-03 | TBD | Pending |
-| DOC-04 | TBD | Pending |
-| DOC-05 | TBD | Pending |
-| DOC-06 | TBD | Pending |
-| DOC-07 | TBD | Pending |
-| DOC-08 | TBD | Pending |
-| DOC-09 | TBD | Pending |
-| DOC-10 | TBD | Pending |
+| AUTH-01 | Phase 2 | Pending |
+| AUTH-02 | Phase 2 | Pending |
+| AUTH-03 | Phase 2 | Pending |
+| AUTH-04 | Phase 2 | Pending |
+| AUTH-05 | Phase 2 | Pending |
+| AUTH-06 | Phase 2 | Pending |
+| ACCT-01 | Phase 2 | Pending |
+| ACCT-02 | Phase 2 | Pending |
+| ACCT-03 | Phase 4 | Pending |
+| ACCT-04 | Phase 2 | Pending |
+| SALE-01 | Phase 3 | Pending |
+| SALE-02 | Phase 3 | Pending |
+| SALE-03 | Phase 3 | Pending |
+| SALE-04 | Phase 3 | Pending |
+| SALE-05 | Phase 3 | Pending |
+| SALE-06 | Phase 3 | Pending |
+| SALE-07 | Phase 4 | Pending |
+| SALE-08 | Phase 3 | Pending |
+| REF-01 | Phase 4 | Pending |
+| REF-02 | Phase 4 | Pending |
+| REF-03 | Phase 4 | Pending |
+| FEE-01 | Phase 4 | Pending |
+| FEE-02 | Phase 4 | Pending |
+| FEE-03 | Phase 4 | Pending |
+| PAYOUT-01 | Phase 4 | Pending |
+| PAYOUT-02 | Phase 4 | Pending |
+| PAYOUT-03 | Phase 4 | Pending |
+| META-01 | Phase 4 | Pending |
+| META-02 | Phase 4 | Pending |
+| META-03 | Phase 4 | Pending |
+| I18N-01 | Phase 3 | Pending |
+| I18N-02 | Phase 1 | Pending |
+| I18N-03 | Phase 1 | Pending |
+| ERR-01 | Phase 5 | Pending |
+| ERR-02 | Phase 5 | Pending |
+| ERR-03 | Phase 5 | Pending |
+| ERR-04 | Phase 5 | Pending |
+| ERR-05 | Phase 5 | Pending |
+| ERR-06 | Phase 5 | Pending |
+| SEC-01 | Phase 1 | Pending |
+| SEC-02 | Phase 6 | Pending |
+| SEC-03 | Phase 2 | Pending |
+| SEC-04 | Phase 1 | Pending |
+| SEC-05 | Phase 6 | Pending |
+| BUILD-01 | Phase 1 | Pending |
+| BUILD-02 | Phase 1 | Pending |
+| BUILD-03 | Phase 6 | Pending |
+| BUILD-04 | Phase 6 | Pending |
+| BUILD-05 | Phase 6 | Pending |
+| BUILD-06 | Phase 6 | Pending |
+| CI-01 | Phase 6 | Pending |
+| CI-02 | Phase 6 | Pending |
+| CI-03 | Phase 6 | Pending |
+| CI-04 | Phase 6 | Pending |
+| CI-05 | Phase 6 | Pending |
+| CI-06 | Phase 6 | Pending |
+| TEST-01 | Phase 1 | Pending |
+| TEST-02 | Phase 4 | Pending |
+| TEST-03 | Phase 3 | Pending |
+| TEST-04 | Phase 3 | Pending |
+| DOC-01 | Phase 6 | Pending |
+| DOC-02 | Phase 6 | Pending |
+| DOC-03 | Phase 6 | Pending |
+| DOC-04 | Phase 6 | Pending |
+| DOC-05 | Phase 6 | Pending |
+| DOC-06 | Phase 6 | Pending |
+| DOC-07 | Phase 6 | Pending |
+| DOC-08 | Phase 6 | Pending |
+| DOC-09 | Phase 6 | Pending |
+| DOC-10 | Phase 6 | Pending |
 
 **Coverage:**
-- v1 requirements: 67 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 67 ⚠️ — to be resolved by `/gsd-roadmap`
+- v1 requirements: **70** total.
+- Mapped to phases: **70 / 70** (Phase 1: 7, Phase 2: 10, Phase 3: 10, Phase 4: 15, Phase 5: 6, Phase 6: 22).
+- Unmapped: **0** — coverage complete.
 
 ---
 *Requirements defined: 2026-06-16*
-*Last updated: 2026-06-16 after initialization*
+*Last updated: 2026-06-16 after `/gsd-roadmap` (Traceability table populated, coverage 70/70)*
