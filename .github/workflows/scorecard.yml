@@ -1,0 +1,57 @@
+name: OpenSSF Scorecard
+
+on:
+  # Re-run weekly so the score reflects current branch-protection and
+  # workflow state even when there are no pushes.
+  schedule:
+    - cron: "0 6 * * 1"
+  # Run on every push to the default branch.
+  push:
+    branches: [main]
+  # Re-evaluate when branch-protection rules change (most direct signal
+  # for the Branch-Protection check).
+  branch_protection_rule:
+
+# Declare default read-only access for the whole workflow. Individual
+# steps that need more (SARIF upload, OIDC for the OpenSSF publish call)
+# escalate at the job level below.
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      # Upload findings to the GitHub code-scanning UI.
+      security-events: write
+      # OIDC token so scorecard-action can publish to api.securityscorecards.dev.
+      id-token: write
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run OpenSSF Scorecard analysis
+        uses: ossf/scorecard-action@v2.4.0
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          # Publishes the score to api.securityscorecards.dev so the
+          # README badge can read it. Public-good infrastructure run by
+          # the Open Source Security Foundation (Linux Foundation).
+          publish_results: true
+
+      - name: Upload SARIF as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SARIF file
+          path: results.sarif
+          retention-days: 5
+
+      - name: Upload SARIF to GitHub code-scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
