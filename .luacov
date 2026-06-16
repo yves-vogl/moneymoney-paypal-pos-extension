@@ -1,0 +1,4 @@
+-- .luacov
+include = { "src/.+%.lua$" }
+exclude = { "src/webbanking_header%.lua$" }
+threshold = 85
