@@ -71,8 +71,15 @@ jobs:
       - name: No-AI-attribution gate
         run: |
           set -e
+          # Exclusions:
+          # - .planning/ holds policy statements that necessarily quote the
+          #   forbidden terms when defining the rule.
+          # - CLAUDE.md is a Claude-Code project-instruction convention; it is
+          #   tooling configuration, not authorship attribution.
+          # - .github/ is the workflow tree which contains the very regex this
+          #   step uses; excluding it prevents the step from blocking itself.
           MATCH=$(git grep -nE 'Co-Authored-By:[[:space:]]*Claude|Generated with Claude|🤖' \
-            -- . ':!.planning' ':!CLAUDE.md' || true)
+            -- . ':!.planning' ':!CLAUDE.md' ':!.github/' || true)
           if [ -n "$MATCH" ]; then
             echo "FAIL: AI-attribution patterns found:"
             echo "$MATCH"
