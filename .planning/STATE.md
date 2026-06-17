@@ -3,11 +3,11 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
 status: verifying
-last_updated: "2026-06-17T09:36:57.465Z"
+last_updated: "2026-06-17T15:45:57.978Z"
 progress:
-  total_phases: 6
+  total_phases: 7
   completed_phases: 0
-  total_plans: 1
+  total_plans: 8
   completed_plans: 0
   percent: 0
 ---
@@ -90,6 +90,10 @@ The 37 canonical decisions are pinned in `.planning/research/SUMMARY.md §2`. Hi
 
 - Run `/gsd-execute-phase 1` to implement T01–T11 (scaffold → amalgamator → infra modules → mocks → specs → walking-skeleton entry → coverage gate → probe extension → ADRs → local e2e → CI workflow).
 - After T11 lands green: maintainer-driven T12 (run probe extension in live MoneyMoney, transcribe results into ADR-0003) and T13 (manual walking-skeleton install + fixture observation in MoneyMoney).
+
+### Roadmap Evolution
+
+- Phase 6.1 inserted after Phase 6 on 2026-06-17 (URGENT) — Supply-chain & Scorecard hardening (OpenSSF Scorecard 5.2 → 8.5+); see `.planning/research/openssf-scorecard-sprint-proposal.md`.
 
 ### Blockers
 
