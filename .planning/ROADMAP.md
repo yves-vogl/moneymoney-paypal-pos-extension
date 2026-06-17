@@ -24,6 +24,7 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
 - [ ] **Phase 4: Enrichment — Refunds, Fees, Payouts, Balance, VAT, Tips** — Layer the remaining transaction kinds and per-purpose metadata onto the spine; the slice that justifies this extension's existence over CSV export.
 - [ ] **Phase 5: Resilience & Error Handling** — Branched error handling for all 5 categories (token-mint, post-mint 401, 429, 5xx, network) with the fail-whole-refresh invariant enforced so `since` watermark cannot silently advance past undelivered data.
 - [ ] **Phase 6: Release & Polish — Reproducible Build, CI/CD, German Docs** — Tag-triggered reproducible release, GPG-tag verification, SHA256-attached artifact, bilingual README with "Inoffizielle Extensions erlauben" screenshot, GoBD-Hinweis, MADR ADRs — the things that make a stranger trust the extension.
+- [ ] **Phase 6.1 (INSERTED): Supply-chain & Scorecard hardening** — Lift OpenSSF Scorecard aggregate from 5.2 to ≥ 8.5 by pinning GitHub Actions to commit-SHAs, scoping workflow tokens to least-privilege, enabling branch-protection introspection, adding Semgrep SAST, and earning the OpenSSF Best Practices passing badge. See `.planning/research/openssf-scorecard-sprint-proposal.md`.
 
 ---
 
@@ -246,3 +247,24 @@ All phases run sequentially. No parallelization across phase boundaries — each
 ---
 
 *Roadmap created: 2026-06-16 via `/gsd-roadmap`. Granularity: standard. Mode: mvp. Awaiting first phase planning via `/gsd-plan-phase 1`.*
+
+### Phase 6.1: Supply-chain & Scorecard hardening (INSERTED)
+
+**Goal:** OpenSSF Scorecard aggregate ≥ 8.5 / 10 on `main` HEAD without compromising the project's solo-maintainer constraints; the supply-chain posture (pinned actions, least-privilege tokens, branch-protection visibility, Semgrep SAST, signed releases scaffolded in Phase 6, OpenSSF Best Practices passing badge) is documented, auditable, and stable enough to be a published prerequisite for any future v1.0.0 release.
+**Mode:** mvp
+**Depends on:** Phase 6 (release pipeline must exist so Signed-Releases hardening can attach)
+**Requirements:** TBD — to be derived from the sprint proposal during `/gsd-discuss-phase 6.1`. Anticipated coverage: a new `SEC-05` (pinned actions), `SEC-06` (workflow token least-privilege), `SEC-07` (branch protection enforced + introspectable), `SEC-08` (SAST on every commit), `BUILD-03` (OpenSSF Best Practices passing badge), and updates to existing `SEC-04` (DEBUG=false gate) and `BUILD-01`/`BUILD-02` (Sigstore/cosign on release artifact, SLSA provenance).
+
+**Success Criteria** (observable behaviors):
+  1. `https://api.securityscorecards.dev/projects/github.com/yves-vogl/moneymoney-paypal-pos-extension` returns aggregate `score >= 8.5` for the post-merge commit.
+  2. `Pinned-Dependencies` check returns score `10`: every `uses:` in `.github/workflows/*.yml` references a commit SHA followed by a `# vX.Y.Z` comment; Dependabot is configured to bump SHAs and preserve the comment tag.
+  3. `Token-Permissions` check returns score `10`: every workflow declares `permissions: read-all` at top level; write-scopes (`contents: write`, `id-token: write`, `security-events: write`) are job-local and minimal.
+  4. `Branch-Protection` check returns score `>= 8`: a fine-grained PAT with `Administration: read` is stored as `SCORECARD_READ_TOKEN`; `main` requires PR + status checks (CI + Scorecard + SAST) + signed commits + linear history; force-push and direct delete are blocked.
+  5. `SAST` check returns score `10`: a Semgrep workflow runs on every push and PR; SARIF output is uploaded to GitHub code-scanning; the ruleset includes `p/security-audit` and `p/secrets` plus any Lua community rules.
+  6. `CII-Best-Practices` check returns score `>= 5` (passing badge); badge URL is rendered in `README.md` and `README.de.md`.
+  7. `docs/adr/0004-openssf-scorecard-stance.md` documents the bewusst akzeptierten Lücken (Fuzzing 0/10, Solo Code-Review 0/10, Packaging -1) with rationale and mitigations.
+  8. `SECURITY.md` is extended with a "Supply-chain controls" section listing the active mitigations (pinned actions, SAST, signed releases, redact-before-log, egress allowlist) so external observers can audit the posture without parsing CI YAML.
+
+**Plans:** TBD (run `/gsd-plan-phase 6.1` to break down)
+**UI hint:** no
+**AI integration hint:** no
