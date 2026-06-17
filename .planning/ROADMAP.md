@@ -30,12 +30,14 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
 ## Phase Details
 
 ### Phase 1: Foundations & Sandbox Probes
+
 **Goal:** Toolchain, infra modules, and an ADR-pinned answer to "what does MoneyMoney's Lua sandbox actually let us do" before any business logic is written.
 **Mode:** mvp
 **Depends on:** Nothing (entry phase)
 **Phase-1 probe dependency:** OWNS all 8 probes Q1–Q8 — every later phase consumes their outputs.
 **Requirements:** BUILD-01, BUILD-02, TEST-01, I18N-02, I18N-03, SEC-01, SEC-04
 **Success Criteria** (observable behaviors):
+
   1. `busted spec/` runs green from a clean checkout with `dkjson` as the only external dep; CI workflow scaffolds and runs locally via `act` (or equivalent).
   2. `lua tools/build.lua && lua tools/build.lua --verify` produces byte-identical output across two consecutive builds and exits non-zero on tampering (`BUILD-01`, `BUILD-02`).
   3. `docs/adr/0003-sandbox-probe-results.md` exists and contains live-verified answers to all 8 probes (Q1 globals enumeration, Q2 redirect behavior, Q3 `finance.izettle.com` host, Q4 JSON integer round-trip, Q5 `LocalStorage` cross-restart, Q6 `client_id`, Q7 services-label rendering, Q8 TLS default verification).
@@ -43,91 +45,131 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
   5. The shipped artifact contains `DEBUG = false` at the top level and the build aborts if it sees `DEBUG = true` in any source file (`SEC-04`).
   6. The internal `i18n.t(key)` module exists with `{de = {...}, en = {...}}` tables and defaults to `de`; English strings are present as a fallback but never exposed via UI (`I18N-02`, `I18N-03`).
   7. `spec/helpers/mm_mocks.lua` defines `Connection`, `JSON`, `LocalStorage`, `MM.*`, `WebBanking`, account-type and protocol constants so tests run outside MoneyMoney (`TEST-01`).
+
 **Plans:** TBD
 **UI hint:** no
 **AI integration hint:** no
 
 ### Phase 2: Authenticated Network Layer
+
 **Goal:** A merchant pastes an API key into MoneyMoney's add-account dialog, the extension authenticates against `oauth.zettle.com`, and a wrong key fails synchronously with `LoginFailed` — without ever leaking the key into logs, errors, or LocalStorage.
 **Mode:** mvp
 **Depends on:** Phase 1 (probes Q1, Q2, Q5, Q6, Q8 must be resolved; mocks, redactor, build pipeline must exist)
 **Phase-1 probe dependency:** Q2 (redirect behavior of `Connection():request` on the token endpoint), Q5 (`LocalStorage` cross-restart persistence), Q6 (PayPal POS first-party `client_id`), Q8 (TLS default verification).
 **Requirements:** AUTH-01, AUTH-02, AUTH-03, AUTH-04, AUTH-05, AUTH-06, SEC-03, ACCT-01, ACCT-02, ACCT-04
 **Success Criteria** (observable behaviors):
+
   1. User adds the extension in MoneyMoney's "Konto hinzufügen" dialog with a custom German-labelled API-key field; pasting a valid key shows the account `"PayPal POS — <merchant-name>"` of type Giro in the sidebar (`AUTH-01`, `ACCT-01`, `ACCT-02`).
   2. Pasting a wrong API key surfaces a German `LoginFailed`-equivalent error **synchronously** in the add-account dialog (not silently hours later on first refresh), driven by the fail-fast profile-ping inside `InitializeSession2` (`AUTH-03`).
   3. Token cache survives MoneyMoney restart: after a fresh login the token sits in `LocalStorage.zettle` with `access_token`, `expires_at`, `obtained_at`, `client_id`; the second `RefreshAccount` within 2h reuses the cached token and the third after restart reuses it too (`AUTH-04`, `AUTH-06`).
   4. The API key never appears in `LocalStorage`, in any `print()` output, in any returned error string, or in any debug field; an explicit unit test exercises an auth failure and greps the resulting error string for JWT shape and `Bearer` — must find nothing (`AUTH-05`, `SEC-03`).
   5. A user can add the extension **a second time** with a different API key and both accounts coexist with distinguishable labels in MoneyMoney's sidebar (`ACCT-04`).
   6. The OAuth round-trip targets exactly `POST https://oauth.zettle.com/token` with `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer`, `client_id=<uuid>`, `assertion=<API_KEY>` — confirmed by a sandbox spike captured as a recorded fixture (`AUTH-02`).
-**Plans:** TBD
+
+**Plans:** 7 plansPlans:
+**Wave 1**
+
+- [ ] 02-01-PLAN.md — Wave 0: test infrastructure (fixtures, real base64decode mock, spec scaffolds)
+- [ ] 02-02-PLAN.md — Wave 1: M_errors.from_http_status per D-24
+- [ ] 02-03-PLAN.md — Wave 1: JWT base64url decoder + client_id extraction per D-22
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-04-PLAN.md — Wave 2: M_http (post_form, get_json, shutdown, _infer_status) per D-25 + Risk R-1
+- [ ] 02-05-PLAN.md — Wave 2: M_auth orchestration (exchange_assertion, fetch_profile, persist_session, cached_token)
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 02-06-PLAN.md — Wave 3: Entry integration (InitializeSession2, ListAccounts, EndSession)
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 02-07-PLAN.md — Wave 4: SEC-03 gating spec + manifest/coverage/egress verification
+
+**Cross-cutting constraints:**
+
+- Commits are GPG-signed by FDE07046A6178E89ADB57FD3DE300C53D8E18642; no Claude/AI attribution in commit message, code, or comments
+- Commits are GPG-signed by FDE07046A6178E89ADB57FD3DE300C53D8E18642; no Claude/AI attribution
+
 **UI hint:** no
 **AI integration hint:** no
 
 ### Phase 3: Sale Spine (first user-visible slice)
+
 **Goal:** A merchant with a valid API key clicks "Aktualisieren" in MoneyMoney and sees their real card sales as MoneyMoney transactions — correct gross amount, German label, stable IDs, no duplicates on double-refresh, only sales newer than `since` are fetched.
 **Mode:** mvp
 **Depends on:** Phase 2 (authenticated HTTP layer, account listing)
 **Phase-1 probe dependency:** Q4 (JSON integer round-trip for minor-unit amounts) — must be resolved before mapping is locked.
 **Requirements:** SALE-01, SALE-02, SALE-03, SALE-04, SALE-05, SALE-06, SALE-08, I18N-01, TEST-03, TEST-04
 **Success Criteria** (observable behaviors):
+
   1. Each completed PayPal POS sale appears as one positive MoneyMoney transaction with VAT- and tip-inclusive gross amount in EUR (`SALE-01`).
   2. Each sale carries `transactionCode = "zettle:sale:<purchaseUUID1>"` that does not change across refreshes; double-refresh on the same fixture produces **zero** new transactions — the gating idempotency test (`SALE-02`, `SALE-05`, `TEST-03`).
   3. Pending (unsettled) sales appear with `booked = false`; once linked to a payout they become `booked = true` with `valueDate` set to the payout date (`SALE-03`).
   4. `bookingDate` is the sale timestamp converted from Zettle's UTC ISO-8601 to POSIX local time; a fixture with a sale at 23:55 UTC verifies the local-day classification (`SALE-04`).
   5. Refreshing with a non-zero `since` fetches only purchases newer than `since` (verified by URL-capture spec asserting `startDate ≈ since`); a refresh of an unchanged account returns an empty `transactions` array (`SALE-06`).
   6. `name` carries a German customer-facing payment label ("Kartenzahlung" or card-brand + last-four when available); a golden-file schema test fails the build the moment any returned transaction is missing `name`, `amount`, `currency`, `bookingDate`, `purpose`, `transactionCode`, or `booked` (`SALE-08`, `I18N-01`, `TEST-04`).
+
 **Plans:** TBD
 **UI hint:** no
 **AI integration hint:** no
 
 ### Phase 4: Enrichment — Refunds, Fees, Payouts, Balance, VAT, Tips
+
 **Goal:** The full bookkeeping picture: refunds linked to original sales, per-sale fees via Finance API, payouts as separate negatives, settled-and-pending balances, VAT split per rate in `purpose`, tip surfaced as its own line — the slice that makes this extension worth choosing over CSV export.
 **Mode:** mvp
 **Depends on:** Phase 3 (sale spine + canonical `buildTransaction()` helper)
 **Phase-1 probe dependency:** Q3 (`finance.izettle.com` host confirmation) — must be live-verified before Finance API integration can be locked.
 **Requirements:** ACCT-03, REF-01, REF-02, REF-03, FEE-01, FEE-02, FEE-03, PAYOUT-01, PAYOUT-02, PAYOUT-03, META-01, META-02, META-03, SALE-07, TEST-02
 **Success Criteria** (observable behaviors):
+
   1. The account row in MoneyMoney's sidebar shows both `balance` (settled / paid-out) and `pendingBalance` (in-flight sales not yet settled), both sourced from the Finance API liquid account endpoint and matching `my.zettle.com` to the cent (`ACCT-03`).
   2. Each refund appears as one negative transaction; `purpose` cites the original sale's receipt number (`refundsPurchaseUUID1` → `purchaseNumber` lookup); partial refunds produce multiple refund rows each pointing at the same original sale (`REF-01`, `REF-02`, `REF-03`).
   3. Each PayPal POS fee appears as one negative transaction linked per-sale via Finance API `originatingTransactionUuid` (primary); when linkage fails or is unavailable the extension emits one daily-aggregate fee row with `purpose = "PayPal POS Transaktionsgebühren <date>"` and writes a clear German warning to the log (`FEE-01`, `FEE-02`, `FEE-03`).
   4. Each payout appears as one negative transaction with `name = "Auszahlung an Bankkonto"` and `bookingDate` set to the Finance-API-reported settlement date (`PAYOUT-01`, `PAYOUT-02`, `PAYOUT-03`).
   5. When `groupedVatAmounts` is populated, `purpose` includes a per-rate German VAT breakdown (`"19% MwSt: 3,83 EUR"`, `"7% MwSt: 1,40 EUR"`); when `payments[].gratuityAmount > 0`, `purpose` includes a `"Trinkgeld: X,YY EUR"` line; when zero the line is **absent** (no `"Trinkgeld: 0,00 EUR"` noise); the extension never writes a tax-classification phrase such as "USt-frei" or "GoBD-konform" anywhere (`META-01`, `META-02`, `META-03`).
   6. When the Purchase API provides `cardType` and `cardPaymentEntryMode`, they appear as a tail line in `purpose`; a recorded fixture suite covers auth success / `invalid_grant` / 401 / 429 / 5xx / network failure, single + multi-page Purchase API, single + multi-page Finance API for each of sale/refund/fee/payout, dual-rate VAT split, non-zero tip, and umlaut characters in `purpose` (`SALE-07`, `TEST-02`).
+
 **Plans:** TBD
 **UI hint:** no
 **AI integration hint:** no
 
 ### Phase 5: Resilience & Error Handling
+
 **Goal:** Every adversarial network condition produces a clear German message and never silently advances the `since` watermark past undelivered data.
 **Mode:** mvp
 **Depends on:** Phase 4 (real data paths exist to test resilience against)
 **Phase-1 probe dependency:** None (the probes are settled by this point; only standard HTTP patterns remain).
 **Requirements:** ERR-01, ERR-02, ERR-03, ERR-04, ERR-05, ERR-06
 **Success Criteria** (observable behaviors):
+
   1. A token-mint `invalid_grant` response from `oauth.zettle.com/token` returns the MoneyMoney `LoginFailed` constant (string-return per spec, not `error()`), prompting the user to re-enter credentials (`ERR-01`).
   2. A transient 5xx response triggers retry-with-backoff up to 3 attempts before failing the refresh with a localized German error string (`ERR-02`).
   3. A 429 response honors the `Retry-After` header up to a sane cap; without `Retry-After`, returns a German "rate-limited, try again later" string (`ERR-03`).
   4. A 401 received **after** a successful token mint (token revoked mid-refresh) triggers exactly one silent token re-mint; only if the second attempt also 401s does the refresh fail (and it does NOT raise `LoginFailed` — that's reserved for token-mint `invalid_grant`) (`ERR-04`).
   5. A network failure (DNS / TLS / connect timeout) produces a German error string returned from `RefreshAccount`, never a Lua error or partial result; an `InitializeSession2` profile-ping at add-account time exercises the same path (`ERR-05`).
   6. Any failure inside `RefreshAccount` aborts the entire refresh — a fixture-driven test confirms that when Step-3 (payouts) fails after Step-2 (purchases) succeeded, the extension returns an error string and the next refresh re-runs both steps from the same `since` (`ERR-06`).
+
 **Plans:** TBD
 **UI hint:** no
 **AI integration hint:** no
 
 ### Phase 6: Release & Polish — Reproducible Build, CI/CD, German Docs
+
 **Goal:** A stranger landing on the GitHub repo can verify, install, and trust the extension in under five minutes — reproducible SHA256-attached artifact built from a GPG-signed tag, bilingual README with the unofficial-extensions enablement screenshot, GoBD-Hinweis, MADR ADRs, and a clean Conventional-Commits / Dependabot / gitleaks-gated pipeline.
 **Mode:** mvp
 **Depends on:** Phase 5 (complete feature set for the artifact)
 **Phase-1 probe dependency:** None.
 **Requirements:** BUILD-03, BUILD-04, BUILD-05, BUILD-06, CI-01, CI-02, CI-03, CI-04, CI-05, CI-06, SEC-02, SEC-05, DOC-01, DOC-02, DOC-03, DOC-04, DOC-05, DOC-06, DOC-07, DOC-08, DOC-09, DOC-10
 **Success Criteria** (observable behaviors):
+
   1. Pushing a GPG-signed tag `git tag -s vX.Y.Z` triggers a release workflow that verifies the tag signature, runs lint+test+coverage+reproducible-build-diff, substitutes `__VERSION__` from the tag into the artifact, attaches `paypal-pos.lua` + `paypal-pos.lua.sha256` via `softprops/action-gh-release@v2`, and the published artifact's `WebBanking{version}` matches the tag (`BUILD-03`, `BUILD-04`, `BUILD-05`, `BUILD-06`).
   2. CI on every push/PR runs luacheck + busted + luacov on `ubuntu-24.04` with Lua 5.4 pinned and `LC_ALL=C`; coverage gate is ≥85% line coverage on `src/` excluding `webbanking_header.lua`, with a regression failing the pipeline; gitleaks (or equivalent) blocks committed secrets; Dependabot tracks tooling and Actions versions; CI builds the artifact twice in two clean checkouts and diffs them (non-empty diff fails) (`CI-01` through `CI-06`).
   3. CI greps the shipped artifact and asserts it contains no calls to hosts outside the egress allowlist (`oauth.zettle.com`, `purchase.izettle.com`, `finance.izettle.com`); `main` requires GPG-signed commits and CI-green via branch protection (`SEC-02`, `SEC-05`).
   4. The repo lands with a German-primary `README.de.md` whose first section is a screenshot-illustrated "Inoffizielle Extensions erlauben" guide pointing users to `Hilfe → Erweiterungen im Finder zeigen`, documenting both sandboxed and non-sandboxed install paths, including a German GoBD-Hinweis that explicitly does NOT claim conformance (`DOC-01`, `DOC-02`, `DOC-03`, `DOC-04`).
   5. `CONTRIBUTING.md` (English) documents the dev loop, testing, amalgamator, release process, and GPG-signed-tag requirement; MADR-format ADRs cover amalgamator choice, LocalStorage token cache, JWT-bearer-only auth, fee modeling, no-TLS-pinning, string-return error pattern, and sandbox probe results; `LICENSE` carries the MIT text with copyright "Yves Vogl" (`DOC-05`, `DOC-06`, `DOC-07`).
   6. The GitHub repo metadata is set via `gh repo edit`: the German description ("MoneyMoney-Extension für PayPal POS — Karten-Umsätze, Refunds, Gebühren und Auszahlungen direkt in MoneyMoney. Open Source, MIT, GPG-signiert."), the seven topics (`moneymoney`, `moneymoney-extension`, `paypal-pos`, `zettle`, `lua`, `germany`, `accounting`), and a `CHANGELOG.md` in Keep-a-Changelog format maintained per SemVer release (`DOC-08`, `DOC-09`, `DOC-10`).
+
 **Plans:** TBD
 **UI hint:** no
 **AI integration hint:** no
