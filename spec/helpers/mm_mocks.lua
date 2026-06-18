@@ -20,6 +20,43 @@ local dkjson = require("dkjson")
 local Mocks = {}
 
 -- -------------------------------------------------------------------------
+-- Pure-Lua RFC 4648 standard-base64 decoder (used by MM.base64decode mock).
+-- Accepts the standard alphabet [A-Za-z0-9+/] with optional '=' padding.
+-- Returns the decoded byte string; returns "" for empty or nil input.
+-- NOTE: MM.base64 (encode) stays as an identity stub — Phase 2 production
+-- code never encodes; SEC-03 specs use hardcoded base64 strings directly.
+-- -------------------------------------------------------------------------
+local _b64_decode_map = {}
+do
+  local alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+  for i = 1, #alphabet do
+    _b64_decode_map[alphabet:sub(i, i)] = i - 1
+  end
+end
+
+local function _base64decode(s)
+  if s == nil or s == "" then return "" end
+  -- Strip whitespace and '=' padding characters
+  s = s:gsub("%s", ""):gsub("=+$", "")
+  local out = {}
+  local buf = 0
+  local bits = 0
+  for i = 1, #s do
+    local c = s:sub(i, i)
+    local v = _b64_decode_map[c]
+    if v then
+      buf = (buf << 6) | v
+      bits = bits + 6
+      if bits >= 8 then
+        bits = bits - 8
+        out[#out + 1] = string.char((buf >> bits) & 0xFF)
+      end
+    end
+  end
+  return table.concat(out)
+end
+
+-- -------------------------------------------------------------------------
 -- Module-level capture state (accessible from specs)
 -- -------------------------------------------------------------------------
 
@@ -35,15 +72,25 @@ Mocks._original_print  = nil  -- real print, saved in setup, restored in teardow
 --   opts.mime      (string)  default "application/json"
 --   opts.filename  (any)     default nil
 --   opts.headers   (table)   default {}
+--
+-- Risk R-1 contract: opts.status (integer, optional) is stored on the queue
+-- entry at entry.headers.status for spec inspection only. Production code
+-- MUST NOT read it — MoneyMoney's Connection():request 5-tuple does NOT
+-- include an HTTP status code; M_http derives status from the body shape via
+-- _infer_status. The status field here is test ergonomics documentation only.
 -- -------------------------------------------------------------------------
 function Mocks.push_response(opts)
   opts = opts or {}
+  local headers = opts.headers or {}
+  if opts.status ~= nil then
+    headers.status = opts.status
+  end
   table.insert(Mocks._response_queue, {
     content  = opts.content  or "",
     charset  = opts.charset  or "utf-8",
     mime     = opts.mime     or "application/json",
     filename = opts.filename or nil,
-    headers  = opts.headers  or {},
+    headers  = headers,
   })
 end
 
@@ -141,9 +188,12 @@ function Mocks.setup()
     localizeNumber = function(fmt, n) return tostring(n) end,
     localizeAmount = function(fmt, a, cur) return tostring(a) end, -- luacheck: ignore 431
 
-    -- base64: identity stubs — no test in Phase 1 requires real encoding
+    -- base64: MM.base64 stays as identity (Phase 2 never encodes in production;
+    -- SEC-03 specs use hardcoded base64 strings per RESEARCH Pitfall 8).
+    -- MM.base64decode is a real RFC 4648 decoder (Risk R-6: required so
+    -- _decode_jwt_payload tests can construct genuine base64url JWT segments).
     base64       = function(s) return s end,
-    base64decode = function(s) return s end,
+    base64decode = _base64decode,
 
     -- Hash / HMAC stubs: fixed-length zero strings (sufficient for Phase 1)
     sha256    = function(s) return ("0"):rep(64)  end, -- luacheck: ignore 431
