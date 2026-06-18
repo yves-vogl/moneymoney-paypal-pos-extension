@@ -67,10 +67,10 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
   5. A user can add the extension **a second time** with a different API key and both accounts coexist with distinguishable labels in MoneyMoney's sidebar (`ACCT-04`).
   6. The OAuth round-trip targets exactly `POST https://oauth.zettle.com/token` with `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer`, `client_id=<uuid>`, `assertion=<API_KEY>` — confirmed by a sandbox spike captured as a recorded fixture (`AUTH-02`).
 
-**Plans:** 7 plansPlans:
+**Plans:** 1/7 plans executed
 **Wave 1**
 
-- [ ] 02-01-PLAN.md — Wave 0: test infrastructure (fixtures, real base64decode mock, spec scaffolds)
+- [x] 02-01-PLAN.md — Wave 0: test infrastructure (fixtures, real base64decode mock, spec scaffolds)
 - [ ] 02-02-PLAN.md — Wave 1: M_errors.from_http_status per D-24
 - [ ] 02-03-PLAN.md — Wave 1: JWT base64url decoder + client_id extraction per D-22
 
@@ -204,7 +204,7 @@ These are acknowledged from `REQUIREMENTS.md ## v2 Requirements` but are deliber
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundations & Sandbox Probes | 0/0 | Not started | - |
-| 2. Authenticated Network Layer | 0/0 | Not started | - |
+| 2. Authenticated Network Layer | 1/7 | In Progress|  |
 | 3. Sale Spine | 0/0 | Not started | - |
 | 4. Enrichment | 0/0 | Not started | - |
 | 5. Resilience & Error Handling | 0/0 | Not started | - |
@@ -256,6 +256,7 @@ All phases run sequentially. No parallelization across phase boundaries — each
 **Requirements:** TBD — to be derived from the sprint proposal during `/gsd-discuss-phase 6.1`. Anticipated coverage: a new `SEC-05` (pinned actions), `SEC-06` (workflow token least-privilege), `SEC-07` (branch protection enforced + introspectable), `SEC-08` (SAST on every commit), `BUILD-03` (OpenSSF Best Practices passing badge), and updates to existing `SEC-04` (DEBUG=false gate) and `BUILD-01`/`BUILD-02` (Sigstore/cosign on release artifact, SLSA provenance).
 
 **Success Criteria** (observable behaviors):
+
   1. `https://api.securityscorecards.dev/projects/github.com/yves-vogl/moneymoney-paypal-pos-extension` returns aggregate `score >= 8.5` for the post-merge commit.
   2. `Pinned-Dependencies` check returns score `10`: every `uses:` in `.github/workflows/*.yml` references a commit SHA followed by a `# vX.Y.Z` comment; Dependabot is configured to bump SHAs and preserve the comment tag.
   3. `Token-Permissions` check returns score `10`: every workflow declares `permissions: read-all` at top level; write-scopes (`contents: write`, `id-token: write`, `security-events: write`) are job-local and minimal.

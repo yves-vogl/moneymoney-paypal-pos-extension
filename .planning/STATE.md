@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
-status: verifying
-last_updated: "2026-06-17T17:57:08.623Z"
+status: executing
+last_updated: "2026-06-18T12:24:22.948Z"
 progress:
   total_phases: 7
   completed_phases: 0
@@ -15,7 +15,7 @@ progress:
 # Project State: MoneyMoney PayPal POS Extension
 
 **Initialized:** 2026-06-16
-**Last updated:** 2026-06-16 (post-plan-phase-1)
+**Last updated:** 2026-06-18 (post-plan-phase-2; ready to execute Phase 2)
 
 ---
 
@@ -24,7 +24,7 @@ progress:
 **Core Value:**
 > A German PayPal POS merchant pastes their API key into MoneyMoney once and from then on sees every card transaction, refund, fee, and payout automatically in MoneyMoney — accurately, on schedule, with VAT and tip transparency suitable for bookkeeping.
 
-**Current Focus:** Foundations & Sandbox Probes — settle MEDIUM-confidence assumptions about MoneyMoney's Lua sandbox via 8 live probes, stand up the build/test toolchain, and write the infra modules (`log.redact`, `i18n`, `errors`, `model`) that every later phase depends on.
+**Current Focus:** Phase 02 — authenticated-network-layer
 
 **Granularity:** standard (6 phases)
 **Mode:** mvp / yolo (per `config.json`)
@@ -33,21 +33,24 @@ progress:
 
 ## Current Position
 
-**Phase:** 1 — Foundations & Sandbox Probes — **COMPLETE**
-**Plan:** `.planning/phases/01-foundations-sandbox-probes/PLAN.md` (13 tasks T01–T13)
-**Status:** Done — all 13 tasks closed; ADR-0003 ACCEPTED with the data captured from live MoneyMoney 2.4.72 on macOS 26.4.1 ARM; walking-skeleton round-trip verified (account created, fixture transaction rendered with full German i18n purpose). Ready for PR to `main`.
-**Progress:** `[████░░░░░░░░░░░░░░░░] 1/6 phases complete`
+Phase: 02 (authenticated-network-layer) — EXECUTING
+Plan: 1 of 7
+**Phase:** 2 — Authenticated Network Layer — **PLANNED, ready to execute**
+**Plans:** `.planning/phases/02-authenticated-network-layer/02-0{1..7}-PLAN.md` (7 plans across 5 waves)
+**Status:** Executing Phase 02
+**Progress:** `[████░░░░░░░░░░░░░░░░] 1/7 phases complete` (Phase 6.1 OpenSSF Scorecard added → 7 phases total)
 
 ```
-Phase 1: Foundations & Sandbox Probes      [DONE ✅ — PR ready]
-Phase 2: Authenticated Network Layer       [next — unblocked once Phase 1 merges]
+Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
+Phase 2: Authenticated Network Layer       [PLANNED — ready to execute]
 Phase 3: Sale Spine                        [BLOCKED on Phase 2]
 Phase 4: Enrichment                        [BLOCKED on Phase 3]
 Phase 5: Resilience & Error Handling       [BLOCKED on Phase 4]
 Phase 6: Release & Polish                  [BLOCKED on Phase 5]
+Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
-**Branch state:** `phase-1/foundations-sandbox-probes` is ahead of `main` by 24+ commits, all GPG-signed, all CI-green. Coverage 99.26 % (luacov, self-hosted badge). 43 busted tests pass (was 40 before the credential-extraction fix added 3 cases). Build is byte-reproducible (SHA-256 `362b7451…`). PR body pre-drafted at `.planning/phases/01-foundations-sandbox-probes/PR_DRAFT.md`.
+**Branch state:** `phase-2/authenticated-network-layer` is ahead of `main` with the Phase 1 history (24 commits, all GPG-signed, CI-green) plus Phase 2 planning artefacts: `docs(02): capture phase context`, `docs(02): add validation strategy`, `docs(02): create phase plan`, plus a Phase-6.1 detour (`docs(06.1): …`, `docs(roadmap): insert Phase 6.1 …`). No execution commits yet on Phase 2.
 
 **Phase-2 inputs surfaced from Phase 1 (recorded here for the planner):**
 
@@ -88,8 +91,12 @@ The 37 canonical decisions are pinned in `.planning/research/SUMMARY.md §2`. Hi
 
 ### Active Todos
 
-- Run `/gsd-execute-phase 1` to implement T01–T11 (scaffold → amalgamator → infra modules → mocks → specs → walking-skeleton entry → coverage gate → probe extension → ADRs → local e2e → CI workflow).
-- After T11 lands green: maintainer-driven T12 (run probe extension in live MoneyMoney, transcribe results into ADR-0003) and T13 (manual walking-skeleton install + fixture observation in MoneyMoney).
+- Run `/gsd-execute-phase 2` to implement the 7 Phase-2 plans wave-by-wave:
+  - **Wave 0:** 02-01 (mock + fixture scaffold for OAuth assertion-grant, /users/self, error paths).
+  - **Wave 1 (parallel):** 02-02 (`src/errors.lua` status→error mapping with i18n), 02-03 (`src/auth.lua` JWT base64url pure-logic — decode, exp window, redaction-safe).
+  - **Wave 2:** 02-04 (`src/http.lua` Connection wrapper with retry/backoff/redaction), 02-05 (`src/auth.lua` token cache + LocalStorage + multi-merchant key).
+  - **Wave 3:** 02-06 (`src/entry.lua` integrate Initialize/List/EndSession on top of auth+http).
+  - **Wave 4:** 02-07 (security gating: SEC-03 redaction, manifest update, coverage floor).
 
 ### Roadmap Evolution
 
@@ -101,28 +108,21 @@ The 37 canonical decisions are pinned in `.planning/research/SUMMARY.md §2`. Hi
 
 ### Phase-1 Probe Status
 
-| Probe | Question | Status |
-|-------|----------|--------|
-| Q1 | Lua sandbox globals (`require`, `os.execute`, `io.popen`, `package.loadlib`, `dofile`, `loadfile`, `debug.*`) | PENDING |
-| Q2 | `Connection():request` redirect behavior on `oauth.zettle.com/token` | PENDING |
-| Q3 | `finance.izettle.com` host with `GET /v2/accounts/liquid/balance` | PENDING |
-| Q4 | `JSON():set(t):json()` integer round-trip with `amount=995` | PENDING |
-| Q5 | `LocalStorage` cross-restart persistence | PENDING |
-| Q6 | PayPal POS first-party `client_id` value | PENDING |
-| Q7 | `services = {"PayPal POS"}` label rendering in MM German UI | PENDING |
-| Q8 | `Connection()` TLS verification default (badssl.com test) | PENDING |
+Resolved live on MoneyMoney 2.4.72 / macOS 26.4.1 ARM (see ADR-0003 ACCEPTED). Surviving caveat carried into Phase 2:
+
+- Q4 `JSON():set(t):json()` integer round-trip with `amount=995` — flagged as a Phase-3 precondition for the gross/VAT/tip mapping decision; not a Phase-2 blocker but to be revisited in `/gsd-discuss-phase 3`.
 
 ---
 
 ## Session Continuity
 
-**Last action:** `/gsd-plan-phase 1` produced RESEARCH.md (76k), CONTEXT.md (14k), PLAN.md (37k, 13 tasks), SKELETON.md (13k), and VERIFICATION.md (PASS after one orchestrator closeout edit).
+**Last action:** `/gsd-plan-phase 2` produced 02-CONTEXT.md (16k), 02-RESEARCH.md (114k), 02-PATTERNS.md (18k), 02-VALIDATION.md (7k), and 7 PLAN files (02-01..02-07, ~158k total). One prior session mistakenly attempted `/gsd-plan-phase 3` before Phase 2 was executed and exited cleanly at the missing-CONTEXT gate — no artefacts written.
 
-**Next action:** `/gsd-execute-phase 1` — implement T01–T11 sequentially with GPG-signed atomic commits per task. T12 and T13 are maintainer-driven gates after T11.
+**Next action:** `/gsd-execute-phase 2` — implement plans 02-01..02-07 wave-by-wave with GPG-signed atomic commits per plan.
 
 **Session resume prompt template** (if context lost):
 
-> We are working on the MoneyMoney PayPal POS Extension. Phase 1 is PLANNED with 13 tasks in `.planning/phases/01-foundations-sandbox-probes/PLAN.md`. Walking-Skeleton mode active. Run `/gsd-execute-phase 1` to start implementation. Granularity: standard. Mode: mvp / yolo. All commits GPG-signed (`FDE07046A6178E89ADB57FD3DE300C53D8E18642`); no Claude/AI attribution in commits, PRs, or shipped code.
+> We are working on the MoneyMoney PayPal POS Extension. Phase 2 (Authenticated Network Layer) is PLANNED with 7 plans across 5 waves in `.planning/phases/02-authenticated-network-layer/`. Run `/gsd-execute-phase 2` to start implementation. Granularity: standard. Mode: mvp / yolo. All commits GPG-signed (`FDE07046A6178E89ADB57FD3DE300C53D8E18642`); no Claude/AI attribution in commits, PRs, or shipped code.
 
 ---
 
