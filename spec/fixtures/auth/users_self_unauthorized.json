@@ -1,0 +1,5 @@
+{
+  "_source": "iZettle/api-documentation/authorization.md",
+  "error": "unauthorized",
+  "error_description": "insufficient scope to access /users/self"
+}

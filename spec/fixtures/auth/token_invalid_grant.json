@@ -1,0 +1,5 @@
+{
+  "_source": "iZettle/api-documentation/authorization.md",
+  "error": "invalid_grant",
+  "error_description": "bad assertion"
+}
