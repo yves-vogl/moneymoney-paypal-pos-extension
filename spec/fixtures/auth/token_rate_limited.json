@@ -1,0 +1,5 @@
+{
+  "_source": "iZettle/api-documentation/authorization.md",
+  "error": "rate_limit",
+  "error_description": "too many requests — please retry after a short delay"
+}

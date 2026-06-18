@@ -1,0 +1,6 @@
+{
+  "_source": "iZettle/api-documentation/authorization.md",
+  "access_token": "eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ0ZXN0In0.sig",
+  "expires_in": 7200,
+  "token_type": "Bearer"
+}
