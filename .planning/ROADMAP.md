@@ -19,7 +19,7 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
 ## Phases
 
 - [x] **Phase 1: Foundations & Sandbox Probes** — Stand up the build pipeline, mocks, infra modules, and pin Lua-sandbox capabilities via 8 live probes before any auth code is written. **Completed 2026-06-17.**
-- [ ] **Phase 2: Authenticated Network Layer** — Implement the JWT-bearer OAuth flow, hostname-allowlisted HTTP wrapper, token cache in LocalStorage, and `ListAccounts` so the user can add a PayPal POS account and a bad key fails fast.
+- [x] **Phase 2: Authenticated Network Layer** — Implement the JWT-bearer OAuth flow, hostname-allowlisted HTTP wrapper, token cache in LocalStorage, and `ListAccounts` so the user can add a PayPal POS account and a bad key fails fast. (completed 2026-06-19)
 - [ ] **Phase 3: Sale Spine (first user-visible slice)** — End-to-end `RefreshAccount` that returns card sales as MoneyMoney transactions with stable identity, idempotent on double-refresh; the first phase a real user can see working.
 - [ ] **Phase 4: Enrichment — Refunds, Fees, Payouts, Balance, VAT, Tips** — Layer the remaining transaction kinds and per-purpose metadata onto the spine; the slice that justifies this extension's existence over CSV export.
 - [ ] **Phase 5: Resilience & Error Handling** — Branched error handling for all 5 categories (token-mint, post-mint 401, 429, 5xx, network) with the fail-whole-refresh invariant enforced so `since` watermark cannot silently advance past undelivered data.
@@ -67,7 +67,7 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
   5. A user can add the extension **a second time** with a different API key and both accounts coexist with distinguishable labels in MoneyMoney's sidebar (`ACCT-04`).
   6. The OAuth round-trip targets exactly `POST https://oauth.zettle.com/token` with `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer`, `client_id=<uuid>`, `assertion=<API_KEY>` — confirmed by a sandbox spike captured as a recorded fixture (`AUTH-02`).
 
-**Plans:** 6/7 plans executed
+**Plans:** 7/7 plans complete
 **Wave 1**
 
 - [x] 02-01-PLAN.md — Wave 0: test infrastructure (fixtures, real base64decode mock, spec scaffolds)
@@ -85,7 +85,7 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 02-07-PLAN.md — Wave 4: SEC-03 gating spec + manifest/coverage/egress verification
+- [x] 02-07-PLAN.md — Wave 4: SEC-03 gating spec + manifest/coverage/egress verification
 
 **Cross-cutting constraints:**
 
@@ -204,7 +204,7 @@ These are acknowledged from `REQUIREMENTS.md ## v2 Requirements` but are deliber
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundations & Sandbox Probes | 0/0 | Not started | - |
-| 2. Authenticated Network Layer | 6/7 | In Progress|  |
+| 2. Authenticated Network Layer | 7/7 | Complete   | 2026-06-19 |
 | 3. Sale Spine | 0/0 | Not started | - |
 | 4. Enrichment | 0/0 | Not started | - |
 | 5. Resilience & Error Handling | 0/0 | Not started | - |
