@@ -14,6 +14,9 @@
 -- luacheck: globals AccountTypeLoan AccountTypeCreditCard AccountTypePortfolio
 -- luacheck: globals AccountTypeOther
 -- luacheck: globals _WebBanking_received
+-- Wave-2 request-introspection field: Mocks._last_request captures the most
+-- recent {method, url, body, contentType, headers} passed to conn:request.
+-- Risk R-1 contract: FOR SPEC ASSERTIONS ONLY — production code MUST NOT read it.
 
 local dkjson = require("dkjson")
 
@@ -64,6 +67,7 @@ Mocks._response_queue  = {}   -- FIFO of stubbed Connection responses
 Mocks._captured_status = {}   -- args passed to MM.printStatus
 Mocks._captured_prints = {}   -- strings emitted by the extension's print()
 Mocks._original_print  = nil  -- real print, saved in setup, restored in teardown
+Mocks._last_request    = nil  -- most recent {method, url, body, contentType, headers} (Wave 2)
 
 -- -------------------------------------------------------------------------
 -- push_response(opts) — queue one stubbed response
@@ -108,6 +112,7 @@ local function _make_connection()
             " " .. tostring(url))
     end
     local r = table.remove(Mocks._response_queue, 1)
+    Mocks._last_request = { method = method, url = url, body = postContent, contentType = postContentType, headers = headers }
     return r.content, r.charset, r.mime, r.filename, r.headers
   end
 
@@ -134,6 +139,7 @@ function Mocks.setup()
   Mocks._response_queue  = {}
   Mocks._captured_status = {}
   Mocks._captured_prints = {}
+  Mocks._last_request    = nil
 
   -- Connection
   _G.Connection = function()
@@ -292,6 +298,7 @@ function Mocks.teardown()
   Mocks._response_queue  = {}
   Mocks._captured_status = {}
   Mocks._captured_prints = {}
+  Mocks._last_request    = nil
 
   if Mocks._original_print then
     -- luacheck: globals print
