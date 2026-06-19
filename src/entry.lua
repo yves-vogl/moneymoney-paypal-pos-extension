@@ -58,10 +58,30 @@ function InitializeSession2(protocol, bankCode, step, credentials, interactive) 
   local err = M_errors.from_http_status(status, raw_body)
   if err then return err end
 
+  -- B-01 / S-02: a 200-shaped /token response may still lack access_token
+  -- (e.g. truncated reply or future API change). Concatenating nil into the
+  -- Bearer header would throw "attempt to concatenate a nil value". Return
+  -- error.invalid_grant so MoneyMoney shows a clean German message.
+  if type(token_table) ~= "table"
+      or type(token_table.access_token) ~= "string"
+      or #token_table.access_token == 0 then
+    return M_i18n.t("error.invalid_grant")
+  end
+
   -- Step 5 (D-21 leg 2): GET /users/self
   local profile, p_status, p_raw = M_auth.fetch_profile(token_table.access_token)
   local p_err = M_errors.from_http_status(p_status, p_raw)
   if p_err then return p_err end
+
+  -- B-02 / S-01: a 200-shaped /users/self response may lack organizationUuid
+  -- (e.g. empty JSON object from CDN or API change). persist_session's own
+  -- guard also catches this, but the entry.lua layer returns a user-visible
+  -- error before any cache write is attempted.
+  if type(profile) ~= "table"
+      or type(profile.organizationUuid) ~= "string"
+      or #profile.organizationUuid == 0 then
+    return M_i18n.t("error.invalid_grant")
+  end
 
   -- Step 6 (D-23c): persist cache keyed by organizationUuid
   M_auth.persist_session(token_table, profile, client_id)
