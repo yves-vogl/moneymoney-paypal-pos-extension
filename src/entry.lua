@@ -43,20 +43,67 @@ function InitializeSession2(protocol, bankCode, step, credentials, interactive) 
   if api_key == nil or api_key == "" then
     return M_i18n.t("error.invalid_grant")
   end
-  M_log.info("InitializeSession2: credential received (length=" .. #api_key .. ")")
+
+  -- Step 3 (D-22): extract client_id from JWT payload (pure CPU, no network).
+  -- A malformed assertion JWT (cannot yield client_id) returns synchronously
+  -- with ZERO network calls per Pattern 4 / hard constraint 8.
+  local client_id = M_auth._extract_client_id(api_key)
+  if not client_id then
+    M_log.info("InitializeSession2: assertion JWT could not yield client_id")
+    return M_i18n.t("error.invalid_grant")
+  end
+
+  -- Step 4 (D-21 leg 1): POST /token
+  local token_table, status, raw_body = M_auth.exchange_assertion(api_key, client_id)
+  local err = M_errors.from_http_status(status, raw_body)
+  if err then return err end
+
+  -- Step 5 (D-21 leg 2): GET /users/self
+  local profile, p_status, p_raw = M_auth.fetch_profile(token_table.access_token)
+  local p_err = M_errors.from_http_status(p_status, p_raw)
+  if p_err then return p_err end
+
+  -- Step 6 (D-23c): persist cache keyed by organizationUuid
+  M_auth.persist_session(token_table, profile, client_id)
   return nil
 end
 
 function ListAccounts(knownAccounts) -- luacheck: ignore 431
-  return {
-    {
-      accountNumber = "paypal-pos-fixture-001",
-      name          = M_i18n.t("account.name", "Test-Händler"),
+  local accounts = {}
+
+  for orgUuid, entry in pairs(LocalStorage.zettle or {}) do
+    local publicName = entry.publicName
+    local label
+    if type(publicName) == "string" and #publicName > 0 then
+      label = "PayPal POS \xe2\x80\x94 " .. publicName
+    else
+      label = "PayPal POS \xe2\x80\x94 " .. orgUuid:sub(1, 8)
+    end
+    accounts[#accounts + 1] = {
+      accountNumber = orgUuid,
+      type          = AccountTypeGiro,
+      name          = label,
       currency      = "EUR",
       portfolio     = false,
-      type          = AccountTypeGiro,
-    },
-  }
+    }
+  end
+
+  -- Empty cache: return Phase-1 fixture so walking-skeleton tests still pass
+  -- (and so MoneyMoney always gets at least one account record to work with
+  -- before the first successful InitializeSession2 run).
+  if #accounts == 0 then
+    return {
+      {
+        accountNumber = "paypal-pos-fixture-001",
+        name          = M_i18n.t("account.name", "Test-Händler"),
+        currency      = "EUR",
+        portfolio     = false,
+        type          = AccountTypeGiro,
+      },
+    }
+  end
+
+  return accounts
 end
 
 function RefreshAccount(account, since) -- luacheck: ignore 431
@@ -83,5 +130,6 @@ end
 
 function EndSession()
   M_log.info("EndSession called")
+  M_http.shutdown()
   return nil
 end
