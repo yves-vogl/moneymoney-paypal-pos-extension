@@ -60,6 +60,7 @@ end
 -- Contract (in priority order):
 --   parsed.error == "invalid_grant"   | "invalid_request"    -> 400
 --   parsed.error == "invalid_client"  | "unauthorized_client" -> 401
+--   parsed.error == "rate_limit"                              -> 429 (H-01)
 --   parsed.error non-nil (unknown)                           -> 400 (conservative; Pitfall 5)
 --   otherwise                                                 -> 200
 function M_http._infer_status(parsed)
@@ -69,6 +70,9 @@ function M_http._infer_status(parsed)
     end
     if parsed.error == "invalid_client" or parsed.error == "unauthorized_client" then
       return 401
+    end
+    if parsed.error == "rate_limit" then
+      return 429
     end
     return 400  -- conservative: unknown error names treated as 400 (Pitfall 5)
   end
