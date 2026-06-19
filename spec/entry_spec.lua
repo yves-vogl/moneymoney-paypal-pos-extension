@@ -161,6 +161,70 @@ describe("entry.lua callbacks", function()
   end)
 
   -- -------------------------------------------------------------------------
+  -- B-01 / M-01: /token 200 with missing access_token must not crash
+  -- -------------------------------------------------------------------------
+
+  it("InitializeSession2 returns error.invalid_grant when /token 200 has no access_token (B-01)", function()
+    -- Push a 200-shaped response body that omits the access_token field.
+    -- Without the B-01 guard this reaches fetch_profile(nil) which throws
+    -- "attempt to concatenate a nil value" at src/auth.lua:88.
+    Mocks.push_response({ content = '{"token_type":"Bearer","expires_in":7200}',
+                          mime    = "application/json" })
+
+    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
+                                      { { value = VALID_JWT } }, false)
+
+    assert.equals(M_i18n.t("error.invalid_grant"), result)
+    -- Only one network call must have been made (the /token call); /users/self
+    -- must NOT have been attempted.
+    assert.equals("https://oauth.zettle.com/token", Mocks._last_request.url)
+    -- LocalStorage must remain untouched.
+    assert.is_nil(LocalStorage.zettle)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- B-02 / M-01: /users/self 200 with missing organizationUuid must not crash
+  -- -------------------------------------------------------------------------
+
+  it("InitializeSession2 returns error.invalid_grant when /users/self 200 has no organizationUuid (B-02)", function()
+    -- Push a valid /token response followed by a /users/self response that
+    -- omits organizationUuid. Without the B-02 guard, persist_session calls
+    -- _cache_write(nil, entry) which throws "table index is nil".
+    local tok_raw = Fixtures.load("auth/token_ok")
+    Mocks.push_response({ content = tok_raw, mime = "application/json" })
+    Mocks.push_response({ content = '{}', mime = "application/json" })
+
+    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
+                                      { { value = VALID_JWT } }, false)
+
+    -- Must return a German error string (not crash)
+    assert.is_string(result)
+    assert.is_truthy(#result > 0)
+    -- LocalStorage must NOT have been written
+    assert.is_nil(LocalStorage.zettle)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- M-02: rate_limit fixture must surface error.rate_limit (not LoginFailed)
+  -- -------------------------------------------------------------------------
+
+  it("InitializeSession2 returns error.rate_limit when /token returns rate_limit body (M-02)", function()
+    -- Load the recorded rate-limit fixture ({"error":"rate_limit",...}).
+    -- Without the H-01 fix, _infer_status returns 400 -> from_http_status(400)
+    -- -> LoginFailed. With the fix it returns 429 -> error.rate_limit.
+    local rl_raw = Fixtures.load("auth/token_rate_limited")
+    Mocks.push_response({ content = rl_raw, mime = "application/json" })
+
+    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
+                                      { { value = VALID_JWT } }, false)
+
+    assert.equals(M_i18n.t("error.rate_limit"), result)
+    -- Only /token must have been called; no /users/self call on rate limit.
+    assert.equals("https://oauth.zettle.com/token", Mocks._last_request.url)
+    assert.is_nil(LocalStorage.zettle)
+  end)
+
+  -- -------------------------------------------------------------------------
   -- ListAccounts
   -- -------------------------------------------------------------------------
 
