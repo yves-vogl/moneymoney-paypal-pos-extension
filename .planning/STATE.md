@@ -7,9 +7,9 @@ last_updated: "2026-06-18T12:24:22.948Z"
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 8
-  completed_plans: 0
-  percent: 0
+  total_plans: 7
+  completed_plans: 3
+  percent: 43
 ---
 
 # Project State: MoneyMoney PayPal POS Extension
@@ -34,11 +34,11 @@ progress:
 ## Current Position
 
 Phase: 02 (authenticated-network-layer) — EXECUTING
-Plan: 1 of 7
-**Phase:** 2 — Authenticated Network Layer — **PLANNED, ready to execute**
-**Plans:** `.planning/phases/02-authenticated-network-layer/02-0{1..7}-PLAN.md` (7 plans across 5 waves)
-**Status:** Executing Phase 02
-**Progress:** `[████░░░░░░░░░░░░░░░░] 1/7 phases complete` (Phase 6.1 OpenSSF Scorecard added → 7 phases total)
+Plan: 3 of 7 complete
+**Phase:** 2 — Authenticated Network Layer — **EXECUTING (Wave 1 done)**
+**Plans:** `.planning/phases/02-authenticated-network-layer/02-0{1..7}-PLAN.md` (7 plans across 6 waves W0–W5)
+**Status:** Executing Phase 02 — Wave 1 complete, dispatching Wave 2 next
+**Progress:** `[████████░░░░░░░░░░░░] 3/7 plans complete` (W0 02-01, W1 02-02, W1 02-03)
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
@@ -91,12 +91,15 @@ The 37 canonical decisions are pinned in `.planning/research/SUMMARY.md §2`. Hi
 
 ### Active Todos
 
-- Run `/gsd-execute-phase 2` to implement the 7 Phase-2 plans wave-by-wave:
-  - **Wave 0:** 02-01 (mock + fixture scaffold for OAuth assertion-grant, /users/self, error paths).
-  - **Wave 1 (parallel):** 02-02 (`src/errors.lua` status→error mapping with i18n), 02-03 (`src/auth.lua` JWT base64url pure-logic — decode, exp window, redaction-safe).
-  - **Wave 2:** 02-04 (`src/http.lua` Connection wrapper with retry/backoff/redaction), 02-05 (`src/auth.lua` token cache + LocalStorage + multi-merchant key).
-  - **Wave 3:** 02-06 (`src/entry.lua` integrate Initialize/List/EndSession on top of auth+http).
-  - **Wave 4:** 02-07 (security gating: SEC-03 redaction, manifest update, coverage floor).
+Phase-2 wave-by-wave execution (DAG-corrected — 02-05 depends on 02-04 so cannot run parallel):
+
+- **Wave 0:** 02-01 (mocks + fixtures) — **DONE** ✅ commit `dab9db0`
+- **Wave 1 (parallel):** 02-02 (`src/errors.lua` D-24 status→error map) + 02-03 (`src/auth.lua` JWT pure-logic D-22) — **DONE** ✅ commits `c58f297`, `3a99bf8`, `d3f7c71`, `19c26d0`
+- **Wave 2:** 02-04 (`src/http.lua` Connection wrapper per D-25) — NEXT
+- **Wave 3:** 02-05 (`src/auth.lua` orchestration: exchange_assertion, fetch_profile, persist_session D-23c, cached_token D-23d)
+- **Wave 4:** 02-06 (`src/entry.lua` D-21 two-call probe integration)
+- **Wave 5:** 02-07 (SEC-03 gating + manifest + reproducible-build)
+- **Verification:** gsd-verifier + `/gsd-code-review 2` + loop-security-engineer SEC-03 adversarial review
 
 ### Roadmap Evolution
 
@@ -116,9 +119,9 @@ Resolved live on MoneyMoney 2.4.72 / macOS 26.4.1 ARM (see ADR-0003 ACCEPTED). S
 
 ## Session Continuity
 
-**Last action:** `/gsd-plan-phase 2` produced 02-CONTEXT.md (16k), 02-RESEARCH.md (114k), 02-PATTERNS.md (18k), 02-VALIDATION.md (7k), and 7 PLAN files (02-01..02-07, ~158k total). One prior session mistakenly attempted `/gsd-plan-phase 3` before Phase 2 was executed and exited cleanly at the missing-CONTEXT gate — no artefacts written.
+**Last action:** Wave 1 (Plans 02-02 + 02-03) executed in parallel via two Sonnet gsd-executor agents in worktrees. Implementation commits cherry-picked back onto `phase-2/authenticated-network-layer`. Plan-summaries copied; ROADMAP updated via `gsd-tools roadmap update-plan-progress 2`.
 
-**Next action:** `/gsd-execute-phase 2` — implement plans 02-01..02-07 wave-by-wave with GPG-signed atomic commits per plan.
+**Next action:** Dispatch Wave 2 — Plan 02-04 (`src/http.lua` Connection wrapper per D-25). Single Sonnet executor in worktree, baseRef=head.
 
 **Session resume prompt template** (if context lost):
 
