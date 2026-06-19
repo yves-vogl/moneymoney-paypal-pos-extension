@@ -30,7 +30,9 @@ function M_auth._decode_jwt_payload(jwt)
   local h, p, sig = jwt:match("^([^.]+)%.([^.]+)%.([^.]+)$")
   if not h or not p or not sig then return nil end
   local raw = _b64url_decode(p)
-  if not raw or #raw == 0 then return nil end
+  -- S-05: MM.base64decode may return a non-string truthy value on malformed
+  -- input; applying # to a non-string throws. Check type before length.
+  if not raw or type(raw) ~= "string" or #raw == 0 then return nil end
   -- pcall is mandatory: the payload is attacker-controlled; JSON() will call
   -- Lua error() on malformed input, which would otherwise abort the chunk.
   local ok, parsed = pcall(function()
@@ -130,7 +132,14 @@ end
 -- The api_key/assertion is STRUCTURALLY ABSENT from this entry (AUTH-05 / SEC-03 /
 -- T-02-05-01). Only the Zettle-issued access_token lives in LocalStorage.
 -- publicName may be nil if /users/self did not return it; ListAccounts handles fallback.
+-- B-02 / S-01 defensive guard: a nil or empty-string organizationUuid (e.g. from a
+-- malformed /users/self 200 response) would cause "table index is nil" in _cache_write.
+-- Return nil early so the caller can surface a clean error rather than a Lua crash.
 function M_auth.persist_session(token_table, profile, client_id)
+  local orgUuid = profile and profile.organizationUuid
+  if type(orgUuid) ~= "string" or orgUuid == "" then
+    return nil
+  end
   local now = os.time()
   local entry = {
     access_token = token_table.access_token,
@@ -140,7 +149,7 @@ function M_auth.persist_session(token_table, profile, client_id)
     uuid         = profile.uuid,
     publicName   = profile.publicName,
   }
-  _cache_write(profile.organizationUuid, entry)
+  _cache_write(orgUuid, entry)
   return nil
 end
 
