@@ -8,8 +8,8 @@ progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 7
-  completed_plans: 3
-  percent: 43
+  completed_plans: 4
+  percent: 57
 ---
 
 # Project State: MoneyMoney PayPal POS Extension
