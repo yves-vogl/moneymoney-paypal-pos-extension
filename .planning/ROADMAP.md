@@ -67,12 +67,12 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
   5. A user can add the extension **a second time** with a different API key and both accounts coexist with distinguishable labels in MoneyMoney's sidebar (`ACCT-04`).
   6. The OAuth round-trip targets exactly `POST https://oauth.zettle.com/token` with `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer`, `client_id=<uuid>`, `assertion=<API_KEY>` — confirmed by a sandbox spike captured as a recorded fixture (`AUTH-02`).
 
-**Plans:** 1/7 plans executed
+**Plans:** 3/7 plans executed
 **Wave 1**
 
 - [x] 02-01-PLAN.md — Wave 0: test infrastructure (fixtures, real base64decode mock, spec scaffolds)
-- [ ] 02-02-PLAN.md — Wave 1: M_errors.from_http_status per D-24
-- [ ] 02-03-PLAN.md — Wave 1: JWT base64url decoder + client_id extraction per D-22
+- [x] 02-02-PLAN.md — Wave 1: M_errors.from_http_status per D-24
+- [x] 02-03-PLAN.md — Wave 1: JWT base64url decoder + client_id extraction per D-22
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
@@ -204,7 +204,7 @@ These are acknowledged from `REQUIREMENTS.md ## v2 Requirements` but are deliber
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Foundations & Sandbox Probes | 0/0 | Not started | - |
-| 2. Authenticated Network Layer | 1/7 | In Progress|  |
+| 2. Authenticated Network Layer | 3/7 | In Progress|  |
 | 3. Sale Spine | 0/0 | Not started | - |
 | 4. Enrichment | 0/0 | Not started | - |
 | 5. Resilience & Error Handling | 0/0 | Not started | - |
