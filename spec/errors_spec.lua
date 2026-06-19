@@ -117,7 +117,8 @@ describe("M_errors.from_http_status", function()
   -- -------------------------------------------------------------------------
 
   it("body parameter is never echoed into the result", function()
-    local result = M_errors.from_http_status(400, '{"error":"invalid_grant","error_description":"SECRET_BODY_MARKER_XYZ"}')
+    local secret_body = '{"error":"invalid_grant","error_description":"SECRET_BODY_MARKER_XYZ"}'
+    local result = M_errors.from_http_status(400, secret_body)
     -- result must be LoginFailed or a string; body content must never appear
     if type(result) == "string" then
       assert.is_falsy(result:find("SECRET_BODY_MARKER_XYZ", 1, true))
