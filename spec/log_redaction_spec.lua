@@ -2,6 +2,7 @@
 -- Tests for the log redaction patterns in M_log (from src/log.lua).
 -- Coverage: SEC-01 (redaction of JWT, Bearer, assertion=, access_token=),
 --           SEC-04 positive path ([paypal-pos][INFO] prefix present).
+--           SEC-03 gating spec (D-29): API key never leaks through any channel.
 --
 -- Strategy: Mocks.setup() installs the WebBanking mock and replaces print()
 -- with a capture buffer.  dofile("dist/paypal-pos.lua") loads the amalgamated
@@ -133,6 +134,156 @@ describe("M_log redaction", function()
     assert.is_not_nil(line, "M_log.info should have produced output")
     assert.is_truthy(line:sub(1, 18) == "[paypal-pos][INFO]",
       "output should start with [paypal-pos][INFO] (got: " .. tostring(line) .. ")")
+  end)
+
+end)
+
+-- =========================================================================
+-- SEC-03 — API key never leaks (D-29)
+-- =========================================================================
+-- Threads a REAL auth failure / success through the full integration path:
+--   InitializeSession2 -> M_auth._extract_client_id / exchange_assertion
+--   -> M_http.post_form -> M_errors.from_http_status
+-- and asserts three negative invariants:
+--   1. The MoneyMoney return string contains no JWT-shape, no "Bearer", and no
+--      base64url segment of the input API key.
+--   2. The captured print stream (M_log path) is likewise clean.
+--   3. No LocalStorage value (walked recursively) contains the API key or any
+--      of its three JWT segments.
+--
+-- Per Plan 02-07 / RESEARCH section "SEC-03 Gating Test" L1014-L1129.
+-- Pitfall 8 avoidance: MM.base64 is an identity stub in mm_mocks.lua, so
+-- we hard-code precomputed base64url constants rather than calling MM.base64.
+-- "eyJhdWQiOiJjbGllbnQteCJ9" is the standard-base64url encoding of
+-- '{"aud":"client-x"}' (no padding; verified offline).
+
+describe("SEC-03 -- API key never leaks (D-29)", function()
+
+  before_each(function()
+    Mocks.setup()
+    load_artifact()
+  end)
+
+  after_each(function()
+    Mocks.teardown()
+  end)
+
+  -- -----------------------------------------------------------------------
+  -- Test 1: malformed JWT (payload is valid base64url but not JSON).
+  -- _extract_client_id returns nil -> no network call -> returns invalid_grant.
+  -- -----------------------------------------------------------------------
+
+  it("rejects a malformed JWT without echoing it anywhere", function()
+    -- Middle segment "bm90anNvbg" decodes to "notjson" -- JSON parse fails.
+    local fake_jwt = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.bm90anNvbg.signature"
+
+    -- NO queued response: _extract_client_id fails before any network call (D-22).
+    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
+                                      { { value = fake_jwt } }, false)
+
+    assert.equals(M_i18n.t("error.invalid_grant"), result)
+
+    -- The returned string must not contain the input or any JWT segment.
+    assert.is_falsy(result:find("eyJ", 1, true),
+      "result contains eyJ-shape: " .. tostring(result))
+    assert.is_falsy(result:find("Bearer", 1, true),
+      "result mentions Bearer: " .. tostring(result))
+    for seg in fake_jwt:gmatch("[^.]+") do
+      assert.is_falsy(result:find(seg, 1, true),
+        "result contains JWT segment '" .. seg .. "': " .. tostring(result))
+    end
+
+    -- The captured print stream (M_log.redact path) must also be clean.
+    for _, line in ipairs(Mocks._captured_prints) do
+      assert.is_falsy(line:find(fake_jwt, 1, true),
+        "print contains raw JWT: " .. line)
+      for seg in fake_jwt:gmatch("[^.]+") do
+        assert.is_falsy(line:find(seg, 1, true),
+          "print contains JWT segment '" .. seg .. "': " .. line)
+      end
+    end
+  end)
+
+  -- -----------------------------------------------------------------------
+  -- Test 2: valid JWT (client_id extracted) but /token returns invalid_grant.
+  -- Reaches the network; assert error is LoginFailed with no API-key echo.
+  -- -----------------------------------------------------------------------
+
+  it("rejects an invalid_grant from /token without echoing the assertion", function()
+    -- Precomputed base64url of '{"aud":"client-x"}' -- hardcoded per Pitfall 8
+    -- (MM.base64 is an identity stub; we must not call it for encoding).
+    local mid      = "eyJhdWQiOiJjbGllbnQteCJ9"
+    local fake_jwt = "header." .. mid .. ".sig"
+
+    Mocks.push_response({
+      content = '{"error":"invalid_grant","error_description":"bad assertion"}',
+    })
+
+    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
+                                      { { value = fake_jwt } }, false)
+
+    assert.equals(LoginFailed, result)
+
+    -- Negative checks on the returned string.
+    assert.is_falsy(result:find(fake_jwt, 1, true),
+      "result contains fake_jwt: " .. tostring(result))
+    for seg in fake_jwt:gmatch("[^.]+") do
+      assert.is_falsy(result:find(seg, 1, true),
+        "result contains JWT segment '" .. seg .. "': " .. tostring(result))
+    end
+
+    -- Negative checks on the captured print stream.
+    for _, line in ipairs(Mocks._captured_prints) do
+      assert.is_falsy(line:find(fake_jwt, 1, true),
+        "print contains fake_jwt: " .. line)
+      -- mid is the sensitive payload segment -- assert individually.
+      assert.is_falsy(line:find(mid, 1, true),
+        "print contains mid segment: " .. line)
+    end
+  end)
+
+  -- -----------------------------------------------------------------------
+  -- Test 3: successful auth round-trip -- LocalStorage must not hold the key.
+  -- AUTH-05 + SEC-03 at the integration layer.
+  -- -----------------------------------------------------------------------
+
+  it("never writes the API key to LocalStorage even after a successful auth", function()
+    local mid      = "eyJhdWQiOiJjbGllbnQteCJ9"
+    local fake_jwt = "header." .. mid .. ".sig"
+
+    -- Use a non-JWT-shaped access_token (AT-12345) so its characters cannot
+    -- collide with fake_jwt segments in the LocalStorage walk below.
+    Mocks.push_response({
+      content = '{"access_token":"AT-12345","expires_in":7200,"token_type":"Bearer"}',
+    })
+    Mocks.push_response({
+      content = '{"uuid":"user-1","organizationUuid":"org-1","publicName":"Test"}',
+    })
+
+    local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
+                                      { { value = fake_jwt } }, false)
+
+    assert.is_nil(result)
+
+    -- Recursive LocalStorage walker: visits every string value in the table.
+    local function walk(t, visit)
+      for _, v in pairs(t) do
+        if type(v) == "table" then
+          walk(v, visit)
+        elseif type(v) == "string" then
+          visit(v)
+        end
+      end
+    end
+
+    walk(LocalStorage, function(s)
+      assert.is_falsy(s:find(fake_jwt, 1, true),
+        "LocalStorage value contains full API key: " .. s)
+      for seg in fake_jwt:gmatch("[^.]+") do
+        assert.is_falsy(s:find(seg, 1, true),
+          "LocalStorage value contains JWT segment '" .. seg .. "': " .. s)
+      end
+    end)
   end)
 
 end)
