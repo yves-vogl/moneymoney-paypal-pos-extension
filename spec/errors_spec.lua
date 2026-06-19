@@ -1,14 +1,8 @@
 -- spec/errors_spec.lua
--- Test scaffold for M_errors.from_http_status (Phase 2, Wave 0).
--- Contains one sanity test confirming the artifact loads and M_errors is present,
--- plus pending() stubs for the D-24 six-case HTTP-status mapping documented in
--- .planning/phases/02-authenticated-network-layer/02-CONTEXT.md D-24 and the
--- per-task verification map in 02-VALIDATION.md (❌ W0 rows).
--- Wave 1 (plan 02-02) fills in the pending assertions once src/errors.lua
--- implements M_errors.from_http_status(status, body).
---
--- Setup: before_each re-loads the artifact after Mocks.setup() so M_errors
--- and M_i18n are fresh in each test.
+-- Tests for M_errors.from_http_status (D-24 six-case HTTP-status mapping).
+-- Greened by Wave 1 (plan 02-02). Each test name corresponds directly to a
+-- D-24 case from .planning/phases/02-authenticated-network-layer/02-CONTEXT.md.
+-- The SEC-03 structural-invariant test gates that body is never echoed.
 
 local Mocks = require("spec.helpers.mm_mocks")
 
@@ -48,67 +42,87 @@ describe("M_errors.from_http_status", function()
   -- D-24: nil status (network/timeout/no response)
   -- -------------------------------------------------------------------------
 
-  pending("nil status returns network string with dash placeholder", function()
-    -- Wave 1: assert M_errors.from_http_status(nil) == M_i18n.t("error.network", "—")
+  it("nil status returns network string with dash placeholder", function()
+    local result = M_errors.from_http_status(nil, "")
+    assert.equals(M_i18n.t("error.network", "—"), result)
   end)
 
   -- -------------------------------------------------------------------------
   -- D-24: 2xx range → nil (signals "no error")
   -- -------------------------------------------------------------------------
 
-  pending("200 returns nil", function()
-    -- Wave 1: assert M_errors.from_http_status(200) == nil
+  it("200 returns nil", function()
+    local result = M_errors.from_http_status(200, '{"access_token":"AT"}')
+    assert.is_nil(result)
   end)
 
-  pending("299 returns nil", function()
-    -- Wave 1: assert M_errors.from_http_status(299) == nil (boundary check)
+  it("299 returns nil", function()
+    local result = M_errors.from_http_status(299, "")
+    assert.is_nil(result)
   end)
 
   -- -------------------------------------------------------------------------
   -- D-24: 400/401/403 → LoginFailed (AUTH-03 synchronous fail surface)
   -- -------------------------------------------------------------------------
 
-  pending("400 returns LoginFailed", function()
-    -- Wave 1: assert M_errors.from_http_status(400) == LoginFailed
-    -- (D-24 / AUTH-03: invalid_grant body path → LoginFailed)
+  it("400 returns LoginFailed", function()
+    local result = M_errors.from_http_status(400, '{"error":"invalid_grant"}')
+    assert.equals(LoginFailed, result)
   end)
 
-  pending("401 returns LoginFailed", function()
-    -- Wave 1: assert M_errors.from_http_status(401) == LoginFailed
+  it("401 returns LoginFailed", function()
+    local result = M_errors.from_http_status(401, "")
+    assert.equals(LoginFailed, result)
   end)
 
-  pending("403 returns LoginFailed", function()
-    -- Wave 1: assert M_errors.from_http_status(403) == LoginFailed
+  it("403 returns LoginFailed", function()
+    local result = M_errors.from_http_status(403, "")
+    assert.equals(LoginFailed, result)
   end)
 
   -- -------------------------------------------------------------------------
   -- D-24: 429 → rate_limit string
   -- -------------------------------------------------------------------------
 
-  pending("429 returns rate_limit string", function()
-    -- Wave 1: assert M_errors.from_http_status(429) == M_i18n.t("error.rate_limit")
+  it("429 returns rate_limit string", function()
+    local result = M_errors.from_http_status(429, "")
+    assert.equals(M_i18n.t("error.rate_limit"), result)
   end)
 
   -- -------------------------------------------------------------------------
   -- D-24: 5xx → network string with status code
   -- -------------------------------------------------------------------------
 
-  pending("500 returns network string with status", function()
-    -- Wave 1: assert M_errors.from_http_status(500) == M_i18n.t("error.network","500")
+  it("500 returns network string with status", function()
+    local result = M_errors.from_http_status(500, "")
+    assert.equals(M_i18n.t("error.network", "500"), result)
   end)
 
-  pending("599 returns network string with status", function()
-    -- Wave 1: assert M_errors.from_http_status(599) == M_i18n.t("error.network","599")
-    -- (D-24 boundary: highest 5xx)
+  it("599 returns network string with status", function()
+    local result = M_errors.from_http_status(599, "")
+    assert.equals(M_i18n.t("error.network", "599"), result)
   end)
 
   -- -------------------------------------------------------------------------
   -- D-24: catch-all (anything else) → network string with status
   -- -------------------------------------------------------------------------
 
-  pending("999 returns network string with status", function()
-    -- Wave 1: assert M_errors.from_http_status(999) == M_i18n.t("error.network","999")
-    -- (D-24 catch-all for unrecognised status codes)
+  it("999 returns network string with status", function()
+    local result = M_errors.from_http_status(999, "")
+    assert.equals(M_i18n.t("error.network", "999"), result)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- SEC-03: structural invariant — body is never echoed into the result
+  -- -------------------------------------------------------------------------
+
+  it("body parameter is never echoed into the result", function()
+    local result = M_errors.from_http_status(400, '{"error":"invalid_grant","error_description":"SECRET_BODY_MARKER_XYZ"}')
+    -- result must be LoginFailed or a string; body content must never appear
+    if type(result) == "string" then
+      assert.is_falsy(result:find("SECRET_BODY_MARKER_XYZ", 1, true))
+    end
+    -- Non-string results (LoginFailed literal) trivially satisfy the invariant
   end)
 
 end)
