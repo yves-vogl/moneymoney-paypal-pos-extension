@@ -1,10 +1,10 @@
 -- spec/auth_spec.lua
--- Test scaffold for M_auth (Phase 2, Wave 0 / Wave 1).
+-- Test scaffold for M_auth (Phase 2, Wave 0 / Wave 1 / Wave 3).
 -- Contains one sanity test confirming the artifact loads and M_auth is present,
 -- plus unit tests for AUTH-02 / AUTH-05 / D-22 pure-logic helpers
--- (_decode_jwt_payload, _extract_client_id) and pending() stubs for
--- orchestration functions (exchange_assertion, fetch_profile, persist_session,
--- cached_token) that land in Plan 02-05 (Wave 3).
+-- (_decode_jwt_payload, _extract_client_id) and greened orchestration tests
+-- (exchange_assertion, fetch_profile, persist_session, cached_token)
+-- that land in Plan 02-05 (Wave 3).
 --
 -- Setup: before_each re-loads the artifact after Mocks.setup() so that each
 -- test starts with a clean module-local state (including _conn, token cache).
@@ -54,47 +54,113 @@ describe("M_auth", function()
   -- AUTH-02: exchange_assertion posts the correct OAuth grant body
   -- -------------------------------------------------------------------------
 
-  pending("exchange_assertion posts grant_type", function()
-    -- Wave 3: assert conn:request body contains
-    -- grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer
+  it("exchange_assertion posts grant_type", function()
+    local raw = Fixtures.load("auth/token_ok")
+    Mocks.push_response({ content = raw })
+    -- api_key: a synthetic JWT with aud="client-x" payload (base64url middle segment)
+    M_auth.exchange_assertion("hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig", "client-x")
+    assert.is_not_nil(Mocks._last_request, "expected a request to have been made")
+    assert.equals("https://oauth.zettle.com/token", Mocks._last_request.url)
+    -- ':' is encoded as %3A; '-' is NOT percent-encoded per MM.urlencode alphabet [A-Za-z0-9%-_%.~]
+    -- Using Lua pattern mode (plain=false): %% is literal %, %- is literal -, %. is literal dot
+    local body = Mocks._last_request.body or ""
+    assert.is_not_nil(body:find("grant_type=urn%%3Aietf%%3Aparams%%3Aoauth%%3Agrant%-type%%3Ajwt%-bearer"),
+      "body must contain percent-encoded grant_type")
   end)
 
-  pending("exchange_assertion posts client_id and assertion", function()
-    -- Wave 3: assert body contains client_id=<extracted> and assertion=<api_key>
+  it("exchange_assertion posts client_id and assertion", function()
+    local raw = Fixtures.load("auth/token_ok")
+    Mocks.push_response({ content = raw })
+    M_auth.exchange_assertion("hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig", "client-x")
+    local body = Mocks._last_request.body or ""
+    -- '-' is in the safe alphabet so client-x stays as client-x (no encoding)
+    assert.is_not_nil(body:find("client_id=client%-x"),
+      "body must contain client_id=client-x")
+    -- '.' is in the safe alphabet; base64url segments keep their dots
+    -- Note: in Lua pattern mode, %% = literal %, %. = literal dot, %- = literal hyphen
+    assert.is_not_nil(body:find("assertion=hdr%.eyJhdWQiOiJjbGllbnQteCJ9%.sig"),
+      "body must contain assertion=<api_key>")
   end)
 
-  pending("exchange_assertion includes Accept: application/json header", function()
-    -- Wave 3: assert headers table passed to conn:request includes Accept
-    -- (Pitfall 1 from RESEARCH: Zettle requires explicit Accept header)
+  it("exchange_assertion includes Accept: application/json header", function()
+    local raw = Fixtures.load("auth/token_ok")
+    Mocks.push_response({ content = raw })
+    M_auth.exchange_assertion("hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig", "client-x")
+    assert.is_not_nil(Mocks._last_request, "expected a request to have been made")
+    local hdrs = Mocks._last_request.headers or {}
+    assert.equals("application/json", hdrs["Accept"])
+  end)
+
+  it("exchange_assertion content type is x-www-form-urlencoded", function()
+    local raw = Fixtures.load("auth/token_ok")
+    Mocks.push_response({ content = raw })
+    M_auth.exchange_assertion("hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig", "client-x")
+    assert.equals("application/x-www-form-urlencoded", Mocks._last_request.contentType)
   end)
 
   -- -------------------------------------------------------------------------
   -- D-21 leg 2: fetch_profile sends Bearer header
   -- -------------------------------------------------------------------------
 
-  pending("fetch_profile posts Bearer header", function()
-    -- Wave 3: assert GET /users/self includes Authorization: Bearer <token>
+  it("fetch_profile posts Bearer header", function()
+    local raw = Fixtures.load("auth/users_self_ok")
+    Mocks.push_response({ content = raw })
+    local profile = M_auth.fetch_profile("AT-12345")
+    assert.equals("https://oauth.zettle.com/users/self", Mocks._last_request.url)
+    local hdrs = Mocks._last_request.headers or {}
+    assert.equals("Bearer AT-12345", hdrs["Authorization"])
+    assert.is_string(profile.organizationUuid)
+    assert.is_true(#profile.organizationUuid > 0)
+  end)
+
+  it("fetch_profile never echoes the access token in any captured print", function()
+    local raw = Fixtures.load("auth/users_self_ok")
+    Mocks.push_response({ content = raw })
+    M_auth.fetch_profile("AT-SECRET-XYZ")
+    for _, line in ipairs(Mocks._captured_prints) do
+      assert.is_nil(line:find("AT-SECRET-XYZ", 1, true),
+        "captured print must not contain the access token literal")
+    end
   end)
 
   -- -------------------------------------------------------------------------
   -- AUTH-04: cached_token expiry and freshness
   -- -------------------------------------------------------------------------
 
-  pending("cached_token expiry", function()
-    -- Wave 3: when os.time() >= expires_at - 60, cached_token returns nil
+  it("cached_token expiry", function()
+    local now = os.time()
+    -- Expired: expires_at is 100s in the past
+    LocalStorage.zettle = { ["org-1"] = { access_token = "AT-old", expires_at = now - 100 } }
+    assert.is_nil(M_auth.cached_token("org-1"), "should return nil for expired entry")
+
+    -- Within 60s guard: expires_at is 30s in the future (now + 30 < now + 60 guard)
+    LocalStorage.zettle["org-1"] = { access_token = "AT-near", expires_at = now + 30 }
+    assert.is_nil(M_auth.cached_token("org-1"), "should return nil when within 60s guard")
   end)
 
-  pending("cached_token returns access_token when fresh", function()
-    -- Wave 3: when expires_at - 60 > os.time(), cached_token returns the token
+  it("cached_token returns access_token when fresh", function()
+    local now = os.time()
+    -- Fresh: expires_at is 3600s in the future (well beyond 60s guard)
+    LocalStorage.zettle = { ["org-1"] = { access_token = "AT-fresh", expires_at = now + 3600 } }
+    assert.equals("AT-fresh", M_auth.cached_token("org-1"))
   end)
 
   -- -------------------------------------------------------------------------
-  -- AUTH-06: cache survives reload
+  -- AUTH-06: cache survives reload via flat fallback
   -- -------------------------------------------------------------------------
 
-  pending("cache survives reload via flat fallback", function()
-    -- Wave 3: write flat-key fallback, teardown+reload, assert cached_token
-    -- still returns the token (D-23c flat fallback path)
+  it("cache survives reload via flat fallback", function()
+    -- Write session to both nested and flat paths via persist_session
+    M_auth.persist_session(
+      { access_token = "AT-flat", expires_in = 7200 },
+      { uuid = "user-1", organizationUuid = "org-flat", publicName = "Flat Café" },
+      "client-flat"
+    )
+    -- Simulate Q5: nested table lost (e.g. across MoneyMoney restart)
+    LocalStorage.zettle = nil
+    -- Flat-string fallback must still return the token
+    assert.equals("AT-flat", M_auth.cached_token("org-flat"),
+      "cached_token must fall through to flat-string path when nested is nil")
   end)
 
   -- -------------------------------------------------------------------------
@@ -174,18 +240,85 @@ describe("M_auth", function()
   -- D-23c: persist_session cache shape
   -- -------------------------------------------------------------------------
 
-  pending("persist_session writes both nested and flat cache entries", function()
-    -- Wave 3: call persist_session, inspect LocalStorage.zettle[orgUuid] and
-    -- LocalStorage["zettle:"..orgUuid] for the D-23c dual-path write
+  it("persist_session writes both nested and flat cache entries", function()
+    M_auth.persist_session(
+      { access_token = "AT-1", expires_in = 7200 },
+      { uuid = "user-1", organizationUuid = "org-1", publicName = "Beispiel Café" },
+      "client-x"
+    )
+    -- Nested path
+    assert.is_table(LocalStorage.zettle, "LocalStorage.zettle must be a table")
+    assert.is_table(LocalStorage.zettle["org-1"], "nested entry must exist")
+    assert.equals("AT-1", LocalStorage.zettle["org-1"].access_token)
+    -- Flat path
+    assert.equals("string", type(LocalStorage["zettle:org-1"]),
+      "flat cache entry must be a JSON string")
+    -- Round-trip verify
+    local decoded = JSON(LocalStorage["zettle:org-1"]):dictionary()
+    assert.equals("AT-1", decoded.access_token)
+    assert.equals("Beispiel Café", decoded.publicName)
   end)
 
   -- -------------------------------------------------------------------------
   -- ACCT-04: multi-merchant cache isolation
   -- -------------------------------------------------------------------------
 
-  pending("two orgs coexist in cache", function()
-    -- Wave 3: write two orgUuid entries to LocalStorage.zettle, assert both
-    -- readable and independent (ACCT-04 / Pitfall 6)
+  it("two orgs coexist in cache", function()
+    M_auth.persist_session(
+      { access_token = "AT-org1", expires_in = 7200 },
+      { uuid = "user-1", organizationUuid = "org-1", publicName = "Merchant A" },
+      "client-a"
+    )
+    M_auth.persist_session(
+      { access_token = "AT-org2", expires_in = 7200 },
+      { uuid = "user-2", organizationUuid = "org-2", publicName = "Merchant B" },
+      "client-b"
+    )
+    -- Both nested entries must survive
+    assert.equals("AT-org1", M_auth.cached_token("org-1"),
+      "org-1 token must still be accessible after org-2 was written")
+    assert.equals("AT-org2", M_auth.cached_token("org-2"),
+      "org-2 token must be accessible")
+    -- Both keys must exist in nested table
+    assert.is_not_nil(LocalStorage.zettle["org-1"])
+    assert.is_not_nil(LocalStorage.zettle["org-2"])
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- SEC-03 / AUTH-05: API key never written to LocalStorage
+  -- -------------------------------------------------------------------------
+
+  it("persist_session never writes the api_key anywhere in LocalStorage", function()
+    -- Simulate the full session-init sequence:
+    -- decode api_key -> extract client_id -> exchange -> fetch -> persist
+    local api_key = "hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig"  -- synthetic JWT
+    local client_id = M_auth._extract_client_id(api_key)  -- "client-x"
+    assert.equals("client-x", client_id)
+
+    -- exchange_assertion needs a queued response
+    Mocks.push_response({ content = Fixtures.load("auth/token_ok") })
+    local token_table = M_auth.exchange_assertion(api_key, client_id)
+
+    -- fetch_profile needs a queued response
+    Mocks.push_response({ content = Fixtures.load("auth/users_self_ok") })
+    local profile = M_auth.fetch_profile(token_table.access_token)
+
+    M_auth.persist_session(token_table, profile, client_id)
+
+    -- Walk every string value in LocalStorage recursively
+    -- Use plain=true here since "hdr.eyJ" has no Lua pattern metacharacters worth escaping
+    local function walk(t, prefix)
+      for k, v in pairs(t) do
+        local path = prefix .. "." .. tostring(k)
+        if type(v) == "string" then
+          assert.is_nil(v:find("hdr.eyJ", 1, true),
+            "LocalStorage" .. path .. " must not contain the api_key prefix")
+        elseif type(v) == "table" then
+          walk(v, path)
+        end
+      end
+    end
+    walk(LocalStorage, "")
   end)
 
 end)
