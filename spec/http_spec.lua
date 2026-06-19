@@ -162,6 +162,33 @@ describe("M_http", function()
   end)
 
   -- -------------------------------------------------------------------------
+  -- H-01 / M-02: rate_limit error body must infer status 429 (not 400)
+  -- -------------------------------------------------------------------------
+
+  it("_infer_status maps rate_limit body to 429 (H-01)", function()
+    -- Zettle returns {"error":"rate_limit",...} with HTTP 200 (Risk R-1).
+    -- _infer_status must recognise "rate_limit" and return 429 so that
+    -- from_http_status(429, ...) surfaces the German error.rate_limit string
+    -- instead of LoginFailed. Without the fix this returns 400 (conservative
+    -- fallback), making D-24 case 4 permanently dead code.
+    assert.equals(429, M_http._infer_status({ error = "rate_limit" }))
+  end)
+
+  it("post_form with rate_limited fixture returns 429 status (M-02)", function()
+    -- Load the recorded token_rate_limited fixture and push it as the
+    -- Connection response. post_form must infer status=429 so that the caller
+    -- (InitializeSession2 in entry.lua) can surface the German rate-limit
+    -- message rather than LoginFailed.
+    local Fixtures = require("spec.helpers.fixtures")
+    local raw = Fixtures.load("auth/token_rate_limited")
+    Mocks.push_response({ content = raw, mime = "application/json" })
+    local decoded, status, _ = M_http.post_form("https://oauth.zettle.com/token", { grant_type = "x" }, {})
+    assert.is_table(decoded)
+    assert.equals("rate_limit", decoded.error)
+    assert.equals(429, status)
+  end)
+
+  -- -------------------------------------------------------------------------
   -- Defense-in-depth: Bearer header never logged
   -- -------------------------------------------------------------------------
 

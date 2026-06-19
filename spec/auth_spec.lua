@@ -260,6 +260,35 @@ describe("M_auth", function()
   end)
 
   -- -------------------------------------------------------------------------
+  -- B-02 defensive guard in persist_session (S-01 belt-and-suspenders)
+  -- -------------------------------------------------------------------------
+
+  it("persist_session with nil organizationUuid returns nil and does not crash (B-02)", function()
+    -- profile table with no organizationUuid field simulates a malformed
+    -- /users/self 200 response. Without the defensive guard in persist_session,
+    -- _cache_write(nil, entry) throws "table index is nil".
+    local result = M_auth.persist_session(
+      { access_token = "AT-2", expires_in = 7200 },
+      { uuid = "user-2" },  -- organizationUuid intentionally absent
+      "client-y"
+    )
+    -- Must return nil cleanly (no crash, no partial write)
+    assert.is_nil(result)
+    assert.is_nil(LocalStorage.zettle)
+  end)
+
+  it("persist_session with empty-string organizationUuid returns nil and does not crash (B-02)", function()
+    -- Empty string is structurally invalid as a cache key; guard must reject it.
+    local result = M_auth.persist_session(
+      { access_token = "AT-3", expires_in = 7200 },
+      { uuid = "user-3", organizationUuid = "" },
+      "client-z"
+    )
+    assert.is_nil(result)
+    assert.is_nil(LocalStorage.zettle)
+  end)
+
+  -- -------------------------------------------------------------------------
   -- ACCT-04: multi-merchant cache isolation
   -- -------------------------------------------------------------------------
 
