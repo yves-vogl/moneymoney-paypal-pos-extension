@@ -87,28 +87,28 @@ describe("entry.lua callbacks", function()
     assert.is_nil(Mocks._last_request)
   end)
 
-  it("InitializeSession2 string credential with malformed JWT returns error.invalid_grant without any network call", function()
+  it("InitializeSession2 string credential with malformed JWT returns error.invalid_grant", function()
     local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
                                       "any-non-empty-but-not-a-jwt", false)
     assert.equals(M_i18n.t("error.invalid_grant"), result)
     assert.is_nil(Mocks._last_request)
   end)
 
-  it("InitializeSession2 with positional-array malformed JWT returns error.invalid_grant without any network call", function()
+  it("InitializeSession2 with positional-array malformed JWT returns error.invalid_grant", function()
     local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
                                       { "any-non-empty-but-not-a-jwt" }, false)
     assert.equals(M_i18n.t("error.invalid_grant"), result)
     assert.is_nil(Mocks._last_request)
   end)
 
-  it("InitializeSession2 with hash-table password malformed JWT returns error.invalid_grant without any network call", function()
+  it("InitializeSession2 with hash-table password malformed JWT returns error.invalid_grant", function()
     local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
                                       { username = "foo", password = "any-non-empty-but-not-a-jwt" }, false)
     assert.equals(M_i18n.t("error.invalid_grant"), result)
     assert.is_nil(Mocks._last_request)
   end)
 
-  it("InitializeSession2 with hash-table username-only malformed JWT returns error.invalid_grant without any network call", function()
+  it("InitializeSession2 with hash-table username-only malformed JWT returns error.invalid_grant", function()
     local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
                                       { username = "any-non-empty-but-not-a-jwt" }, false)
     assert.equals(M_i18n.t("error.invalid_grant"), result)
@@ -148,7 +148,7 @@ describe("entry.lua callbacks", function()
     assert.is_nil(LocalStorage.zettle)
   end)
 
-  it("InitializeSession2 with scope-failure on /users/self returns LoginFailed and does not populate LocalStorage", function()
+  it("InitializeSession2 with /users/self scope failure returns LoginFailed; LocalStorage stays empty", function()
     local tok_raw = Fixtures.load("auth/token_ok")
     local usr_raw = Fixtures.load("auth/users_self_unauthorized")
     Mocks.push_response({ content = tok_raw, mime = "application/json" })

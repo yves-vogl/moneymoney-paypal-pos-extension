@@ -6,7 +6,7 @@ files["tools/**"] = { std = "lua54" }
 -- MoneyMoney built-in globals (read-only for luacheck)
 read_globals = {
   "WebBanking", "Connection", "JSON", "HTML", "PDF",
-  "MM", "LocalStorage",
+  "MM",
   "ProtocolWebBanking", "ProtocolFinTS",
   "AccountTypeGiro", "AccountTypeSavings", "AccountTypeFixedTermDeposit",
   "AccountTypeLoan", "AccountTypeCreditCard", "AccountTypePortfolio",
@@ -14,10 +14,12 @@ read_globals = {
   "LoginFailed",
 }
 
--- Extension callbacks are top-level globals (written once by entry.lua)
+-- Extension callbacks are top-level globals (written once by entry.lua).
+-- LocalStorage is a writable kv table provided by MoneyMoney (D-23c dual-write contract).
 globals = {
   "SupportsBank", "InitializeSession2", "ListAccounts",
   "RefreshAccount", "EndSession",
+  "LocalStorage",
 }
 
 -- Module tables predeclared in webbanking_header.lua
