@@ -2,11 +2,12 @@
 -- Ownership: SALE-06 / D-33 / D-42 / D-43.
 -- Provides: M_purchases.fetch(clamped_since, bearer, cursor) -- single-page GET
 --           M_purchases.fetch_all(clamped_since, bearer) -- drives M_pagination.iterate
---           when available; falls back to inline cursor loop during the
---           Phase-3 Wave-3 parallel-plan window before Plan 03-04 lands.
 -- The M_purchases table is predeclared in src/webbanking_header.lua.
 -- NO require() of sibling modules (D-02: amalgamator resolves cross-module
 -- refs at build time via the shared module-table globals).
+--
+-- Wave-3 parallel-plan note: _inline_iterate (dead fallback code) was removed in
+-- Plan 03-06 once M_pagination.iterate was confirmed available. See Plan 03-04.
 
 -- _iso8601_utc(posix) -> string
 -- Formats a POSIX timestamp as UTC ISO-8601: "YYYY-MM-DDTHH:MM:SSZ".
@@ -37,52 +38,6 @@ local function _url_encode_query(params)
     end
   end
   return table.concat(parts, "&")
-end
-
--- _inline_iterate(fetch_page_fn, initial_params) -> (all_purchases|nil, error|nil)
--- Minimal inline cursor loop used when M_pagination.iterate is not yet available
--- (parallel-plan window before Plan 03-04 fills src/pagination.lua).
--- Mirrors the RESEARCH §2a repeat-until pattern and RESEARCH §3 anti-pattern 1:
--- terminates on empty purchases[] OR absent/empty lastPurchaseHash (both checked).
--- MAX_PAGES=50 guards against infinite loops on malformed responses (belt-and-suspenders).
--- Superseded by M_pagination.iterate once Plan 03-04 lands.
-local function _inline_iterate(fetch_page_fn, initial_params)
-  local all_purchases = {}
-  local params = {}
-  for k, v in pairs(initial_params) do params[k] = v end
-  local MAX_PAGES = 50
-  local page_count = 0
-
-  repeat
-    page_count = page_count + 1
-    if page_count > MAX_PAGES then
-      break  -- MAX_PAGES guard: prevent infinite loops on malformed responses
-    end
-
-    local page, status, raw = fetch_page_fn(params)
-    local err = M_errors.from_http_status(status, raw)
-    if err then return nil, err end
-    if not page or type(page.purchases) ~= "table" then
-      return nil, M_i18n.t("error.network", "bad_page")
-    end
-
-    for _, p in ipairs(page.purchases) do
-      all_purchases[#all_purchases + 1] = p
-    end
-
-    -- Termination: check BOTH empty array AND absent cursor (RESEARCH §3, anti-pattern 1)
-    local has_more = #page.purchases > 0
-      and type(page.lastPurchaseHash) == "string"
-      and page.lastPurchaseHash ~= ""
-    if has_more then
-      params.lastPurchaseHash = page.lastPurchaseHash
-    else
-      params.lastPurchaseHash = nil
-    end
-
-  until not (type(params.lastPurchaseHash) == "string" and params.lastPurchaseHash ~= "")
-
-  return all_purchases, nil
 end
 
 -- M_purchases.fetch(clamped_since, bearer, cursor)
@@ -125,24 +80,13 @@ end
 --   bearer        : string -- Bearer token from M_auth.cached_token (D-41)
 --   -> (all_purchases:table|nil, error:string|nil)
 --
--- Drives the full cursor loop over the Purchase API.
--- Delegates to M_pagination.iterate (Plan 03-04) when available, otherwise
--- falls back to the inline _inline_iterate helper above.
--- fetch_page_fn closure captures clamped_since and bearer and calls
--- M_purchases.fetch on each invocation; M_pagination.iterate (or _inline_iterate)
--- manages params.lastPurchaseHash between page calls.
+-- Drives the full cursor loop over the Purchase API via M_pagination.iterate (Plan 03-04).
+-- fetch_page_fn closure captures clamped_since and bearer and calls M_purchases.fetch
+-- on each invocation; M_pagination.iterate manages params.lastPurchaseHash between pages.
 function M_purchases.fetch_all(clamped_since, bearer)
   local fetch_page_fn = function(params)
     return M_purchases.fetch(clamped_since, bearer, params.lastPurchaseHash)
   end
 
-  if type(M_pagination.iterate) == "function" then
-    return M_pagination.iterate(fetch_page_fn, {})
-  end
-
-  -- Fallback: Plan 03-04 has not yet filled src/pagination.lua.
-  -- _inline_iterate provides identical cursor-loop semantics so Wave-3
-  -- purchases specs pass in the parallel-plan window. This path is
-  -- superseded once Plan 03-04 merges and M_pagination.iterate is defined.
-  return _inline_iterate(fetch_page_fn, {})
+  return M_pagination.iterate(fetch_page_fn, {})
 end
