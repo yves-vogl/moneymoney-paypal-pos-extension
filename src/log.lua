@@ -6,7 +6,7 @@
 -- Level table (private to this do...end block)
 local _LEVEL = { DEBUG = 1, INFO = 2, WARN = 3, ERROR = 4 }
 
--- _redact(s): apply four redaction passes and return the sanitised string.
+-- _redact(s): apply redaction passes and return the sanitised string.
 -- Over-redacts by design — better to redact too much than to leak credentials.
 local function _redact(s)
   s = tostring(s)
@@ -23,13 +23,20 @@ local function _redact(s)
     "<redacted>"
   )
 
-  -- 2. Bearer header values
-  s = s:gsub("Bearer%s+[%w%-_%.]+", "Bearer <redacted>")
+  -- 2. Bearer header values — %S+ matches any non-whitespace run, covering
+  --    standard base64 (+, /) and padding (=) chars that the old [%w%-_.]+ class
+  --    missed.  Opaque tokens like "abc+def/ghi=" are now fully redacted.
+  s = s:gsub("Bearer%s+%S+", "Bearer <redacted>")
 
   -- 3. assertion= in OAuth form-encoded bodies
   s = s:gsub("assertion=[^%s&]+", "assertion=<redacted>")
 
-  -- 4. access_token= in JSON responses or query strings
+  -- 4a. access_token in JSON key:value form ("access_token":"VALUE").
+  --     Applied before the form-encoded rule so both forms are caught.
+  --     Handles optional whitespace around the colon per JSON spec (S-04).
+  s = s:gsub('"access_token"%s*:%s*"[^"]+"', '"access_token":"<redacted>"')
+
+  -- 4b. access_token= in form-encoded bodies or query strings
   s = s:gsub("access_token=[^%s&]+", "access_token=<redacted>")
 
   return s
