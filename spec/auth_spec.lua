@@ -320,7 +320,16 @@ describe("M_auth", function()
   it("persist_session never writes the api_key anywhere in LocalStorage", function()
     -- Simulate the full session-init sequence:
     -- decode api_key -> extract client_id -> exchange -> fetch -> persist
-    local api_key = "hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig"  -- synthetic JWT
+    --
+    -- Segments are chosen to be unique and longer than trivial 3-char strings
+    -- (e.g. "sig", "hdr") that can collide with fixture UUIDs or token values.
+    -- Aligned with the gating-spec pattern (log_redaction_spec.lua:279-286):
+    -- iterate over each dot-separated segment individually rather than checking
+    -- a fixed prefix so the guard holds for any future synthetic key shape.
+    --
+    -- APIKEYHEADER and APIKEYSIG99 are uppercase tokens that do not appear in
+    -- any fixture file or in the base64url alphabet, so no collision is possible.
+    local api_key = "APIKEYHEADER.eyJhdWQiOiJjbGllbnQteCJ9.APIKEYSIG99"
     local client_id = M_auth._extract_client_id(api_key)  -- "client-x"
     assert.equals("client-x", client_id)
 
@@ -334,14 +343,16 @@ describe("M_auth", function()
 
     M_auth.persist_session(token_table, profile, client_id)
 
-    -- Walk every string value in LocalStorage recursively
-    -- Use plain=true here since "hdr.eyJ" has no Lua pattern metacharacters worth escaping
+    -- Recursive LocalStorage walker: visits every string value in the table.
+    -- Per-segment check aligned with log_redaction_spec.lua:279-286.
     local function walk(t, prefix)
       for k, v in pairs(t) do
         local path = prefix .. "." .. tostring(k)
         if type(v) == "string" then
-          assert.is_nil(v:find("hdr.eyJ", 1, true),
-            "LocalStorage" .. path .. " must not contain the api_key prefix")
+          for seg in api_key:gmatch("[^.]+") do
+            assert.is_nil(v:find(seg, 1, true),
+              "LocalStorage" .. path .. " must not contain JWT segment '" .. seg .. "'")
+          end
         elseif type(v) == "table" then
           walk(v, path)
         end

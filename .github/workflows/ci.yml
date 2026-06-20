@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: ["**"]
 
-permissions:
-  contents: write  # needed for the self-hosted coverage badge push to coverage-badge branch (only fires on push to main)
-
 env:
   LC_ALL: C
 
@@ -16,6 +13,11 @@ jobs:
   test:
     name: Lint + tests + reproducible build
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read  # lint, test, build, and gate steps only need read access
+    outputs:
+      coverage_pct: ${{ steps.coverage.outputs.coverage_pct }}
+      coverage_int: ${{ steps.coverage.outputs.coverage_int }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -44,6 +46,7 @@ jobs:
         run: busted --coverage spec/
 
       - name: Generate text coverage report and enforce 85% threshold
+        id: coverage
         run: |
           set -e
           luacov
@@ -60,63 +63,10 @@ jobs:
             exit 1
           fi
           echo "OK: coverage ${TOTAL_COV}% meets the 85% threshold"
-          # Persist the full % string for the badge-generation step.
-          echo "COVERAGE_PCT=${TOTAL_COV_FULL}" >> "$GITHUB_ENV"
-          echo "COVERAGE_INT=${TOTAL_COV}"      >> "$GITHUB_ENV"
-
-      - name: Generate self-hosted coverage badge (SVG)
-        if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          set -e
-          PCT="${COVERAGE_INT}"
-          if   [ "$PCT" -ge 90 ]; then COLOR="#4c1";    LABEL_BG="#555";
-          elif [ "$PCT" -ge 80 ]; then COLOR="#97ca00"; LABEL_BG="#555";
-          elif [ "$PCT" -ge 70 ]; then COLOR="#dfb317"; LABEL_BG="#555";
-          else                          COLOR="#e05d44"; LABEL_BG="#555";
-          fi
-          mkdir -p /tmp/badge
-          cat > /tmp/badge/coverage.svg <<SVG
-          <svg xmlns="http://www.w3.org/2000/svg" width="104" height="20" role="img" aria-label="coverage: ${COVERAGE_PCT}%">
-            <title>coverage: ${COVERAGE_PCT}%</title>
-            <linearGradient id="s" x2="0" y2="100%">
-              <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
-              <stop offset="1" stop-opacity=".1"/>
-            </linearGradient>
-            <clipPath id="r"><rect width="104" height="20" rx="3" fill="#fff"/></clipPath>
-            <g clip-path="url(#r)">
-              <rect width="61" height="20" fill="${LABEL_BG}"/>
-              <rect x="61" width="43" height="20" fill="${COLOR}"/>
-              <rect width="104" height="20" fill="url(#s)"/>
-            </g>
-            <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110">
-              <text x="315" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="510">coverage</text>
-              <text x="315" y="140" transform="scale(.1)" fill="#fff" textLength="510">coverage</text>
-              <text x="815" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="330">${COVERAGE_PCT}%</text>
-              <text x="815" y="140" transform="scale(.1)" fill="#fff" textLength="330">${COVERAGE_PCT}%</text>
-            </g>
-          </svg>
-          SVG
-          echo "Generated badge for ${COVERAGE_PCT}% (color ${COLOR})"
-
-      - name: Push coverage badge to coverage-badge branch
-        if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: |
-          set -e
-          STAGE=$(mktemp -d)
-          cd "$STAGE"
-          git init -q
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          cp /tmp/badge/coverage.svg .
-          git checkout -q -b coverage-badge
-          git add coverage.svg
-          git commit -q -m "ci: refresh coverage badge (${COVERAGE_PCT}%)"
-          git push -q --force \
-            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
-            HEAD:refs/heads/coverage-badge
-          echo "Pushed badge to coverage-badge branch"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Expose values as job outputs for the badge job (S-07: write permission
+          # is scoped to the badge job only, not inherited by all test steps).
+          echo "coverage_pct=${TOTAL_COV_FULL}" >> "$GITHUB_OUTPUT"
+          echo "coverage_int=${TOTAL_COV}"      >> "$GITHUB_OUTPUT"
 
       - name: Build amalgamated artifact
         run: lua tools/build.lua
@@ -161,3 +111,67 @@ jobs:
             exit 1
           fi
           echo "OK: no AI-attribution patterns"
+
+  badge:
+    name: Refresh coverage badge
+    runs-on: ubuntu-24.04
+    needs: test
+    # Only push the badge when merging to main; skip on PRs and non-main pushes.
+    if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write  # required only for this job's push to coverage-badge branch
+    steps:
+      - name: Generate self-hosted coverage badge (SVG)
+        run: |
+          set -e
+          COVERAGE_PCT="${{ needs.test.outputs.coverage_pct }}"
+          COVERAGE_INT="${{ needs.test.outputs.coverage_int }}"
+          PCT="${COVERAGE_INT}"
+          if   [ "$PCT" -ge 90 ]; then COLOR="#4c1";    LABEL_BG="#555";
+          elif [ "$PCT" -ge 80 ]; then COLOR="#97ca00"; LABEL_BG="#555";
+          elif [ "$PCT" -ge 70 ]; then COLOR="#dfb317"; LABEL_BG="#555";
+          else                          COLOR="#e05d44"; LABEL_BG="#555";
+          fi
+          mkdir -p /tmp/badge
+          cat > /tmp/badge/coverage.svg <<SVG
+          <svg xmlns="http://www.w3.org/2000/svg" width="104" height="20" role="img" aria-label="coverage: ${COVERAGE_PCT}%">
+            <title>coverage: ${COVERAGE_PCT}%</title>
+            <linearGradient id="s" x2="0" y2="100%">
+              <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
+              <stop offset="1" stop-opacity=".1"/>
+            </linearGradient>
+            <clipPath id="r"><rect width="104" height="20" rx="3" fill="#fff"/></clipPath>
+            <g clip-path="url(#r)">
+              <rect width="61" height="20" fill="${LABEL_BG}"/>
+              <rect x="61" width="43" height="20" fill="${COLOR}"/>
+              <rect width="104" height="20" fill="url(#s)"/>
+            </g>
+            <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110">
+              <text x="315" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="510">coverage</text>
+              <text x="315" y="140" transform="scale(.1)" fill="#fff" textLength="510">coverage</text>
+              <text x="815" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="330">${COVERAGE_PCT}%</text>
+              <text x="815" y="140" transform="scale(.1)" fill="#fff" textLength="330">${COVERAGE_PCT}%</text>
+            </g>
+          </svg>
+          SVG
+          echo "Generated badge for ${COVERAGE_PCT}% (color ${COLOR})"
+
+      - name: Push coverage badge to coverage-badge branch
+        run: |
+          set -e
+          COVERAGE_PCT="${{ needs.test.outputs.coverage_pct }}"
+          STAGE=$(mktemp -d)
+          cd "$STAGE"
+          git init -q
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          cp /tmp/badge/coverage.svg .
+          git checkout -q -b coverage-badge
+          git add coverage.svg
+          git commit -q -m "ci: refresh coverage badge (${COVERAGE_PCT}%)"
+          git push -q --force \
+            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            HEAD:refs/heads/coverage-badge
+          echo "Pushed badge to coverage-badge branch"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
