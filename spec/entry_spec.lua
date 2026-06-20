@@ -317,19 +317,18 @@ describe("entry.lua callbacks", function()
   end)
 
   -- -------------------------------------------------------------------------
-  -- RefreshAccount
+  -- RefreshAccount — Phase-1 guard (Phase-3 pipeline replaces the fixture body)
   -- -------------------------------------------------------------------------
 
-  it("RefreshAccount returns one transaction with EUR + zettle:sale prefix", function()
+  it("RefreshAccount returns a German error string when accountNumber is missing (Phase-3 guard)", function()
+    -- Phase-3 rewire: RefreshAccount({}, 0) has no accountNumber so it returns
+    -- error.network instead of a transaction table. The Phase-1 fixture body is gone.
     local r = RefreshAccount({}, 0)
-    assert.equals(1, #r.transactions)
-    assert.equals("EUR", r.transactions[1].currency)
-    assert.is_truthy(r.transactions[1].transactionCode:match("^zettle:sale:"))
-  end)
-
-  it("RefreshAccount transaction name comes from i18n", function()
-    local r = RefreshAccount({}, 0)
-    assert.equals(M_i18n.t("transaction.name.sale"), r.transactions[1].name)
+    assert.is_string(r, "RefreshAccount must return a string error when accountNumber is absent")
+    assert.truthy(
+      r:find("missing_account", 1, true) or r:find("Netzwerkfehler", 1, true),
+      "expected German error.network envelope, got: " .. tostring(r)
+    )
   end)
 
   -- -------------------------------------------------------------------------
@@ -407,6 +406,168 @@ describe("entry.lua callbacks", function()
     local token = M_auth.cached_token(org)
     assert.is_string(token)
     assert.is_truthy(#token > 0)
+  end)
+
+end)
+
+-- ---------------------------------------------------------------------------
+-- Phase-3 RefreshAccount integration tests (SALE-01..06+08 / D-31 / D-33 / D-37 / D-41)
+-- ---------------------------------------------------------------------------
+-- luacheck: globals RefreshAccount LocalStorage M_i18n JSON M_auth
+describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 / D-41)", function()
+
+  local function load_artifact()
+    local ok, _, code = os.execute("lua tools/build.lua 2>/dev/null")
+    if not ok or code ~= 0 then
+      error("entry_spec phase-3: failed to build dist/paypal-pos.lua")
+    end
+    dofile("dist/paypal-pos.lua")
+  end
+
+  before_each(function()
+    Mocks.setup()
+    load_artifact()
+  end)
+
+  after_each(function()
+    Mocks.teardown()
+  end)
+
+  -- Seed a valid token into the flat-fallback cache so M_auth.cached_token
+  -- returns "AT-VALID" without re-auth. Uses the D-23c flat path that survives
+  -- cross-restart scenarios (AUTH-06). AT-VALID has no two dots so it is NOT
+  -- JWT-shaped and SEC-03 walks will not flag it as a leaked API key.
+  local function seed_token(orgUuid)
+    LocalStorage["zettle:" .. orgUuid] = JSON():set({
+      access_token = "AT-VALID",
+      expires_at   = os.time() + 7200,
+      obtained_at  = os.time(),
+      client_id    = "client-x",
+      uuid         = "u-1",
+      publicName   = "Beispiel Caf\195\169",
+    }):json()
+  end
+
+  -- -------------------------------------------------------------------------
+
+  it("RefreshAccount returns error string when accountNumber is missing (guard)", function()
+    local result = RefreshAccount({ balance = 0 }, 0)
+    assert.is_string(result, "expected error string when accountNumber is absent")
+    assert.truthy(
+      result:find("missing_account", 1, true) or result:find("Netzwerkfehler", 1, true),
+      "expected German error.network envelope, got: " .. tostring(result)
+    )
+  end)
+
+  it("RefreshAccount returns error.network when cached_token is nil (D-41)", function()
+    -- Deliberately do NOT call seed_token — LocalStorage has no entry for org-no-token.
+    local result = RefreshAccount({ accountNumber = "org-no-token", currency = "EUR", balance = 0 }, 0)
+    assert.is_string(result, "expected error string when no token in cache")
+    assert.equals(M_i18n.t("error.network", "\xe2\x80\x94"), result,
+      "D-41: result must be German error.network with em-dash suffix")
+  end)
+
+  it("RefreshAccount returns transactions for purchase_simple_sale fixture (happy path)", function()
+    seed_token("org-1")
+    local raw = Fixtures.load("purchases/purchase_simple_sale")
+    Mocks.push_response({ content = raw })
+    local result = RefreshAccount({ accountNumber = "org-1", currency = "EUR", balance = 0 }, 0)
+    assert.is_table(result, "result must be a table on success")
+    assert.is_table(result.transactions, "result.transactions must be a table")
+    assert.equals(1, #result.transactions, "expected 1 transaction from purchase_simple_sale")
+    -- purchase_simple_sale has amount=500 minor units -> 5.00 EUR
+    assert.equals(5.00, result.transactions[1].amount,
+      "amount must be 5.00 EUR (500 minor units / 100)")
+    assert.equals("zettle:sale:11111111-1111-1111-1111-111111111111",
+      result.transactions[1].transactionCode,
+      "transactionCode must follow zettle:sale:<purchaseUUID1> pattern (D-38)")
+    assert.is_false(result.transactions[1].booked,
+      "booked must be false in Phase 3 (D-31)")
+  end)
+
+  it("RefreshAccount dispatches refund_to_transaction for refund records (D-32)", function()
+    seed_token("org-2")
+    local raw = Fixtures.load("purchases/purchase_refund")
+    Mocks.push_response({ content = raw })
+    local result = RefreshAccount({ accountNumber = "org-2", currency = "EUR", balance = 0 }, 0)
+    assert.is_table(result, "result must be a table for refund fixture")
+    assert.equals(1, #result.transactions, "expected 1 transaction from purchase_refund")
+    assert.is_true(result.transactions[1].amount < 0,
+      "refund transaction amount must be negative (D-32)")
+    assert.truthy(result.transactions[1].transactionCode:find("^zettle:refund:", 1, false),
+      "refund transactionCode must start with zettle:refund: (D-38), got: " ..
+      tostring(result.transactions[1].transactionCode))
+  end)
+
+  it("RefreshAccount silently skips non-EUR purchases (D-37)", function()
+    seed_token("org-3")
+    local raw = Fixtures.load("purchases/purchase_non_eur")
+    Mocks.push_response({ content = raw })
+    local result = RefreshAccount({ accountNumber = "org-3", currency = "EUR", balance = 0 }, 0)
+    assert.is_table(result, "result must be a table even when all purchases are skipped")
+    assert.is_table(result.transactions, "result.transactions must be a table")
+    assert.equals(0, #result.transactions,
+      "non-EUR purchases must be silently skipped — expected 0 transactions")
+  end)
+
+  it("RefreshAccount returns empty transactions for empty fixture (SALE-06 incremental empty-refresh)", function()
+    seed_token("org-4")
+    local raw = Fixtures.load("purchases/purchases_empty")
+    Mocks.push_response({ content = raw })
+    local result = RefreshAccount({ accountNumber = "org-4", currency = "EUR", balance = 0 }, os.time() - 60)
+    assert.is_table(result, "result must be a table for empty purchase page")
+    assert.is_table(result.transactions, "result.transactions must be a table")
+    assert.equals(0, #result.transactions,
+      "empty purchase page must yield 0 transactions (SALE-06)")
+  end)
+
+  it("RefreshAccount clamps since to 90 days back when caller passes 0 (D-33)", function()
+    seed_token("org-5")
+    local raw = Fixtures.load("purchases/purchases_empty")
+    Mocks.push_response({ content = raw })
+    RefreshAccount({ accountNumber = "org-5", currency = "EUR", balance = 0 }, 0)
+    local url = Mocks._last_request.url
+    assert.truthy(url:find("startDate=", 1, true),
+      "URL must include startDate query param, got: " .. tostring(url))
+    -- The startDate must NOT be the epoch (1970-01-01); it must reflect the 90-day clamp.
+    local ok = not url:find("startDate=1970", 1, true)
+    assert.is_true(ok,
+      "startDate must be clamped to ~90 days ago, not the epoch 1970: " .. url)
+  end)
+
+  it("RefreshAccount passes through recent since unchanged when newer than 90-day window (D-33)", function()
+    seed_token("org-6")
+    local raw = Fixtures.load("purchases/purchases_empty")
+    Mocks.push_response({ content = raw })
+    local recent = os.time() - 3600  -- 1 hour ago — well within 90 days
+    RefreshAccount({ accountNumber = "org-6", currency = "EUR", balance = 0 }, recent)
+    local url = Mocks._last_request.url
+    assert.truthy(url:find("startDate=", 1, true),
+      "URL must include startDate query param, got: " .. tostring(url))
+    -- The year-month substring of the recent timestamp should appear in the URL.
+    local recent_iso = os.date("!%Y-%m", recent)
+    assert.truthy(url:find(recent_iso, 1, true),
+      "URL must contain year-month " .. recent_iso .. " for recent since, got: " .. url)
+  end)
+
+  it("RefreshAccount preserves account.balance in return value (Phase 3 ACCT-03 not-yet-wired)", function()
+    seed_token("org-7")
+    local raw = Fixtures.load("purchases/purchases_empty")
+    Mocks.push_response({ content = raw })
+    local result = RefreshAccount({ accountNumber = "org-7", currency = "EUR", balance = 123.45 }, os.time() - 60)
+    assert.is_table(result, "result must be a table")
+    assert.equals(123.45, result.balance,
+      "balance must be passed through unchanged (D-31: Finance API is Phase 4)")
+  end)
+
+  it("RefreshAccount returns string error on HTTP failure (ERR-06 fail-whole-refresh)", function()
+    seed_token("org-8")
+    -- Push a 429 response body so M_errors.from_http_status returns the German rate_limit string.
+    Mocks.push_response({ content = '{"errorType":"RATE_LIMIT"}', status = 429 })
+    local result = RefreshAccount({ accountNumber = "org-8", currency = "EUR", balance = 0 }, 0)
+    -- The result must be an error string (not a table) — ERR-06 fail-whole-refresh.
+    assert.is_string(result, "RefreshAccount must return an error string on HTTP failure (ERR-06)")
+    assert.truthy(#result > 0, "error string must be non-empty")
   end)
 
 end)
