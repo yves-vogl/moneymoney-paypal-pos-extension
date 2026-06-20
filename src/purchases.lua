@@ -55,6 +55,11 @@ end
 -- 3-tuple from M_http.get_json verbatim so callers can route via
 -- M_errors.from_http_status (D-43).
 function M_purchases.fetch(clamped_since, bearer, cursor)
+  -- ME-01: belt-and-suspenders guard. RefreshAccount already guards nil bearer (D-41),
+  -- but an explicit assertion here surfaces any future regression loudly rather than
+  -- silently sending "Bearer nil" as the Authorization header value.
+  assert(type(bearer) == "string" and #bearer > 0,
+    "M_purchases.fetch: bearer must be a non-empty string")
   -- Build query param table; _url_encode_query sorts keys alphabetically.
   local q = {
     descending = "false",
