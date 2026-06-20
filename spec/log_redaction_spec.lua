@@ -99,6 +99,64 @@ describe("M_log redaction", function()
   end)
 
   -- -----------------------------------------------------------------------
+  -- S-03: Bearer pattern must cover tokens with = and + characters (S-03).
+  -- The old [%w%-_.]+ pattern truncates at these chars, leaking a fragment.
+  -- The fix widens to %S+ (any non-whitespace run after "Bearer ").
+  -- -----------------------------------------------------------------------
+
+  it("S-03: redacts a Bearer token containing + (standard base64 alphabet)", function()
+    -- Old [%w%-_.]+ pattern stops at +, leaking the suffix "def/ghi=" in output.
+    M_log.info("Authorization: Bearer abc+def/ghi=")
+
+    local line = last_print()
+    assert.is_not_nil(line, "M_log.info should have produced output")
+    assert.is_truthy(line:find("Bearer <redacted>"),
+      "Bearer value with + should be fully replaced (got: " .. tostring(line) .. ")")
+    assert.is_falsy(line:find("def/ghi"),
+      "fragment after + must not appear in output (got: " .. tostring(line) .. ")")
+  end)
+
+  it("S-03: redacts a Bearer token containing = (base64 padding char)", function()
+    -- Old pattern stops before =, leaving the trailing fragment in output.
+    M_log.info("Authorization: Bearer tok+ending=x")
+
+    local line = last_print()
+    assert.is_not_nil(line, "M_log.info should have produced output")
+    assert.is_truthy(line:find("Bearer <redacted>"),
+      "Bearer value with = should be fully replaced (got: " .. tostring(line) .. ")")
+    assert.is_falsy(line:find("ending=x"),
+      "trailing fragment after + must not appear in output (got: " .. tostring(line) .. ")")
+  end)
+
+  -- -----------------------------------------------------------------------
+  -- S-04: access_token in JSON key:value form must also be redacted.
+  -- The old rule only covers form-encoded (access_token=VALUE); a JSON body
+  -- like {"access_token":"short_tok",...} passes through all four rules.
+  -- -----------------------------------------------------------------------
+
+  it("S-04: redacts access_token in JSON key-value form (short non-JWT value)", function()
+    -- short_tok is not JWT-shaped so rule 1 (JWT three-segment pattern) misses it.
+    M_log.info('{"access_token":"short_tok","expires_in":7200}')
+
+    local line = last_print()
+    assert.is_not_nil(line, "M_log.info should have produced output")
+    assert.is_truthy(line:find('"access_token":"<redacted>"'),
+      'JSON access_token value should be replaced (got: ' .. tostring(line) .. ')')
+    assert.is_falsy(line:find("short_tok"),
+      "raw JSON access_token value must not appear in output (got: " .. tostring(line) .. ")")
+  end)
+
+  it("S-04: redacts access_token JSON form with optional whitespace around colon", function()
+    -- Pattern must handle "access_token" : "value" (spaces around :).
+    M_log.info('{"access_token" : "mytoken"}')
+
+    local line = last_print()
+    assert.is_not_nil(line, "M_log.info should have produced output")
+    assert.is_falsy(line:find("mytoken"),
+      "raw token must not appear in output when spaces around colon (got: " .. tostring(line) .. ")")
+  end)
+
+  -- -----------------------------------------------------------------------
   -- Negative cases — innocuous strings must pass through unchanged
   -- -----------------------------------------------------------------------
 
