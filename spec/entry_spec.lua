@@ -570,4 +570,45 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     assert.truthy(#result > 0, "error string must be non-empty")
   end)
 
+  -- -------------------------------------------------------------------------
+  -- S-04: since=math.huge must not crash os.date() in effective_since path
+  -- -------------------------------------------------------------------------
+
+  it("RefreshAccount does not crash when since=math.huge (S-04)", function()
+    -- math.max(math.huge, now-90d) = math.huge; os.date(..., math.huge) raises
+    -- "number has no integer representation" without a cap guard.
+    -- After fix: effective_since = math.min(effective_since, os.time()) caps Inf.
+    seed_token("org-s04")
+    local raw = Fixtures.load("purchases/purchases_empty")
+    Mocks.push_response({ content = raw })
+    local ok, result = pcall(RefreshAccount,
+      { accountNumber = "org-s04", currency = "EUR", balance = 0 },
+      math.huge)
+    assert.is_true(ok,
+      "RefreshAccount must not crash when since=math.huge (S-04), error: " .. tostring(result))
+    -- Result may be a table or an error string; either is acceptable as long as it doesn't raise.
+    assert.is_true(type(result) == "table" or type(result) == "string",
+      "RefreshAccount must return table or string when since=math.huge (S-04), got: " ..
+      tostring(result))
+  end)
+
+  it("RefreshAccount clamps future since to at most os.time() (S-04)", function()
+    -- since > os.time() should not produce a future startDate in the query.
+    -- After fix: effective_since is upper-bounded at os.time().
+    seed_token("org-s04b")
+    local raw = Fixtures.load("purchases/purchases_empty")
+    Mocks.push_response({ content = raw })
+    local future_since = os.time() + 86400 * 365  -- 1 year in the future
+    local ok, result = pcall(RefreshAccount,
+      { accountNumber = "org-s04b", currency = "EUR", balance = 0 },
+      future_since)
+    assert.is_true(ok,
+      "RefreshAccount must not crash when since is in the future (S-04)")
+    -- With the cap, the URL should NOT contain a future year (e.g. 2027+).
+    local url = Mocks._last_request and Mocks._last_request.url or ""
+    local future_year = tostring(os.date("!%Y", future_since))
+    assert.is_falsy(url:find(future_year, 1, true),
+      "startDate must not be a future date when since is in the future (S-04), url: " .. url)
+  end)
+
 end)

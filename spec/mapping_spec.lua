@@ -286,4 +286,172 @@ describe("M_mapping", function()
       "_format_amount(500) must produce '5,00' in purpose, got:\n" .. tostring(txn.purpose))
   end)
 
+  -- -------------------------------------------------------------------------
+  -- S-02: _parse_iso8601_utc must return nil for out-of-range month/day (no crash)
+  -- -------------------------------------------------------------------------
+
+  it("purchase_to_transaction does not crash on out-of-range month 00 (S-02)", function()
+    -- Month 00 is outside [1..12]; _MONTH_DAYS[0]=nil causes arithmetic crash without guard.
+    -- After fix: must return a table using os.time() fallback for bookingDate.
+    local p = {
+      purchaseUUID1  = "uuid-s02-month00",
+      amount         = 100,
+      vatAmount      = 0,
+      currency       = "EUR",
+      timestamp      = "2026-00-01T00:00:00.000+0000",
+      purchaseNumber = 9001,
+      payments       = {},
+    }
+    local ok, result = pcall(M_mapping.purchase_to_transaction, p)
+    assert.is_true(ok,
+      "purchase_to_transaction must not crash on month=00 (S-02), error: " .. tostring(result))
+    assert.is_table(result,
+      "purchase_to_transaction must return a table (os.time() fallback) for month=00 (S-02)")
+  end)
+
+  it("purchase_to_transaction does not crash on out-of-range month 13 (S-02)", function()
+    -- Month 13 is outside [1..12]; _MONTH_DAYS[13]=nil causes arithmetic crash without guard.
+    local p = {
+      purchaseUUID1  = "uuid-s02-month13",
+      amount         = 200,
+      vatAmount      = 0,
+      currency       = "EUR",
+      timestamp      = "2026-13-01T00:00:00.000+0000",
+      purchaseNumber = 9002,
+      payments       = {},
+    }
+    local ok, result = pcall(M_mapping.purchase_to_transaction, p)
+    assert.is_true(ok,
+      "purchase_to_transaction must not crash on month=13 (S-02), error: " .. tostring(result))
+    assert.is_table(result,
+      "purchase_to_transaction must return a table (os.time() fallback) for month=13 (S-02)")
+  end)
+
+  it("purchase_to_transaction does not crash on out-of-range day 00 (S-02)", function()
+    -- Day 00 should be caught by the D guard and trigger os.time() fallback.
+    local p = {
+      purchaseUUID1  = "uuid-s02-day00",
+      amount         = 300,
+      vatAmount      = 0,
+      currency       = "EUR",
+      timestamp      = "2026-06-00T00:00:00.000+0000",
+      purchaseNumber = 9003,
+      payments       = {},
+    }
+    local ok, result = pcall(M_mapping.purchase_to_transaction, p)
+    assert.is_true(ok,
+      "purchase_to_transaction must not crash on day=00 (S-02), error: " .. tostring(result))
+    assert.is_table(result,
+      "purchase_to_transaction must return a table (os.time() fallback) for day=00 (S-02)")
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- S-03 / LO-03: nil or empty purchaseUUID1 must return nil (guard against collision)
+  -- -------------------------------------------------------------------------
+
+  it("purchase_to_transaction returns nil for nil purchaseUUID1 (S-03 / LO-03)", function()
+    -- nil UUID would produce transactionCode="zettle:sale:" — a collision risk.
+    local p = {
+      purchaseUUID1  = nil,
+      amount         = 500,
+      vatAmount      = 0,
+      currency       = "EUR",
+      timestamp      = "2026-06-01T10:00:00Z",
+      purchaseNumber = 9004,
+      payments       = {},
+    }
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_nil(txn,
+      "purchase_to_transaction must return nil when purchaseUUID1 is nil (S-03), got: " ..
+      tostring(txn))
+  end)
+
+  it("purchase_to_transaction returns nil for empty string purchaseUUID1 (S-03 / LO-03)", function()
+    local p = {
+      purchaseUUID1  = "",
+      amount         = 500,
+      vatAmount      = 0,
+      currency       = "EUR",
+      timestamp      = "2026-06-01T10:00:00Z",
+      purchaseNumber = 9005,
+      payments       = {},
+    }
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_nil(txn,
+      "purchase_to_transaction must return nil when purchaseUUID1 is empty string (S-03), got: " ..
+      tostring(txn))
+  end)
+
+  it("refund_to_transaction returns nil for nil purchaseUUID1 (S-03 / LO-03)", function()
+    local p = {
+      purchaseUUID1        = nil,
+      amount               = -500,
+      vatAmount            = -80,
+      currency             = "EUR",
+      timestamp            = "2026-06-01T10:00:00Z",
+      purchaseNumber       = 9006,
+      refund               = true,
+      refundsPurchaseUUID1 = "orig-uuid",
+      payments             = {},
+    }
+    local txn = M_mapping.refund_to_transaction(p)
+    assert.is_nil(txn,
+      "refund_to_transaction must return nil when purchaseUUID1 is nil (S-03), got: " ..
+      tostring(txn))
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- S-01: D-37 log line must not propagate unbounded currency strings
+  -- -------------------------------------------------------------------------
+
+  it("purchase_to_transaction D-37 log line is length-capped for long currency values (S-01)", function()
+    -- Attacker-controlled currency field: 1000 chars. After fix, log line must be short.
+    local long_currency = string.rep("X", 1000)
+    local p = {
+      purchaseUUID1  = "uuid-s01",
+      amount         = 100,
+      vatAmount      = 0,
+      currency       = long_currency,
+      timestamp      = "2026-06-01T10:00:00Z",
+      purchaseNumber = 9007,
+      payments       = {},
+    }
+    -- Capture log output via M_log.info override
+    local captured = {}
+    local orig_info = M_log.info
+    M_log.info = function(msg) captured[#captured + 1] = msg end
+    local txn = M_mapping.purchase_to_transaction(p)
+    M_log.info = orig_info
+    -- Must return nil (non-EUR)
+    assert.is_nil(txn,
+      "non-EUR purchase must return nil even with long currency string (S-01)")
+    -- The captured D-37 log line must not embed the full 1000-char string
+    assert.is_true(#captured >= 1,
+      "D-37 INFO log must have been emitted (S-01)")
+    for _, line in ipairs(captured) do
+      assert.is_true(#line < 200,
+        "D-37 log line must not be unbounded; got length " .. #line .. " (S-01)")
+    end
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- HI-01: refund purpose must include MwSt line when vatAmount is negative
+  -- -------------------------------------------------------------------------
+
+  it("refund_to_transaction purpose shows negative MwSt line when vatAmount < 0 (HI-01)", function()
+    -- purchase_refund fixture: amount=-995, vatAmount=-159.
+    -- German UStG-Voranmeldung requires the MwSt line even on refunds.
+    -- Fix: change condition from 'vat > 0' to 'vat ~= 0' in _format_purpose.
+    local p = load_first("purchase_refund")
+    local txn = M_mapping.refund_to_transaction(p)
+    assert.is_table(txn, "refund_to_transaction must return a table")
+    assert.is_string(txn.purpose, "purpose must be a string")
+    assert.is_truthy(txn.purpose:find("MwSt: %-1,59 \xe2\x82\xac", 1, true),
+      "refund purpose must contain 'MwSt: -1,59 \xe2\x82\xac' (HI-01), got:\n" ..
+      tostring(txn.purpose))
+    -- Netto = -995 - (-159) = -836 minor units = -8,36 EUR
+    assert.is_truthy(txn.purpose:find("Netto: %-8,36 \xe2\x82\xac", 1, true),
+      "refund Netto must be '-8,36 \xe2\x82\xac' (HI-01), got:\n" .. tostring(txn.purpose))
+  end)
+
 end)
