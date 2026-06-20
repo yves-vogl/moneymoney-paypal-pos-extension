@@ -71,3 +71,52 @@ describe("M_i18n.t()", function()
   end)
 
 end)
+
+-- ---------------------------------------------------------------------------
+describe("M_i18n.t() Phase 3 account.purpose.* keys (D-34 / D-35 / I18N-01)", function()
+
+  setup(function()
+    Mocks.setup()
+    load_artifact()
+  end)
+
+  teardown(function()
+    Mocks.teardown()
+  end)
+
+  it("account.purpose.gross returns German Brutto line", function()
+    assert.equals("Brutto: 9,95 \xe2\x82\xac", M_i18n.t("account.purpose.gross", "9,95"),
+      "expected 'Brutto: 9,95 €'")
+  end)
+
+  it("account.purpose.vat returns German MwSt line", function()
+    assert.equals("MwSt: 1,59 \xe2\x82\xac", M_i18n.t("account.purpose.vat", "1,59"),
+      "expected 'MwSt: 1,59 €'")
+  end)
+
+  it("account.purpose.tip returns German Trinkgeld line", function()
+    assert.equals("Trinkgeld: 1,00 \xe2\x82\xac", M_i18n.t("account.purpose.tip", "1,00"),
+      "expected 'Trinkgeld: 1,00 €'")
+  end)
+
+  it("account.purpose.net returns German Netto line", function()
+    assert.equals("Netto: 7,36 \xe2\x82\xac", M_i18n.t("account.purpose.net", "7,36"),
+      "expected 'Netto: 7,36 €'")
+  end)
+
+  it("account.purpose.refund_for returns German Rückerstattung line", function()
+    assert.equals("R\xc3\xbcckerstattung zu Beleg #1001", M_i18n.t("account.purpose.refund_for", "1001"),
+      "expected 'Rückerstattung zu Beleg #1001'")
+  end)
+
+  it("account.purpose.receipt_number returns German Beleg line", function()
+    assert.equals("Beleg #1001", M_i18n.t("account.purpose.receipt_number", "1001"),
+      "expected 'Beleg #1001'")
+  end)
+
+  it("account.name.card_payment returns German Kartenzahlung", function()
+    assert.equals("Kartenzahlung", M_i18n.t("account.name.card_payment"),
+      "expected 'Kartenzahlung'")
+  end)
+
+end)
