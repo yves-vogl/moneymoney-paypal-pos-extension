@@ -14,7 +14,7 @@
 -- NO require() of sibling modules (D-02).
 
 -- ---------------------------------------------------------------------------
--- DST_TABLE: EU DST boundaries for years 2020-2040 (D-36).
+-- DST_TABLE: EU DST boundaries for years 2020-2050 (D-36, extended S-05/ME-03).
 -- Each entry is {summer_start_utc, summer_end_utc} in POSIX seconds.
 -- summer_start_utc = last Sunday of March at 01:00 UTC  => offset becomes +7200 (CEST)
 -- summer_end_utc   = last Sunday of October at 01:00 UTC => offset reverts to +3600 (CET)
@@ -22,6 +22,7 @@
 -- Verified: row 7 (index 7 = year 2026): {1774746000, 1792890000}
 --   POSIX(2026-06-19T23:55Z) = 1781913300 is inside [1774746000, 1792890000) → +7200
 --   POSIX(2026-01-31T23:55Z) = 1769903700 is before 1774746000 → +3600
+-- Extended to 2050 to avoid silent wrong-offset for 2041+ purchases (S-05/ME-03).
 -- ---------------------------------------------------------------------------
 local DST_TABLE = {
   {1585443600, 1603587600},  -- 2020 (Mar 29 / Oct 25)
@@ -45,6 +46,16 @@ local DST_TABLE = {
   {2153350800, 2172099600},  -- 2038 (Mar 28 / Oct 31)
   {2184800400, 2203549200},  -- 2039 (Mar 27 / Oct 30)
   {2216250000, 2234998800},  -- 2040 (Mar 25 / Oct 28)
+  {2248304400, 2266448400},  -- 2041 (Mar 31 / Oct 27)
+  {2279754000, 2297898000},  -- 2042 (Mar 30 / Oct 26)
+  {2311203600, 2329347600},  -- 2043 (Mar 29 / Oct 25)
+  {2342653200, 2361402000},  -- 2044 (Mar 27 / Oct 30)
+  {2374102800, 2392851600},  -- 2045 (Mar 26 / Oct 29)
+  {2405552400, 2424301200},  -- 2046 (Mar 25 / Oct 28)
+  {2437606800, 2455750800},  -- 2047 (Mar 31 / Oct 27)
+  {2469056400, 2487200400},  -- 2048 (Mar 29 / Oct 25)
+  {2500506000, 2519254800},  -- 2049 (Mar 28 / Oct 31)
+  {2531955600, 2550704400},  -- 2050 (Mar 27 / Oct 30)
 }
 
 -- ---------------------------------------------------------------------------
@@ -74,6 +85,10 @@ local function _parse_iso8601_utc(s)
   Y, M, D, H, Mi, S = tonumber(Y), tonumber(M), tonumber(D),
                        tonumber(H), tonumber(Mi), tonumber(S)
   if not (Y and M and D and H and Mi and S) then return nil end
+  -- S-02: guard against out-of-range month/day to prevent nil-arithmetic crash
+  -- in _MONTH_DAYS[M] (index 0 and 13+ are nil in Lua, causing hard errors).
+  if M < 1 or M > 12 then return nil end
+  if D < 1 or D > 31 then return nil end
   -- Days from 1970-01-01 to the start of year Y (Gregorian calendar arithmetic)
   local y = Y
   local days = (y - 1970) * 365
@@ -185,9 +200,11 @@ local function _format_purpose(p, opts)
   -- Brutto (always)
   lines[#lines + 1] = M_i18n.t("account.purpose.gross", _format_amount(p.amount or 0))
 
-  -- MwSt (only when vatAmount > 0)
+  -- MwSt: show when vatAmount ~= 0 (covers both positive sales and negative refunds).
+  -- HI-01: using ~= 0 instead of > 0 ensures the VAT line appears on refunds
+  -- with negative vatAmount, which German UStG-Voranmeldung requires.
   local vat = type(p.vatAmount) == "number" and p.vatAmount or 0
-  if vat > 0 then
+  if vat ~= 0 then
     lines[#lines + 1] = M_i18n.t("account.purpose.vat", _format_amount(vat))
   end
 
@@ -225,14 +242,24 @@ end
 -- Returns nil when:
 --   - p is not a table
 --   - p.currency is not "EUR" (D-37: non-EUR silently skipped with INFO log)
+--   - p.purchaseUUID1 is nil or empty (S-03: would cause transactionCode collision)
 -- Sets booked = false; does NOT set valueDate (D-31).
 -- transactionCode = "zettle:sale:" .. p.purchaseUUID1 (D-38).
 function M_mapping.purchase_to_transaction(p)
   if type(p) ~= "table" then return nil end
   -- D-37: skip non-EUR purchases silently
   if type(p.currency) ~= "string" or p.currency ~= "EUR" then
-    M_log.info("M_mapping.purchase_to_transaction: skipping non-EUR purchase currency=" ..
-      tostring(p.currency))
+    -- S-01: cap currency string at 8 chars (ISO 4217 = 3 chars; 8 provides margin)
+    -- to prevent unbounded attacker-controlled strings reaching the log sink.
+    local cur = tostring(p.currency or "<nil>"):sub(1, 8)
+    M_log.info("M_mapping.purchase_to_transaction: skipping non-EUR purchase currency=" .. cur)
+    return nil
+  end
+  -- S-03/LO-03: guard against nil or empty purchaseUUID1 to prevent transactionCode
+  -- collision. Two nil-UUID purchases would both yield "zettle:sale:" and one would
+  -- be silently de-duplicated by MoneyMoney's idempotency logic.
+  if type(p.purchaseUUID1) ~= "string" or #p.purchaseUUID1 == 0 then
+    M_log.warn("M_mapping.purchase_to_transaction: skipping purchase with missing purchaseUUID1")
     return nil
   end
   -- bookingDate: parse UTC ISO-8601 timestamp and convert to Berlin local time
@@ -245,7 +272,7 @@ function M_mapping.purchase_to_transaction(p)
     currency       = "EUR",
     bookingDate    = booking_date,
     purpose        = _format_purpose(p, {kind = "sale"}),
-    transactionCode = "zettle:sale:" .. tostring(p.purchaseUUID1 or ""),
+    transactionCode = "zettle:sale:" .. p.purchaseUUID1,
     booked         = false,
   }
 end
@@ -259,15 +286,21 @@ function M_mapping.refund_to_transaction(p)
   if type(p) ~= "table" then return nil end
   -- Refunds are always EUR (original was EUR), but guard defensively
   if type(p.currency) ~= "string" or p.currency ~= "EUR" then
-    M_log.info("M_mapping.refund_to_transaction: skipping non-EUR refund currency=" ..
-      tostring(p.currency))
+    -- S-01: cap currency string at 8 chars to prevent unbounded log lines.
+    local cur = tostring(p.currency or "<nil>"):sub(1, 8)
+    M_log.info("M_mapping.refund_to_transaction: skipping non-EUR refund currency=" .. cur)
+    return nil
+  end
+  -- S-03/LO-03: guard against nil or empty purchaseUUID1 (same reasoning as purchase path).
+  if type(p.purchaseUUID1) ~= "string" or #p.purchaseUUID1 == 0 then
+    M_log.warn("M_mapping.refund_to_transaction: skipping refund with missing purchaseUUID1")
     return nil
   end
   local utc = _parse_iso8601_utc(p.timestamp)
   local booking_date = utc and _to_berlin_local_time(utc) or os.time()
   -- Name: label + " Rückerstattung" suffix
   local label = _format_label(p.payments)
-  -- U+00DC U+0063 ... "Rückerstattung" in UTF-8
+  -- U+00FC ü = \xc3\xbc (UTF-8); prefix "R" + ü + "ckerstattung" = "Rückerstattung"
   local name = label .. " R\xc3\xbcckerstattung"
   return {
     name           = name,
@@ -275,7 +308,7 @@ function M_mapping.refund_to_transaction(p)
     currency       = "EUR",
     bookingDate    = booking_date,
     purpose        = _format_purpose(p, {kind = "refund"}),
-    transactionCode = "zettle:refund:" .. tostring(p.purchaseUUID1 or ""),
+    transactionCode = "zettle:refund:" .. p.purchaseUUID1,
     booked         = false,
   }
 end
