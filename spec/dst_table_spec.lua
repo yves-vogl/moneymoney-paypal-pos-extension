@@ -111,16 +111,17 @@ describe("DST table (D-36 / SALE-04)", function()
   end)
 
   -- -------------------------------------------------------------------------
-  -- DST table coverage: 2020..2040
+  -- DST table coverage: 2020..2050 — real boundary assertions (HI-02 fix)
   -- -------------------------------------------------------------------------
 
-  it("_to_berlin_local_time DST table covers years 2020..2040 boundaries", function()
-    -- Verify that for each year 2020-2040, a timestamp one hour after the summer-start
-    -- gets CEST offset (+7200), and a timestamp one hour before the summer-start
-    -- gets CET offset (+3600). We use the plan's DST_TABLE values.
-    -- The DST_TABLE is embedded in mapping.lua but accessible only indirectly.
-    -- We test via known year boundaries: 2026 (row 7) is authoritative.
-    -- Additional years are spot-checked by computing expected POSIX from boundary timestamps.
+  it("DST table covers boundary timestamps for sampled years 2020..2040 (HI-02)", function()
+    -- HI-02: the previous version of this test had a no-op loop body that
+    -- only asserted the 2026 boundary. This version actually asserts each year.
+    -- Strategy: for each year's summer_start_utc (ss), verify that:
+    --   (a) ss + 1  -> CEST (+7200): bookingDate = ss + 1 + 7200
+    --   (b) ss - 1  -> CET  (+3600): bookingDate = ss - 1 + 3600
+    -- The ss values come from the DST_TABLE embedded in mapping.lua (verified
+    -- independently against the calendar arithmetic script used to build the table).
     local boundaries = {
       -- {year, summer_start_utc, summer_end_utc}
       {2020, 1585443600, 1603587600},
@@ -130,31 +131,69 @@ describe("DST table (D-36 / SALE-04)", function()
       {2040, 2216250000, 2234998800},
     }
     for _, row in ipairs(boundaries) do
-      local year        = row[1]
-      local ss          = row[2]  -- summer start UTC
-      local se          = row[3]  -- summer end UTC
+      local year = row[1]
+      local ss   = row[2]  -- summer start UTC POSIX
 
-      -- Just before summer start: should be CET (+3600)
-      local just_before = make_purchase("dummy")
-      -- We can't set custom POSIX directly; instead, test via known fixture timestamps.
-      -- For 2026 we have direct fixtures. For other years we test indirectly:
-      -- At ss + 3600 (1 hour into summer), offset should be +7200.
-      -- We check booking date is consistent with +7200 by comparing:
-      -- bookingDate should be utc + 7200 (not utc + 3600).
-      _ = just_before  -- suppress unused
-      _ = year
-      _ = ss
-      _ = se
+      -- 1 second after summer_start -> CEST (+7200)
+      local summer_str = os.date("!%Y-%m-%dT%H:%M:%SZ", ss + 1)
+      local sp = make_purchase(summer_str)
+      local st = M_mapping.purchase_to_transaction(sp)
+      assert.is_table(st,
+        year .. ": summer purchase (ss+1) must map to a table, got " .. tostring(st))
+      assert.equals(ss + 1 + 7200, st.bookingDate,
+        year .. ": 1s after summer-start offset must be +7200 (CEST), got " ..
+        tostring(st.bookingDate))
+
+      -- 1 second before summer_start -> CET (+3600)
+      local winter_str = os.date("!%Y-%m-%dT%H:%M:%SZ", ss - 1)
+      local wp = make_purchase(winter_str)
+      local wt = M_mapping.purchase_to_transaction(wp)
+      assert.is_table(wt,
+        year .. ": winter purchase (ss-1) must map to a table, got " .. tostring(wt))
+      assert.equals(ss - 1 + 3600, wt.bookingDate,
+        year .. ": 1s before summer-start offset must be +3600 (CET), got " ..
+        tostring(wt.bookingDate))
     end
-    -- Core assertion: the 2026 summer start boundary is correct
-    -- (verified in dedicated tests above; this test confirms table coverage)
-    local summer_p = make_purchase("2026-03-29T01:00:00Z")
-    local summer_txn = M_mapping.purchase_to_transaction(summer_p)
-    assert.is_table(summer_txn)
-    -- At exactly summer_start_utc = 1774746000, offset = +7200
-    assert.equals(1774746000 + 7200, summer_txn.bookingDate,
-      "at DST summer start (2026-03-29T01:00Z) offset must be +7200 CEST, got: " ..
-      tostring(summer_txn.bookingDate))
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- DST table coverage: 2041..2050 — extended range (S-05/ME-03 fix)
+  -- -------------------------------------------------------------------------
+
+  it("DST table covers boundary timestamps for sampled years 2041..2050 (S-05/ME-03)", function()
+    -- S-05/ME-03: DST table was extended from 2040 to 2050 to prevent silent
+    -- UTC+1 offset for summer purchases in 2041+.
+    -- Same assertion pattern as the 2020..2040 test above.
+    local boundaries = {
+      -- {year, summer_start_utc}  (computed via pure calendar arithmetic)
+      {2041, 2248304400},
+      {2045, 2374102800},
+      {2050, 2531955600},
+    }
+    for _, row in ipairs(boundaries) do
+      local year = row[1]
+      local ss   = row[2]
+
+      -- 1 second after summer_start -> CEST (+7200)
+      local summer_str = os.date("!%Y-%m-%dT%H:%M:%SZ", ss + 1)
+      local sp = make_purchase(summer_str)
+      local st = M_mapping.purchase_to_transaction(sp)
+      assert.is_table(st,
+        year .. ": summer purchase (ss+1) must map to a table, got " .. tostring(st))
+      assert.equals(ss + 1 + 7200, st.bookingDate,
+        year .. ": 1s after summer-start offset must be +7200 (CEST), got " ..
+        tostring(st.bookingDate))
+
+      -- 1 second before summer_start -> CET (+3600)
+      local winter_str = os.date("!%Y-%m-%dT%H:%M:%SZ", ss - 1)
+      local wp = make_purchase(winter_str)
+      local wt = M_mapping.purchase_to_transaction(wp)
+      assert.is_table(wt,
+        year .. ": winter purchase (ss-1) must map to a table, got " .. tostring(wt))
+      assert.equals(ss - 1 + 3600, wt.bookingDate,
+        year .. ": 1s before summer-start offset must be +3600 (CET), got " ..
+        tostring(wt.bookingDate))
+    end
   end)
 
   -- -------------------------------------------------------------------------
