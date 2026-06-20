@@ -112,7 +112,10 @@ local function _make_connection()
             " " .. tostring(url))
     end
     local r = table.remove(Mocks._response_queue, 1)
-    Mocks._last_request = { method = method, url = url, body = postContent, contentType = postContentType, headers = headers }
+    Mocks._last_request = {
+      method = method, url = url, body = postContent,
+      contentType = postContentType, headers = headers,
+    }
     return r.content, r.charset, r.mime, r.filename, r.headers
   end
 
