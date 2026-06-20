@@ -121,9 +121,9 @@ Resolved live on MoneyMoney 2.4.72 / macOS 26.4.1 ARM (see ADR-0003 ACCEPTED). A
 
 ## Session Continuity
 
-**Last action:** Phase 2 merged to main (PR #6 rebase 2026-06-20 03:24 UTC + PR #7 squash for Lows 2026-06-20 03:40 UTC). Phase 3 discuss-phase complete — `03-CONTEXT.md` + `03-DISCUSSION-LOG.md` written and committed (`b359a2e`). Operating inside 48h autonomous window granted 2026-06-20 ~03:30 UTC.
+**Last action:** Phase 3 Plan 03-01 (Wave 0) executed. 10 fixtures under `spec/fixtures/purchases/` created. 4 pending spec scaffolds created (`spec/dst_table_spec.lua`, `spec/mapping_spec.lua`, `spec/pagination_spec.lua`, `spec/purchases_spec.lua`). Full busted suite: 119/0/0/36. luacheck: clean. Commits: `2650f0a` (fixtures) + `de82bea` (DST spec) + `e81f513` (mapping/pagination/purchases specs). Branch: `worktree-agent-ab3ac8af8d3e9bf1b`.
 
-**Next action:** `/gsd-plan-phase 3` (still in 48h window). Spawns researcher → pattern mapper → planner (Opus default) → plan-checker. Validation strategy is enabled in config (`nyquist_validation_enabled=true`).
+**Next action:** Wave 1 — Plan 03-02 (gating RED specs: `spec/refresh_idempotency_spec.lua` + `spec/mapping_schema_spec.lua`).
 
 **Session resume prompt template** (if context lost):
 
