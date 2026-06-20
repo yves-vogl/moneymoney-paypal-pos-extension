@@ -446,11 +446,11 @@ describe("M_mapping", function()
     local txn = M_mapping.refund_to_transaction(p)
     assert.is_table(txn, "refund_to_transaction must return a table")
     assert.is_string(txn.purpose, "purpose must be a string")
-    assert.is_truthy(txn.purpose:find("MwSt: %-1,59 \xe2\x82\xac", 1, true),
+    assert.is_truthy(txn.purpose:find("MwSt: -1,59 \xe2\x82\xac", 1, true),
       "refund purpose must contain 'MwSt: -1,59 \xe2\x82\xac' (HI-01), got:\n" ..
       tostring(txn.purpose))
     -- Netto = -995 - (-159) = -836 minor units = -8,36 EUR
-    assert.is_truthy(txn.purpose:find("Netto: %-8,36 \xe2\x82\xac", 1, true),
+    assert.is_truthy(txn.purpose:find("Netto: -8,36 \xe2\x82\xac", 1, true),
       "refund Netto must be '-8,36 \xe2\x82\xac' (HI-01), got:\n" .. tostring(txn.purpose))
   end)
 

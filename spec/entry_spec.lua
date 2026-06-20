@@ -599,7 +599,7 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     local raw = Fixtures.load("purchases/purchases_empty")
     Mocks.push_response({ content = raw })
     local future_since = os.time() + 86400 * 365  -- 1 year in the future
-    local ok, result = pcall(RefreshAccount,
+    local ok = pcall(RefreshAccount,
       { accountNumber = "org-s04b", currency = "EUR", balance = 0 },
       future_since)
     assert.is_true(ok,
