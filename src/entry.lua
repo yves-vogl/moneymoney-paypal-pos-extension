@@ -149,6 +149,10 @@ function RefreshAccount(account, since) -- luacheck: ignore 431
   -- Clamp is at the entry boundary (not inside M_purchases.fetch) per
   -- RESEARCH Pitfall 5 — keeps it visible for debugging.
   local effective_since = math.max(since or 0, os.time() - NINETY_DAYS)
+  -- S-04: upper-bound at os.time() to prevent:
+  --   (a) math.huge crashing os.date() ("number has no integer representation")
+  --   (b) future timestamps producing a startDate that returns zero purchases.
+  effective_since = math.min(effective_since, os.time())
 
   -- Log line: only first 8 chars of orgUuid (ACCT-04 multi-merchant privacy)
   -- and the effective_since integer. Bearer is NEVER logged (T-03-W4-01 / SEC-03).
