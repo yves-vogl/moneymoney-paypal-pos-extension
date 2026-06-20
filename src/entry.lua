@@ -1,6 +1,11 @@
 -- src/entry.lua
--- Walking-skeleton MoneyMoney callbacks (Phase 1). Zero network calls.
+-- MoneyMoney callbacks. Phase 1: SupportsBank/InitializeSession2/ListAccounts/EndSession.
+-- Phase 3: RefreshAccount rewired to drive the real sale-ingestion pipeline.
 -- Emitted verbatim (top-level) by tools/build.lua so these functions land at global scope.
+
+-- D-33: clamp to no more than 90 days of history on first refresh.
+-- Visible at the entry boundary per RESEARCH Pitfall 5 (not buried inside M_purchases.fetch).
+local NINETY_DAYS = 90 * 86400
 
 function SupportsBank(protocol, bankCode)
   return protocol == ProtocolWebBanking and bankCode == "PayPal POS"
@@ -126,26 +131,70 @@ function ListAccounts(knownAccounts) -- luacheck: ignore 431
   return accounts
 end
 
+-- Phase 3 — RefreshAccount: drives the real sale-ingestion pipeline.
+-- Steps: 1 orgUuid guard, 2 cached_token (D-41), 3 since clamp (D-33),
+--        4 fetch_all (M_purchases), 5 map (M_mapping), 6 return.
+-- The four other callbacks (SupportsBank, InitializeSession2, ListAccounts,
+-- EndSession) are FROZEN per Phase-2 surface contract.
 function RefreshAccount(account, since) -- luacheck: ignore 431
-  M_log.info("RefreshAccount called, since=" .. tostring(since))
-  return {
-    balance = 9.95,
-    transactions = {
-      {
-        name           = M_i18n.t("transaction.name.sale"),
-        amount         = 9.95,
-        currency       = "EUR",
-        bookingDate    = os.time(),
-        valueDate      = os.time(),
-        purpose        = M_i18n.t("purpose.gross", 9.95) .. "\n" ..
-                         M_i18n.t("purpose.vat_line", 19, 1.59) .. "\n" ..
-                         M_i18n.t("purpose.uuid", "fixture-0001"),
-        bookingText    = M_i18n.t("transaction.name.sale"),
-        booked         = true,
-        transactionCode = "zettle:sale:fixture-0001",
-      },
-    },
-  }
+  -- Step 1: resolve orgUuid from account.accountNumber (D-23a).
+  -- T-03-W4-02: guard against missing / non-string / empty accountNumber.
+  local orgUuid = account and account.accountNumber
+  if type(orgUuid) ~= "string" or orgUuid == "" then
+    return M_i18n.t("error.network", "missing_account")
+  end
+
+  -- Step 3 (before Step 2 so effective_since is ready for the log line):
+  -- Clamp since to max(since_from_moneymoney, now - 90 days) per D-33.
+  -- Clamp is at the entry boundary (not inside M_purchases.fetch) per
+  -- RESEARCH Pitfall 5 — keeps it visible for debugging.
+  local effective_since = math.max(since or 0, os.time() - NINETY_DAYS)
+  -- S-04: upper-bound at os.time() to prevent:
+  --   (a) math.huge crashing os.date() ("number has no integer representation")
+  --   (b) future timestamps producing a startDate that returns zero purchases.
+  effective_since = math.min(effective_since, os.time())
+
+  -- Log line: only first 8 chars of orgUuid (ACCT-04 multi-merchant privacy)
+  -- and the effective_since integer. Bearer is NEVER logged (T-03-W4-01 / SEC-03).
+  M_log.info("RefreshAccount called for org=" .. tostring(orgUuid):sub(1, 8) ..
+    " since=" .. tostring(effective_since))
+
+  -- Step 2: obtain Bearer token from cache (D-41 nil-token guard).
+  -- No re-auth from RefreshAccount — if the token is absent or expired,
+  -- return German error.network so MoneyMoney shows a clean message.
+  local bearer = M_auth.cached_token(orgUuid)
+  if not bearer then
+    return M_i18n.t("error.network", "\xe2\x80\x94")
+  end
+
+  -- Step 4: fetch all purchases via paginated cursor loop.
+  -- M_purchases.fetch_all drives M_pagination.iterate (Plan 03-04/05).
+  -- ERR-06 fail-whole-refresh: if fetch_err is non-nil, return it immediately.
+  -- Partial transactions are NEVER returned alongside an error (T-03-W4-03).
+  local purchases, fetch_err = M_purchases.fetch_all(effective_since, bearer)
+  if fetch_err then return fetch_err end
+
+  -- Step 5: map each purchase to a MoneyMoney transaction.
+  -- D-32: refund records (p.refund == true) use refund_to_transaction.
+  -- D-37: non-EUR purchases return nil from M_mapping — silently skip them.
+  -- Any future skip conditions also return nil — the nil check covers all cases.
+  local transactions = {}
+  for _, p in ipairs(purchases or {}) do
+    local txn
+    if p.refund == true then
+      txn = M_mapping.refund_to_transaction(p)
+    else
+      txn = M_mapping.purchase_to_transaction(p)
+    end
+    if txn ~= nil then
+      transactions[#transactions + 1] = txn
+    end
+  end
+
+  -- Step 6: return result.
+  -- D-31: balance unchanged in Phase 3 (Finance API is Phase 4 ACCT-03).
+  -- booked=false on every transaction — M_mapping enforces this invariant.
+  return { balance = account.balance, transactions = transactions }
 end
 
 function EndSession()

@@ -1,0 +1,18 @@
+{
+  "_source": "github.com/iZettle/api-documentation/purchase.adoc",
+  "purchases": [
+    {
+      "purchaseUUID1": "55555555-5555-5555-5555-555555555555",
+      "amount": 2000,
+      "vatAmount": 0,
+      "currency": "USD",
+      "timestamp": "2026-05-18T12:00:00.000+0000",
+      "purchaseNumber": 1005,
+      "refund": false,
+      "refunded": false,
+      "products": [],
+      "payments": [],
+      "groupedVatAmounts": {}
+    }
+  ]
+}

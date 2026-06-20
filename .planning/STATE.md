@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
 status: executing
-last_updated: "2026-06-18T12:24:22.948Z"
+last_updated: "2026-06-20T03:55:54.485Z"
 progress:
   total_phases: 7
-  completed_phases: 0
-  total_plans: 7
-  completed_plans: 7
-  percent: 100
+  completed_phases: 1
+  total_plans: 8
+  completed_plans: 8
+  percent: 14
 ---
 
 # Project State: MoneyMoney PayPal POS Extension
@@ -33,30 +33,32 @@ progress:
 
 ## Current Position
 
-Phase: 02 (authenticated-network-layer) — EXECUTING
-Plan: 3 of 7 complete
-**Phase:** 2 — Authenticated Network Layer — **EXECUTING (Wave 1 done)**
-**Plans:** `.planning/phases/02-authenticated-network-layer/02-0{1..7}-PLAN.md` (7 plans across 6 waves W0–W5)
-**Status:** Executing Phase 02 — Wave 1 complete, dispatching Wave 2 next
-**Progress:** `[████████░░░░░░░░░░░░] 3/7 plans complete` (W0 02-01, W1 02-02, W1 02-03)
+Phase: 03 (sale-spine-first-user-visible-slice) — PLANNING
+**Phase:** 3 — Sale Spine (first user-visible slice) — **CONTEXT CAPTURED, planner next**
+**Status:** Discuss-phase 3 complete (`03-CONTEXT.md` + `03-DISCUSSION-LOG.md` committed); next step is `/gsd-plan-phase 3` (research → patterns → planner → plan-checker)
+**Progress:** `[█████████░░░░░░░░░░░] 2/7 phases complete` (Phase 1 + Phase 2 merged to main)
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
-Phase 2: Authenticated Network Layer       [PLANNED — ready to execute]
-Phase 3: Sale Spine                        [BLOCKED on Phase 2]
+Phase 2: Authenticated Network Layer       [DONE ✅ — merged via PR #6 + Lows PR #7]
+Phase 3: Sale Spine                        [PLANNING — CONTEXT captured 2026-06-20]
 Phase 4: Enrichment                        [BLOCKED on Phase 3]
 Phase 5: Resilience & Error Handling       [BLOCKED on Phase 4]
 Phase 6: Release & Polish                  [BLOCKED on Phase 5]
 Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
-**Branch state:** `phase-2/authenticated-network-layer` is ahead of `main` with the Phase 1 history (24 commits, all GPG-signed, CI-green) plus Phase 2 planning artefacts: `docs(02): capture phase context`, `docs(02): add validation strategy`, `docs(02): create phase plan`, plus a Phase-6.1 detour (`docs(06.1): …`, `docs(roadmap): insert Phase 6.1 …`). No execution commits yet on Phase 2.
+**Branch state:** On `main` @ `b359a2e` (Phase 2 merged via PR #6 rebase + Lows PR #7 squash; Phase 3 CONTEXT just committed). 40 commits ahead of `c644f16` (Phase-1-merged tip). Phase-2 rebased commits are unsigned-on-main (accepted one-off; lesson saved as memory `feedback_gpg_signed_pr_merge`); Lows PR #7's squash commit `ec64b19` is `verified: true` by GitHub web-flow key.
 
-**Phase-2 inputs surfaced from Phase 1 (recorded here for the planner):**
+**Phase-3 captured decisions (CONTEXT.md):**
 
-- MM 2.4.72 does NOT honour the InitializeSession2 challenge object shape `{title, challenge, label}`; falls back to default Username+Password UI. Phase 2 must research the actual challenge-schema format MM accepts.
-- `pcall()` does NOT catch `Connection()` SSL / network errors. Phase 2 `http.lua` must rely on MM's documented error-return pattern (`nil + error string` typical).
-- LocalStorage cross-restart persistence is unobserved — Phase 2 token cache designs defensively for both outcomes; log line on cache-miss surfaces actual behaviour retroactively.
+- **D-31** Pending/booked: all Phase-3 sales emit `booked=false`; Phase 4 promotes via same `transactionCode`.
+- **D-32** Refunds: own negative transaction `zettle:refund:<purchaseUUID1>`; original sale unchanged.
+- **D-33** First-refresh pagination: clamp `since` to max 90 days back; README documents.
+- **D-36 (Claude's discretion)** `bookingDate`: Europe/Berlin DST-aware via hardcoded EU rules table (2020–2040).
+- **D-34/D-35** purpose/name German bookkeeping format.
+- **D-37** Multi-currency defensive: skip non-EUR purchases silently with INFO log.
+- See `.planning/phases/03-sale-spine-first-user-visible-slice/03-CONTEXT.md` for D-31..D-45 full text.
 
 ---
 
@@ -91,15 +93,14 @@ The 37 canonical decisions are pinned in `.planning/research/SUMMARY.md §2`. Hi
 
 ### Active Todos
 
-Phase-2 wave-by-wave execution (DAG-corrected — 02-05 depends on 02-04 so cannot run parallel):
+Phase-3 planning (autonomous 48h window from 2026-06-20 ~03:30 UTC, see `feedback_48h_autonomous_window` memory):
 
-- **Wave 0:** 02-01 (mocks + fixtures) — **DONE** ✅ commit `dab9db0`
-- **Wave 1 (parallel):** 02-02 (`src/errors.lua` D-24 status→error map) + 02-03 (`src/auth.lua` JWT pure-logic D-22) — **DONE** ✅ commits `c58f297`, `3a99bf8`, `d3f7c71`, `19c26d0`
-- **Wave 2:** 02-04 (`src/http.lua` Connection wrapper per D-25) — NEXT
-- **Wave 3:** 02-05 (`src/auth.lua` orchestration: exchange_assertion, fetch_profile, persist_session D-23c, cached_token D-23d)
-- **Wave 4:** 02-06 (`src/entry.lua` D-21 two-call probe integration)
-- **Wave 5:** 02-07 (SEC-03 gating + manifest + reproducible-build)
-- **Verification:** gsd-verifier + `/gsd-code-review 2` + loop-security-engineer SEC-03 adversarial review
+- **CONTEXT captured** ✅ commit `b359a2e` — D-31..D-45 locked
+- **NEXT: `/gsd-plan-phase 3`** — spawn gsd-phase-researcher (research mapping/pagination/idempotency approaches) → gsd-pattern-mapper (Phase-3 PATTERNS.md against Phase-1/2 analogs) → gsd-planner (Opus, emits PLAN files) → gsd-plan-checker (verify)
+- **Phase-3 execution** — wave-by-wave Sonnet executors (same model as Phase 2), worktrees, GPG-signed, no AI attribution
+- **Verifier + security + code-review** — parallel after execution
+- **PR + squash merge** — `gh pr merge --squash` (lesson from PR #6 saved as `feedback_gpg_signed_pr_merge`)
+- **Phase 4 planning** if time remains in 48h window
 
 ### Roadmap Evolution
 
@@ -111,21 +112,22 @@ Phase-2 wave-by-wave execution (DAG-corrected — 02-05 depends on 02-04 so cann
 
 ### Phase-1 Probe Status
 
-Resolved live on MoneyMoney 2.4.72 / macOS 26.4.1 ARM (see ADR-0003 ACCEPTED). Surviving caveat carried into Phase 2:
+Resolved live on MoneyMoney 2.4.72 / macOS 26.4.1 ARM (see ADR-0003 ACCEPTED). All Phase-3-relevant questions closed:
 
-- Q4 `JSON():set(t):json()` integer round-trip with `amount=995` — flagged as a Phase-3 precondition for the gross/VAT/tip mapping decision; not a Phase-2 blocker but to be revisited in `/gsd-discuss-phase 3`.
+- **Q4 RESOLVED (PASS):** `JSON():set({amount=995}):json()` round-trips integers; `mapping.lua` stores minor-unit amounts as plain Lua numbers. No `string.format("%d", v)` workaround needed.
+- **Q3 (still DEFERRED to Phase 4):** `finance.izettle.com` host for payouts. Phase 3 only calls `purchase.izettle.com`; Q3 is not a Phase-3 blocker.
 
 ---
 
 ## Session Continuity
 
-**Last action:** Wave 1 (Plans 02-02 + 02-03) executed in parallel via two Sonnet gsd-executor agents in worktrees. Implementation commits cherry-picked back onto `phase-2/authenticated-network-layer`. Plan-summaries copied; ROADMAP updated via `gsd-tools roadmap update-plan-progress 2`.
+**Last action:** Phase 3 Plan 03-01 (Wave 0) executed. 10 fixtures under `spec/fixtures/purchases/` created. 4 pending spec scaffolds created (`spec/dst_table_spec.lua`, `spec/mapping_spec.lua`, `spec/pagination_spec.lua`, `spec/purchases_spec.lua`). Full busted suite: 119/0/0/36. luacheck: clean. Commits: `2650f0a` (fixtures) + `de82bea` (DST spec) + `e81f513` (mapping/pagination/purchases specs). Branch: `worktree-agent-ab3ac8af8d3e9bf1b`.
 
-**Next action:** Dispatch Wave 2 — Plan 02-04 (`src/http.lua` Connection wrapper per D-25). Single Sonnet executor in worktree, baseRef=head.
+**Next action:** Wave 1 — Plan 03-02 (gating RED specs: `spec/refresh_idempotency_spec.lua` + `spec/mapping_schema_spec.lua`).
 
 **Session resume prompt template** (if context lost):
 
-> We are working on the MoneyMoney PayPal POS Extension. Phase 2 (Authenticated Network Layer) is PLANNED with 7 plans across 5 waves in `.planning/phases/02-authenticated-network-layer/`. Run `/gsd-execute-phase 2` to start implementation. Granularity: standard. Mode: mvp / yolo. All commits GPG-signed (`FDE07046A6178E89ADB57FD3DE300C53D8E18642`); no Claude/AI attribution in commits, PRs, or shipped code.
+> We are working on the MoneyMoney PayPal POS Extension. Phase 2 (Authenticated Network Layer) was merged to main on 2026-06-20 via PRs #6 + #7. Phase 3 (Sale Spine) is in PLANNING — `03-CONTEXT.md` captured the decisions D-31..D-45. Next step: `/gsd-plan-phase 3` (research + pattern-mapper + planner + plan-checker). Granularity: standard. Mode: mvp / yolo. All commits GPG-signed (`FDE07046A6178E89ADB57FD3DE300C53D8E18642`); no Claude/AI attribution in commits, PRs, or shipped code. **PR merge method: `--squash` (lesson saved as memory `feedback_gpg_signed_pr_merge`; `--rebase` produces unsigned commits).**
 
 ---
 

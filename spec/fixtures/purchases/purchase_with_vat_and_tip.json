@@ -1,0 +1,28 @@
+{
+  "_source": "github.com/iZettle/api-documentation/purchase.adoc",
+  "purchases": [
+    {
+      "purchaseUUID1": "22222222-2222-2222-2222-222222222222",
+      "amount": 1995,
+      "vatAmount": 318,
+      "currency": "EUR",
+      "timestamp": "2026-05-15T11:45:00.000+0000",
+      "purchaseNumber": 1002,
+      "refund": false,
+      "refunded": false,
+      "products": [],
+      "payments": [
+        {
+          "uuid": "pay-1",
+          "type": "IZETTLE_CARD",
+          "amount": 1995,
+          "gratuityAmount": 100,
+          "attributes": {}
+        }
+      ],
+      "groupedVatAmounts": {
+        "19": 318
+      }
+    }
+  ]
+}
