@@ -1,3 +1,0 @@
--- src/balance.lua
--- Phase 4 stub. Implementation lands in Phase 4; see ROADMAP.md.
--- The M_balance table is predeclared in src/webbanking_header.lua.

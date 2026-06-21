@@ -151,6 +151,7 @@ If everything else is good but the data is wrong, incomplete, or stale, the proj
 | `node` / `npm` / `python` / Rust in CI for the shipped artifact | Out of scope. | Pure Lua + LuaRocks via `leafo/gh-actions-{lua,luarocks}`. (Markdown-only docs; the `commitlint` GitHub Action runs in its own container.) |
 | Live integration tests against production Zettle in CI | Explicitly out of scope per PROJECT.md. Burns merchant data, risks leaking secrets in logs. | Recorded fixtures + Zettle sandbox tenant. |
 | Bundling `signature` field that pretends to be MRH-signed | The MoneyMoney RSA signature is maintainer-controlled; faking it would break trust and likely violate MM's distribution policy. | Ship unsigned; users enable "Inoffizielle Extensions erlauben". GPG-signed tags + reproducible build + SHA256 are the trust chain we control. |
+| Zettle iOS/Android Payments SDK | That SDK is a **card-reader integration toolkit** for third-party POS apps that want to take card payments via the Zettle reader hardware (e.g. a restaurant or salon CRM with its own branded "Kasse" UI). This extension is **read-only** — it consumes finished transactions via the Finance/Purchase REST API and never initiates a payment. The SDK has no role here, requires iOS/Android targets (we ship Lua), and pulls in Bluetooth/PCI-DSS surface we explicitly avoid. | The Finance/Purchase REST API exclusively (`finance.izettle.com`, `purchase.izettle.com`). |
 
 ## Stack Patterns by Variant
 

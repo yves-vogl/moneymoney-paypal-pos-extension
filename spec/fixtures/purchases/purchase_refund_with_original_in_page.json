@@ -1,0 +1,33 @@
+{
+  "_source": "github.com/iZettle/api-documentation/purchase.adoc — original sale + its refund on the same page for REF-02 in-window lookup test",
+  "purchases": [
+    {
+      "purchaseUUID1": "30303030-3030-3030-3030-303030303030",
+      "amount": 500,
+      "vatAmount": 0,
+      "currency": "EUR",
+      "timestamp": "2026-06-10T10:00:00.000+0000",
+      "purchaseNumber": 4001,
+      "refund": false,
+      "refunded": true,
+      "products": [],
+      "payments": [],
+      "groupedVatAmounts": {}
+    },
+    {
+      "purchaseUUID1": "31313131-3131-3131-3131-313131313131",
+      "amount": -500,
+      "vatAmount": 0,
+      "currency": "EUR",
+      "timestamp": "2026-06-10T11:00:00.000+0000",
+      "purchaseNumber": 4002,
+      "refund": true,
+      "refunded": false,
+      "refundsPurchaseUUID1": "30303030-3030-3030-3030-303030303030",
+      "products": [],
+      "payments": [],
+      "groupedVatAmounts": {}
+    }
+  ],
+  "lastPurchaseHash": ""
+}

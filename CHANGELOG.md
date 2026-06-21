@@ -7,7 +7,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
+<!-- lektor-review: pending — v0.2.0 sections drafted as engineering placeholder per Plan 04-06 Task 3; a final lektor pass is queued as a Yves checkpoint after merge. -->
+
+## [0.2.0] - 2026-MM-DD
+
+### Hinzugefügt
+
+- Vollständige Buchhaltungssicht: Auszahlungen, Gebühren, MwSt-Aufschlüsselung,
+  beglichene und offene Salden in einem Konto.
+- Refunds verlinken zum ursprünglichen Beleg: die Belegnummer des Original-
+  Verkaufs erscheint im Verwendungszweck der Rückerstattungsbuchung.
+- Pro Kartenzahlung: Kartentyp und Zahlungsart (kontaktlos, Chip, online) im
+  Verwendungszweck.
+- MwSt-Aufschlüsselung pro Satz, wenn das Unternehmen mit gemischten Sätzen
+  arbeitet (z.B. 19 % auf Speisen vor Ort, 7 % zum Mitnehmen).
+
+### Geändert
+
+- `balance` zeigt jetzt den beglichenen Saldo: bereits ausgezahlte plus
+  auszahlungsbereite Umsätze.
+- `pendingBalance` zeigt offene Umsätze, die noch nicht abgerechnet sind.
+- Abgeschlossene Verkäufe werden mit Wertstellungsdatum (dem Auszahlungstag)
+  gebucht, sobald die Auszahlung im Finance-API sichtbar ist.
+
+### Voraussetzung für Bestandskunden
+
+- Der API-Key muss zusätzlich zur Berechtigung `READ:PURCHASE` auch
+  `READ:FINANCE` enthalten. Neuen Key erzeugen unter
+  https://my.zettle.com/apps/api-keys mit beiden Scopes; anschließend in
+  MoneyMoney das bestehende PayPal-POS-Konto entfernen und mit dem neuen
+  Schlüssel neu hinzufügen.
+
+### Bekannte Grenzen
+
+- Auszahlungen werden Verkäufen zeitlich zugeordnet (frühester PAYOUT mit
+  Zeitstempel ≥ PAYMENT.Zeitstempel). Bei wöchentlicher oder monatlicher
+  Auszahlung kann ein Verkauf 1-2 Aktualisierungszyklen brauchen, bis er
+  als beglichen markiert wird.
+- Die Aufschlüsselung von Gebühren (pro Verkauf vs. Tagesaggregat) richtet
+  sich nach den Daten, die Zettle liefert. Bei lückenhafter Verknüpfung
+  wird ein Tagesaggregat gebucht; sollte Zettle die Verknüpfung später
+  nachreichen, kann am betroffenen Tag zusätzlich eine Aggregat-Zeile
+  bestehen bleiben — diese gegebenenfalls manuell in MoneyMoney löschen.
+- Erstabgleich umfasst maximal 90 Tage; ältere Umsätze sind nicht sichtbar.
+- Umsätze in anderen Währungen als EUR werden übergangen.
+
+### Sicherheit
+
+- Die Extension nimmt keine steuerrechtliche Bewertung von Umsätzen oder
+  Trinkgeldern vor und beansprucht keine GoBD-Bewertung. Diese Einordnung
+  bleibt der Steuerberatung des Anwenders überlassen.
+- Keine Telemetrie, keine Drittparteien: ausschließlich `oauth.zettle.com`,
+  `purchase.izettle.com` und `finance.izettle.com` werden kontaktiert.
+- Bearer-Token werden niemals geloggt; API-Key bleibt ausschließlich in
+  MoneyMoneys eingebauter Anmelde-Daten-Verwaltung.
+
+### Foundations (previously tracked under Unreleased — Phase 1 + 2 + 3 scaffolding)
 
 - Project scaffolding under `.planning/` (PROJECT, REQUIREMENTS, ROADMAP, STATE, research).
 - MIT license, `.gitignore`, German-language README, GPG-verification documentation.
@@ -22,13 +77,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dependabot config (`.github/dependabot.yml`) for GitHub Actions: weekly Monday PRs to bump pinned action versions. Improves OpenSSF Scorecard's `Dependency-Update-Tool` check. LuaRocks is not Dependabot-supported; Lua tool versions float to latest at CI install time.
 - GitHub Sponsors funding metadata (`.github/FUNDING.yml`) and README *Unterstützen* section.
 
-### Planned for v0.1.0
-
-- PayPal POS / Zettle JWT-bearer authentication flow.
-- Sales transactions, refunds, fees, payouts visible in MoneyMoney.
-- Tip and VAT breakdown in transaction memo.
-- German user-facing strings throughout.
-- Reproducible single-file Lua artifact built from `src/` via deterministic amalgamator.
-- SHA256 checksum and GPG signature published with every release.
-
-[Unreleased]: https://github.com/yves-vogl/moneymoney-paypal-pos-extension/commits/main
+[Unreleased]: https://github.com/yves-vogl/moneymoney-paypal-pos-extension/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/yves-vogl/moneymoney-paypal-pos-extension/releases/tag/v0.2.0

@@ -151,6 +151,39 @@ describe("M_mapping", function()
       "card name must be 'Visa •••• 1111', got: " .. tostring(txn.name))
   end)
 
+  it("WR-05: _format_label and _format_purpose card-tail produce same brand for mixed-case cardType", function()
+    -- WR-05 (REVIEW): _format_label used BRAND_MAP[card_type] (raw) while
+    -- _format_purpose used BRAND_MAP[card_type:upper()]. If Zettle ever sent
+    -- "Visa" or "visa" instead of "VISA", the sale name and purpose tail would
+    -- carry mismatched brand spellings. After the fix both must agree.
+    local p = {
+      purchaseUUID1 = "ca5eca5e-ca5e-ca5e-ca5e-ca5eca5eca5e",
+      amount = 1500, vatAmount = 0, currency = "EUR",
+      timestamp = "2026-06-15T10:00:00.000+0000",
+      purchaseNumber = 9001,
+      payments = {
+        {
+          uuid = "p-ca5e",
+          amount = 1500, gratuityAmount = 0, type = "IZETTLE_CARD",
+          attributes = {
+            cardType = "Visa",            -- mixed case (Zettle could in theory return this)
+            maskedPan = "411111******1111",
+            cardPaymentEntryMode = "CONTACTLESS_EMV",
+          },
+        },
+      },
+      groupedVatAmounts = {},
+    }
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    -- name comes from _format_label
+    assert.is_truthy(txn.name:find("Visa ", 1, true),
+      "WR-05: sale name must use BRAND_MAP['VISA']='Visa', got: " .. tostring(txn.name))
+    -- purpose card-tail comes from _format_purpose
+    assert.is_truthy(txn.purpose:find("Zahlart: Visa", 1, true),
+      "WR-05: purpose card-tail must also say 'Visa', got: " .. tostring(txn.purpose))
+  end)
+
   -- -------------------------------------------------------------------------
   -- I18N-01 / D-34 / purpose format
   -- -------------------------------------------------------------------------
@@ -452,6 +485,487 @@ describe("M_mapping", function()
     -- Netto = -995 - (-159) = -836 minor units = -8,36 EUR
     assert.is_truthy(txn.purpose:find("Netto: -8,36 \xe2\x82\xac", 1, true),
       "refund Netto must be '-8,36 \xe2\x82\xac' (HI-01), got:\n" .. tostring(txn.purpose))
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-02: fee_to_transaction (FEE-01)
+  -- -------------------------------------------------------------------------
+
+  it("fee_to_transaction returns valid transaction with zettle:fee: prefix for valid input (FEE-01)", function()
+    local _, fin_decoded = Fixtures.load("finance/finance_payment_with_fee_linkage")
+    local fee_raw = fin_decoded.data[2]
+    assert.equals("PAYMENT_FEE", fee_raw.originatorTransactionType)
+    local fee = M_finance.parse_transaction(fee_raw)
+    assert.is_table(fee, "parse_transaction must yield a table for fee record")
+    local _, purch_decoded = Fixtures.load("purchases/purchase_page_with_payments_for_fee_join")
+    local purchase = purch_decoded.purchases[1]
+    local txn = M_mapping.fee_to_transaction(fee, purchase)
+    assert.is_table(txn)
+    assert.equals("zettle:fee:cccccccc-cccc-cccc-cccc-cccccccccccc", txn.transactionCode)
+    assert.is_true(txn.amount < 0, "fee amount must be negative on sale, got: " .. tostring(txn.amount))
+    assert.is_true(txn.booked)
+    assert.equals("EUR", txn.currency)
+    assert.is_truthy(txn.purpose:find("Beleg #2001", 1, true),
+      "purpose must cite originating purchaseNumber 2001, got:\n" .. tostring(txn.purpose))
+    assert.equals(M_i18n.t("account.name.fee"), txn.name)
+  end)
+
+  it("fee_to_transaction returns nil for fee with empty originatingTransactionUuid", function()
+    local txn = M_mapping.fee_to_transaction({
+      kind = "PAYMENT_FEE",
+      amount = -100,
+      timestamp_iso = "2026-06-01T12:00:00.000+0000",
+      originatingTransactionUuid = "",
+    }, nil)
+    assert.is_nil(txn, "must reject empty originatingTransactionUuid")
+  end)
+
+  it("fee_to_transaction falls back to '?' receipt when originating_purchase is nil", function()
+    local txn = M_mapping.fee_to_transaction({
+      kind = "PAYMENT_FEE",
+      amount = -42,
+      timestamp_iso = "2026-06-01T12:00:00.000+0000",
+      originatingTransactionUuid = "uuid-orphan",
+    }, nil)
+    assert.is_table(txn)
+    assert.is_truthy(txn.purpose:find("Beleg #?", 1, true),
+      "purpose must contain 'Beleg #?' fallback when purchase is nil, got:\n" .. tostring(txn.purpose))
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-02: fee_aggregate_to_transaction (FEE-03 / D-49)
+  -- -------------------------------------------------------------------------
+
+  it("fee_aggregate_to_transaction sums minor units and emits stable transactionCode", function()
+    local fees = {
+      { amount = -100 }, { amount = -50 }, { amount = -200 },
+    }
+    local txn = M_mapping.fee_aggregate_to_transaction(fees, "2026-06-15", 3)
+    assert.is_table(txn)
+    assert.equals("zettle:fee:aggregate:2026-06-15", txn.transactionCode)
+    assert.equals(-3.5, txn.amount, "sum/100 must be -3.50")
+    assert.is_true(txn.booked)
+    assert.equals("EUR", txn.currency)
+    -- "3 Einzelgebühren" — UTF-8 ü is \xc3\xbc
+    assert.is_truthy(txn.purpose:find("3 Einzelgeb\xc3\xbchren", 1, true),
+      "purpose must contain '3 Einzelgebühren', got:\n" .. tostring(txn.purpose))
+  end)
+
+  it("fee_aggregate_to_transaction bookingDate is Berlin-local 00:00 of date_iso", function()
+    -- date_iso "2026-06-15" -> CEST: bookingDate represents 2026-06-15 00:00 Berlin local.
+    -- os.date("!*t", bookingDate) decomposes the Berlin-local POSIX as if UTC, so
+    -- year=2026 month=6 day=15 hour=0 min=0 (same convention as Phase-3 D-36 tests).
+    local txn = M_mapping.fee_aggregate_to_transaction({}, "2026-06-15", 0)
+    assert.is_table(txn)
+    local t = os.date("!*t", txn.bookingDate)
+    assert.equals(2026, t.year)
+    assert.equals(6, t.month)
+    assert.equals(15, t.day)
+    assert.equals(0, t.hour)
+    assert.equals(0, t.min)
+  end)
+
+  it("fee_aggregate_to_transaction returns nil for malformed date_iso", function()
+    assert.is_nil(M_mapping.fee_aggregate_to_transaction({}, "not-a-date", 0))
+    assert.is_nil(M_mapping.fee_aggregate_to_transaction({}, "2026/06/15", 0))
+    assert.is_nil(M_mapping.fee_aggregate_to_transaction({}, nil, 0))
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-02: payout_to_transaction (PAYOUT-01..03)
+  -- -------------------------------------------------------------------------
+
+  it("payout_to_transaction returns valid transaction with zettle:payout: prefix and 'Auszahlung an Bankkonto' name (PAYOUT-01/02/03)", function()
+    local _, fin_decoded = Fixtures.load("finance/finance_payout")
+    local payout = M_finance.parse_transaction(fin_decoded.data[1])
+    assert.is_table(payout)
+    local txn = M_mapping.payout_to_transaction(payout)
+    assert.is_table(txn)
+    assert.equals("zettle:payout:dddddddd-dddd-dddd-dddd-dddddddddddd", txn.transactionCode)
+    assert.equals("Auszahlung an Bankkonto", txn.name)
+    assert.equals(-1500.0, txn.amount, "150000 minor units negative -> -1500.00 EUR")
+    assert.is_true(txn.booked)
+    assert.equals("EUR", txn.currency)
+    assert.is_truthy(txn.purpose:find("Auszahlung an Bankkonto am", 1, true),
+      "purpose must mention 'Auszahlung an Bankkonto am', got:\n" .. tostring(txn.purpose))
+  end)
+
+  it("payout_to_transaction valueDate equals bookingDate (PAYOUT-03 / payout-is-settlement)", function()
+    local _, fin_decoded = Fixtures.load("finance/finance_payout")
+    local payout = M_finance.parse_transaction(fin_decoded.data[1])
+    local txn = M_mapping.payout_to_transaction(payout)
+    assert.equals(txn.bookingDate, txn.valueDate,
+      "valueDate must equal bookingDate — PAYOUT IS the settlement event")
+  end)
+
+  it("payout_to_transaction returns nil for payout with missing originatingTransactionUuid", function()
+    local txn = M_mapping.payout_to_transaction({
+      kind = "PAYOUT",
+      amount = -100,
+      timestamp_iso = "2026-06-01T12:00:00.000+0000",
+      originatingTransactionUuid = "",
+    })
+    assert.is_nil(txn)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-02: promote_to_booked (D-56)
+  -- -------------------------------------------------------------------------
+
+  it("promote_to_booked sets booked=true and valueDate on a phase-3 sale txn (D-56)", function()
+    local p = load_first("purchase_simple_sale")
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    assert.is_false(txn.booked, "Phase 3 sale starts booked=false")
+    local original_code = txn.transactionCode
+    M_mapping.promote_to_booked(txn, 1781920500)
+    assert.is_true(txn.booked)
+    assert.equals(1781920500, txn.valueDate)
+    assert.equals(original_code, txn.transactionCode,
+      "transactionCode must remain unchanged so MoneyMoney dedup updates in place")
+  end)
+
+  it("promote_to_booked is idempotent (calling twice with same args is a no-op)", function()
+    local txn = { booked = false }
+    M_mapping.promote_to_booked(txn, 12345)
+    M_mapping.promote_to_booked(txn, 12345)
+    assert.is_true(txn.booked)
+    assert.equals(12345, txn.valueDate)
+  end)
+
+  it("promote_to_booked silently returns on non-table input", function()
+    assert.has_no.errors(function() M_mapping.promote_to_booked(nil, 0) end)
+    assert.has_no.errors(function() M_mapping.promote_to_booked("not-a-txn", 0) end)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-02: refund_to_transaction(p, opts) opts.original_receipt (REF-02 / D-50)
+  -- -------------------------------------------------------------------------
+
+  it("refund_to_transaction(p, opts) cites opts.original_receipt when provided (REF-02 / D-50)", function()
+    local _, decoded = Fixtures.load("purchases/purchase_refund_with_original_in_page")
+    local refund = decoded.purchases[2]
+    assert.is_true(refund.refund, "fixture sanity: second purchase must be the refund")
+    local txn = M_mapping.refund_to_transaction(refund, { original_receipt = 4001 })
+    assert.is_table(txn)
+    assert.is_truthy(txn.purpose:find("R\xc3\xbcckerstattung zu Beleg #4001", 1, true),
+      "purpose must cite 'Rückerstattung zu Beleg #4001', got:\n" .. tostring(txn.purpose))
+  end)
+
+  it("refund_to_transaction(p) without opts falls back to UUID per Phase-3 D-32", function()
+    local _, decoded = Fixtures.load("purchases/purchase_refund_with_original_in_page")
+    local refund = decoded.purchases[2]
+    local txn = M_mapping.refund_to_transaction(refund)
+    assert.is_table(txn)
+    assert.is_truthy(txn.purpose:find("30303030", 1, true),
+      "purpose must contain refundsPurchaseUUID1 substring '30303030' as fallback, got:\n" ..
+      tostring(txn.purpose))
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-04: META-01 — per-rate VAT lines in _format_purpose (D-53)
+  -- -------------------------------------------------------------------------
+
+  it("META-01: groupedVatAmounts with two rates produces two MwSt lines sorted descending", function()
+    local p = load_first("purchase_vat_split_19_7")
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    -- Two distinct per-rate lines: 19% (318 minor units = 3,18 EUR) then 7% (140 minor = 1,40 EUR).
+    local pos19 = txn.purpose:find("19% MwSt: 3,18 EUR", 1, true)
+    local pos7  = txn.purpose:find("7% MwSt: 1,40 EUR", 1, true)
+    assert.is_truthy(pos19, "missing '19% MwSt: 3,18 EUR' in purpose:\n" .. tostring(txn.purpose))
+    assert.is_truthy(pos7,  "missing '7% MwSt: 1,40 EUR' in purpose:\n" .. tostring(txn.purpose))
+    assert.is_true(pos19 < pos7, "19% MwSt line must precede 7% MwSt line (descending sort)")
+  end)
+
+  it("META-01: groupedVatAmounts with single rate falls through to Phase-3 single MwSt line", function()
+    local p = load_first("purchase_with_vat_and_tip")
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    -- Exactly one MwSt: occurrence, and it uses the Phase-3 single-line format.
+    local _, count = txn.purpose:gsub("MwSt:", "")
+    assert.equals(1, count, "expected exactly one 'MwSt:' line, got " .. tostring(count) ..
+      " in:\n" .. tostring(txn.purpose))
+    assert.is_truthy(txn.purpose:find("MwSt: 3,18 €", 1, true),
+      "expected Phase-3 single-line 'MwSt: 3,18 €' in:\n" .. tostring(txn.purpose))
+    -- The per-rate prefix format ("19% MwSt") MUST NOT appear on the single-rate path.
+    assert.is_nil(txn.purpose:find("19% MwSt", 1, true),
+      "per-rate prefix must NOT appear on single-rate fallback path; got:\n" .. tostring(txn.purpose))
+  end)
+
+  it("META-01: groupedVatAmounts empty map falls through to Phase-3 single MwSt line (vatAmount only)", function()
+    -- purchase_with_card_metadata has groupedVatAmounts={} and vatAmount=0 → no MwSt line at all (D-34).
+    -- Use an inline record with vatAmount>0 and empty groupedVatAmounts to exercise the fallback branch.
+    local p = {
+      purchaseUUID1 = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+      amount = 1000,
+      vatAmount = 159,
+      currency = "EUR",
+      timestamp = "2026-06-15T10:00:00.000+0000",
+      purchaseNumber = 7001,
+      payments = {},
+      groupedVatAmounts = {},
+    }
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    local _, count = txn.purpose:gsub("MwSt:", "")
+    assert.equals(1, count, "expected exactly one 'MwSt:' line, got " .. tostring(count))
+    assert.is_truthy(txn.purpose:find("MwSt: 1,59 €", 1, true))
+    assert.is_nil(txn.purpose:find("% MwSt", 1, true),
+      "per-rate prefix must NOT appear on empty-map fallback path")
+  end)
+
+  it("META-01: integer-string key '19' is accepted equivalently to decimal-string '19.0' (defensive — R-5)", function()
+    local p = {
+      purchaseUUID1 = "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      amount = 2000,
+      vatAmount = 458,
+      currency = "EUR",
+      timestamp = "2026-06-15T10:00:00.000+0000",
+      purchaseNumber = 7002,
+      payments = {},
+      groupedVatAmounts = { ["19"] = 318, ["7"] = 140 },
+    }
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    assert.is_truthy(txn.purpose:find("19% MwSt: 3,18 EUR", 1, true),
+      "integer-string key '19' must produce '19% MwSt: 3,18 EUR' line, got:\n" .. tostring(txn.purpose))
+    assert.is_truthy(txn.purpose:find("7% MwSt: 1,40 EUR", 1, true),
+      "integer-string key '7' must produce '7% MwSt: 1,40 EUR' line, got:\n" .. tostring(txn.purpose))
+  end)
+
+  it("S-01: pathological groupedVatAmounts key (scientific notation, oversize, non-numeric) does NOT crash purchase_to_transaction", function()
+    -- SEC-01 (HIGH): groupedVatAmounts keys come straight from the Zettle
+    -- response (or a compromised CDN). string.format("%d", tonumber("1e308"))
+    -- raises "number has no integer representation" — uncaught Lua error that
+    -- would abort RefreshAccount. Range-guard tonumber(k) to [0, 100] (a real
+    -- VAT rate cannot fall outside this range for any tax regime).
+    local p = {
+      purchaseUUID1 = "5e505e50-5e50-5e50-5e50-5e505e505e50",
+      amount = 2000,
+      vatAmount = 318,
+      currency = "EUR",
+      timestamp = "2026-06-15T10:00:00.000+0000",
+      purchaseNumber = 7100,
+      payments = {},
+      -- Three pathological keys + one legitimate key.
+      -- "1e308" parses to a finite float with no integer representation -> %d crash.
+      -- "abc"   is non-numeric and must be skipped.
+      -- "999"   is numeric but outside [0..100] and must be skipped.
+      -- "19"    is legitimate and must drive the single-rate fallback.
+      groupedVatAmounts = {
+        ["1e308"] = 100,
+        ["abc"] = 50,
+        ["999"] = 10,
+        ["19"] = 318,
+      },
+    }
+    local ok, result = pcall(M_mapping.purchase_to_transaction, p)
+    assert.is_true(ok,
+      "S-01: purchase_to_transaction must NOT raise a Lua error on pathological "
+      .. "groupedVatAmounts keys; got: " .. tostring(result))
+    assert.is_table(result, "S-01: must still return a valid txn table")
+    -- The "19" key is the only one to pass the range guard, so the single-rate
+    -- fallback fires (only 1 entry in rate_entries -> not >= 2).
+    -- Defensive: the resulting purpose must NOT contain "1e308" or "999%" or "abc".
+    assert.is_falsy(result.purpose:find("1e308", 1, true),
+      "S-01: pathological '1e308' key must NOT appear in purpose")
+    assert.is_falsy(result.purpose:find("999%%", 1, false),
+      "S-01: out-of-range '999' key must NOT appear in purpose")
+  end)
+
+  it("S-01: pathological groupedVatAmounts key in multi-rate path is skipped silently (oversize float, non-numeric)", function()
+    -- Same defence with TWO legitimate rates so the multi-rate branch fires.
+    local p = {
+      purchaseUUID1 = "5e515e51-5e51-5e51-5e51-5e515e515e51",
+      amount = 2000,
+      vatAmount = 458,
+      currency = "EUR",
+      timestamp = "2026-06-15T10:00:00.000+0000",
+      purchaseNumber = 7101,
+      payments = {},
+      groupedVatAmounts = {
+        ["19.0"] = 318,
+        ["7.0"]  = 140,
+        ["1e308"] = 100,    -- range-guard rejects (math.huge > 100)
+        ["-5"]    = 25,     -- range-guard rejects (rate < 0)
+        ["abc"]   = 50,     -- tonumber returns nil, falls through guard
+      },
+    }
+    local ok, result = pcall(M_mapping.purchase_to_transaction, p)
+    assert.is_true(ok,
+      "S-01: multi-rate path must NOT raise a Lua error on pathological keys; got: "
+      .. tostring(result))
+    assert.is_table(result)
+    -- Multi-rate path emits 19% and 7% lines.
+    assert.is_truthy(result.purpose:find("19% MwSt: 3,18 EUR", 1, true),
+      "S-01: legitimate 19% rate must still render in multi-rate path")
+    assert.is_truthy(result.purpose:find("7% MwSt: 1,40 EUR", 1, true),
+      "S-01: legitimate 7% rate must still render in multi-rate path")
+    -- Pathological rates must NOT appear.
+    assert.is_falsy(result.purpose:find("1e308", 1, true),
+      "S-01: oversize float rate '1e308' must be silently skipped")
+    assert.is_falsy(result.purpose:find("-5%", 1, true),
+      "S-01: negative rate must be silently skipped")
+  end)
+
+  it("META-01: negative VAT amounts on refund records render with leading minus", function()
+    local p = {
+      purchaseUUID1 = "cccccccc-cccc-cccc-cccc-cccccccccccc",
+      amount = -500,
+      vatAmount = -87,
+      currency = "EUR",
+      timestamp = "2026-06-15T10:00:00.000+0000",
+      purchaseNumber = 7003,
+      refund = true,
+      refundsPurchaseUUID1 = "dddddddd-dddd-dddd-dddd-dddddddddddd",
+      payments = {},
+      groupedVatAmounts = { ["19.0"] = -57, ["7.0"] = -30 },
+    }
+    local txn = M_mapping.refund_to_transaction(p)
+    assert.is_table(txn)
+    assert.is_truthy(txn.purpose:find("19% MwSt: -0,57 EUR", 1, true),
+      "expected '19% MwSt: -0,57 EUR' for negative refund VAT, got:\n" .. tostring(txn.purpose))
+    assert.is_truthy(txn.purpose:find("7% MwSt: -0,30 EUR", 1, true),
+      "expected '7% MwSt: -0,30 EUR' for negative refund VAT, got:\n" .. tostring(txn.purpose))
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-04: SALE-07 — card-brand + entry-mode tail line in _format_purpose (D-57)
+  -- -------------------------------------------------------------------------
+
+  it("SALE-07: both cardType and cardPaymentEntryMode present produces 'Zahlart: Visa (kontaktlos)'", function()
+    local p = load_first("purchase_with_card_metadata_kontaktlos")
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    assert.is_truthy(txn.purpose:find("Zahlart: Visa (kontaktlos)", 1, true),
+      "expected 'Zahlart: Visa (kontaktlos)' tail line, got:\n" .. tostring(txn.purpose))
+  end)
+
+  it("SALE-07: only cardType present produces 'Zahlart: Visa' (no parens)", function()
+    local p = {
+      purchaseUUID1 = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+      amount = 500,
+      vatAmount = 0,
+      currency = "EUR",
+      timestamp = "2026-06-15T10:00:00.000+0000",
+      purchaseNumber = 7004,
+      payments = {
+        {
+          uuid = "p1", type = "IZETTLE_CARD", amount = 500, gratuityAmount = 0,
+          attributes = { cardType = "VISA", maskedPan = "411111******1111" },
+        },
+      },
+      groupedVatAmounts = {},
+    }
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    local zpos = txn.purpose:find("Zahlart: Visa", 1, true)
+    assert.is_truthy(zpos, "expected 'Zahlart: Visa' tail line, got:\n" .. tostring(txn.purpose))
+    -- After the Zahlart line, there must be no opening paren on that line.
+    local line_end = txn.purpose:find("\n", zpos, true) or (#txn.purpose + 1)
+    local zahlart_line = txn.purpose:sub(zpos, line_end - 1)
+    assert.is_nil(zahlart_line:find("(", 1, true),
+      "Zahlart line must NOT contain '(' when entry-mode absent; got line: " .. zahlart_line)
+  end)
+
+  it("SALE-07: both fields absent — Zahlart line is OMITTED", function()
+    local p = load_first("purchase_simple_sale")
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    assert.is_nil(txn.purpose:find("Zahlart", 1, true),
+      "Zahlart line must be omitted when both card fields absent; got:\n" .. tostring(txn.purpose))
+  end)
+
+  it("SALE-07: unknown cardPaymentEntryMode maps to 'unbekannt' fallback", function()
+    local p = {
+      purchaseUUID1 = "ffffffff-ffff-ffff-ffff-ffffffffffff",
+      amount = 500,
+      vatAmount = 0,
+      currency = "EUR",
+      timestamp = "2026-06-15T10:00:00.000+0000",
+      purchaseNumber = 7005,
+      payments = {
+        {
+          uuid = "p1", type = "IZETTLE_CARD", amount = 500, gratuityAmount = 0,
+          attributes = {
+            cardType = "VISA",
+            maskedPan = "411111******1111",
+            cardPaymentEntryMode = "SOMETHING_NEW_NOT_IN_MAP",
+          },
+        },
+      },
+      groupedVatAmounts = {},
+    }
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    assert.is_truthy(txn.purpose:find("Zahlart: Visa (unbekannt)", 1, true),
+      "expected 'Zahlart: Visa (unbekannt)' for unmapped entry mode, got:\n" .. tostring(txn.purpose))
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-04: Phase-3 surface preservation (RESEARCH §Pitfall 8)
+  -- -------------------------------------------------------------------------
+
+  it("Phase-3 surface preservation: purchase_simple_sale produces byte-identical purpose to Phase 3", function()
+    local p = load_first("purchase_simple_sale")
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    local expected = "Brutto: 5,00 \xe2\x82\xac\nNetto: 5,00 \xe2\x82\xac\nBeleg #1001"
+    assert.equals(expected, txn.purpose,
+      "Phase-3 purpose surface must be byte-identical for no-VAT-no-card fixture")
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- S-11 (SEC R2 / R2-01 REVIEW): _format_label must cap cardType at 32 bytes
+  -- so an adversarial response cannot balloon the user-visible `name` field.
+  -- Mirrors the S-04 cap already in _format_purpose; both label and purpose
+  -- now bound the cardType surface defensively.
+  -- -------------------------------------------------------------------------
+
+  it("purchase_to_transaction caps cardType at 32 bytes in name (S-11)", function()
+    local long_card_type = string.rep("X", 10000)
+    local p = {
+      purchaseUUID1  = "uuid-s11-label",
+      amount         = 100,
+      vatAmount      = 0,
+      currency       = "EUR",
+      timestamp      = "2026-06-01T10:00:00Z",
+      purchaseNumber = 9011,
+      payments       = {
+        {
+          attributes = {
+            cardType   = long_card_type,
+            maskedPan  = "411111******1111",
+          },
+        },
+      },
+    }
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn, "purchase_to_transaction must return a table (S-11)")
+    assert.is_string(txn.name, "name must be a string (S-11)")
+    -- Adversarial cardType (10000 bytes) must not balloon the name field.
+    -- Cap is 32 bytes for the brand portion + " " + 4 bullets + " " + 4 digits.
+    -- Each bullet is 3 UTF-8 bytes, so worst-case label length is bounded by:
+    --   32 (brand) + 1 (space) + 4*3 (bullets) + 1 (space) + 4 (digits) = 50 bytes.
+    assert.is_true(#txn.name <= 60,
+      "name must be length-capped; got " .. #txn.name .. " bytes (S-11)")
+  end)
+
+  it("META-01: UTF-8 umlauts round-trip via dkjson and survive in fixture", function()
+    local raw, decoded = Fixtures.load("purchases/purchase_umlauts_purpose")
+    assert.is_string(raw)
+    assert.is_table(decoded)
+    -- Round-trip the raw fixture: decoded.userDisplayName must preserve "Café" UTF-8.
+    local p = decoded.purchases[1]
+    assert.is_table(p)
+    assert.equals("Beispiel-Caf\xc3\xa9", p.userDisplayName,
+      "Café (U+00E9 é = \\xc3\\xa9 UTF-8) must round-trip via dkjson; got: " ..
+      tostring(p.userDisplayName))
+    -- Sanity: _format_purpose still works on the umlauts fixture (no card meta, no VAT split).
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    assert.is_truthy(txn.purpose:find("Beleg #6001", 1, true))
   end)
 
 end)

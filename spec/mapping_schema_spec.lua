@@ -178,6 +178,36 @@ describe("transaction schema gate (TEST-04)", function()
       "non-EUR purchase must return nil (D-37 silent skip), got: " .. tostring(txn))
   end)
 
+  -- -------------------------------------------------------------------------
+  -- Plan 04-02: schema-walk extension for the new Phase-4 mappers.
+  -- -------------------------------------------------------------------------
+
+  it("fee_to_transaction output satisfies the 7-field REQUIRED_FIELDS contract", function()
+    assert_callable(M_mapping.fee_to_transaction, "fee_to_transaction")
+    local _, fin_decoded = Fixtures.load("finance/finance_payment_with_fee_linkage")
+    local fee = M_finance.parse_transaction(fin_decoded.data[2])
+    assert.is_table(fee, "parse_transaction must yield a fee table")
+    local _, purch_decoded = Fixtures.load("purchases/purchase_page_with_payments_for_fee_join")
+    local purchase = purch_decoded.purchases[1]
+    local txn = M_mapping.fee_to_transaction(fee, purchase)
+    assert_schema(txn, "fee_to_transaction")
+  end)
+
+  it("fee_aggregate_to_transaction output satisfies the 7-field REQUIRED_FIELDS contract", function()
+    assert_callable(M_mapping.fee_aggregate_to_transaction, "fee_aggregate_to_transaction")
+    local fees = { { amount = -100 }, { amount = -50 } }
+    local txn = M_mapping.fee_aggregate_to_transaction(fees, "2026-06-15", 2)
+    assert_schema(txn, "fee_aggregate_to_transaction")
+  end)
+
+  it("payout_to_transaction output satisfies the 7-field REQUIRED_FIELDS contract", function()
+    assert_callable(M_mapping.payout_to_transaction, "payout_to_transaction")
+    local _, fin_decoded = Fixtures.load("finance/finance_payout")
+    local payout = M_finance.parse_transaction(fin_decoded.data[1])
+    local txn = M_mapping.payout_to_transaction(payout)
+    assert_schema(txn, "payout_to_transaction")
+  end)
+
   it("every mapped transaction across fixtures sets currency = EUR (Phase 2 D-23a invariant)", function()
     assert_callable(M_mapping.purchase_to_transaction, "purchase_to_transaction")
     -- Iterate the five EUR sale fixtures and assert each produces currency = "EUR".

@@ -61,6 +61,17 @@ local function walk_storage(t, visit)
   end
 end
 
+-- Plan 04-03: each RefreshAccount now consumes FOUR sequential responses
+-- (purchase + liquid balance + preliminary balance + finance transactions).
+-- Phase-3 redaction tests only care about the purchase pipeline; queue the
+-- 3 trailing Finance API responses with empty/EUR fixtures so the new call
+-- shape is satisfied without changing the gate semantics.
+local function queue_finance_tail()
+  Mocks.push_response({ content = Fixtures.load("finance/finance_balance_liquid") })
+  Mocks.push_response({ content = Fixtures.load("finance/finance_balance_preliminary") })
+  Mocks.push_response({ content = Fixtures.load("finance/finance_empty") })
+end
+
 -- ---------------------------------------------------------------------------
 describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix gate", function()
 
@@ -81,6 +92,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs1")
     local raw = Fixtures.load("purchases/purchase_simple_sale")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     RefreshAccount({ accountNumber = "org-rs1", currency = "EUR", balance = 0 }, 0)
 
     -- Gate A: walk LocalStorage; no value may match the JWT-head pattern.
@@ -94,6 +106,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs2")
     local raw = Fixtures.load("purchases/purchase_simple_sale")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     RefreshAccount({ accountNumber = "org-rs2", currency = "EUR", balance = 0 }, 0)
 
     -- Gate B: captured print stream must never contain "Bearer eyJ..." pattern.
@@ -109,6 +122,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs3")
     local raw = Fixtures.load("purchases/purchase_simple_sale")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     local result = RefreshAccount({ accountNumber = "org-rs3", currency = "EUR", balance = 0 }, 0)
 
     assert.is_table(result, "result must be a table")
@@ -134,6 +148,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs4")
     local raw = Fixtures.load("purchases/purchase_refund")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     RefreshAccount({ accountNumber = "org-rs4", currency = "EUR", balance = 0 }, 0)
 
     walk_storage(LocalStorage, function(s)
@@ -146,6 +161,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs5")
     local raw = Fixtures.load("purchases/purchase_refund")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     local result = RefreshAccount({ accountNumber = "org-rs5", currency = "EUR", balance = 0 }, 0)
 
     assert.is_table(result, "result must be a table for refund fixture")
@@ -177,6 +193,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs6")
     local raw = Fixtures.load("purchases/purchase_with_vat_and_tip")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     RefreshAccount({ accountNumber = "org-rs6", currency = "EUR", balance = 0 }, 0)
 
     walk_storage(LocalStorage, function(s)
@@ -189,6 +206,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs7")
     local raw = Fixtures.load("purchases/purchase_with_vat_and_tip")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     RefreshAccount({ accountNumber = "org-rs7", currency = "EUR", balance = 0 }, 0)
 
     for _, line in ipairs(Mocks._captured_prints) do
@@ -196,5 +214,197 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
         "print line contains unredacted Bearer + JWT: " .. line)
     end
   end)
+
+end)
+
+-- ---------------------------------------------------------------------------
+-- Plan 04-05: D-38 extended transactionCode prefix gate
+--
+-- Phase-3 closed the prefix gate over {zettle:sale:, zettle:refund:}. Phase-4
+-- adds three more emitters (zettle:fee:, zettle:fee:aggregate:, zettle:payout:)
+-- per Plan 04-02 / 04-03. The closed-set assertion below is the structural
+-- enforcement: any future transaction kind (e.g. zettle:cashback:) emitted
+-- without first extending this gate fails the test loudly with the violating
+-- transactionCode.
+-- ---------------------------------------------------------------------------
+
+-- D-38 Phase-4 allowed prefix set (5 entries — closed set).
+-- WR-02 (REVIEW): the prefix `^zettle:fee:` is a STRICT prefix of
+-- `^zettle:fee:aggregate:`. The earlier `matches_allowed_prefix` returned
+-- true for any prefix match, and the "seen_prefixes" walk marked BOTH
+-- prefixes as seen on every aggregate transactionCode — which would let
+-- the "all 5 exercised" assertion pass even if per-sale fees were never
+-- emitted. Fix: longest-match semantics. Each code claims exactly ONE
+-- prefix (the most-specific one). The closed-set assertion then enforces
+-- each of the 5 buckets is non-empty for real.
+local ALLOWED_PREFIXES = {
+  "^zettle:sale:",
+  "^zettle:refund:",
+  "^zettle:fee:",
+  "^zettle:fee:aggregate:",
+  "^zettle:payout:",
+}
+
+-- longest_matching_prefix(code) -> string|nil
+-- Returns the longest entry from ALLOWED_PREFIXES that matches `code`, or nil
+-- if none matches. "Longest" is computed by string length of the pattern body.
+local function longest_matching_prefix(code)
+  if type(code) ~= "string" then return nil end
+  local best = nil
+  local best_len = -1
+  for _, p in ipairs(ALLOWED_PREFIXES) do
+    if code:find(p) and #p > best_len then
+      best = p
+      best_len = #p
+    end
+  end
+  return best
+end
+
+describe("D-38 extended transactionCode prefix gate (Phase-4: 5 allowed prefixes)", function()
+
+  before_each(function()
+    Mocks.setup()
+    load_artifact()
+  end)
+
+  after_each(function()
+    Mocks.teardown()
+  end)
+
+  -- Helper: queue the Plan-04-03 four-response tuple for ONE RefreshAccount.
+  local function queue_full(purchase_fixture, finance_fixture)
+    Mocks.push_response({ content = Fixtures.load("purchases/" .. purchase_fixture) })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_liquid") })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_preliminary") })
+    Mocks.push_response({ content = Fixtures.load("finance/" .. finance_fixture) })
+  end
+
+  it("D-38 extended: every returned transactionCode starts with one of the 5 Phase-4 allowed prefixes", function()
+    local union = {}
+    local function absorb(result)
+      if type(result) == "table" and type(result.transactions) == "table" then
+        for _, t in ipairs(result.transactions) do
+          union[#union + 1] = t
+        end
+      end
+    end
+
+    -- Refresh 1: sale + linked fee (yields zettle:sale: + zettle:fee:)
+    seed_token("org-d38-1")
+    queue_full("purchase_page_with_payments_for_fee_join", "finance_payment_with_fee_linkage")
+    absorb(RefreshAccount({ accountNumber = "org-d38-1", currency = "EUR", balance = 0 }, 0))
+
+    -- Refresh 2: refund (yields zettle:refund:)
+    seed_token("org-d38-2")
+    queue_full("purchase_refund", "finance_empty")
+    absorb(RefreshAccount({ accountNumber = "org-d38-2", currency = "EUR", balance = 0 }, 0))
+
+    -- Refresh 3: aggregate fee + payout (yields zettle:fee:aggregate: + zettle:payout:)
+    seed_token("org-d38-3")
+    queue_full("purchase_simple_sale", "finance_payment_fee_unlinked")
+    absorb(RefreshAccount({ accountNumber = "org-d38-3", currency = "EUR", balance = 0 }, 0))
+
+    seed_token("org-d38-4")
+    queue_full("purchases_empty", "finance_payout")
+    absorb(RefreshAccount({ accountNumber = "org-d38-4", currency = "EUR", balance = 0 }, 0))
+
+    assert.is_true(#union >= 4,
+      "expected at least 4 transactions across the 4 union refreshes; got " .. tostring(#union))
+
+    -- Every emitted transactionCode must match exactly one of the 5 allowed prefixes.
+    -- WR-02: each code claims the LONGEST matching prefix (so aggregate fee codes
+    -- count against ^zettle:fee:aggregate:, not also against ^zettle:fee:).
+    -- The "ALL 5 prefixes seen" assertion is then unfalsifiable-without-evidence:
+    -- per-sale fees and aggregate fees must each be exercised by their own
+    -- bucket; the gate cannot pass with only 4 distinct kinds.
+    local seen_prefixes = {}
+    for _, t in ipairs(union) do
+      local longest = longest_matching_prefix(t.transactionCode)
+      assert.is_not_nil(longest,
+        "transactionCode '" .. tostring(t.transactionCode) ..
+        "' does not match any of the 5 D-38 allowed prefixes")
+      seen_prefixes[longest] = true
+    end
+    for _, p in ipairs(ALLOWED_PREFIXES) do
+      assert.is_true(seen_prefixes[p] == true,
+        "expected to exercise prefix " .. p .. " across union refreshes; not seen. " ..
+        "Codes seen: " .. (function()
+          local list = {}
+          for _, t in ipairs(union) do list[#list + 1] = tostring(t.transactionCode) end
+          return table.concat(list, ", ")
+        end)())
+    end
+  end)
+
+end)
+
+-- ---------------------------------------------------------------------------
+-- Plan 04-05: SEC-03 / D-45 — Bearer redaction covers Finance API responses
+-- (RESEARCH §1.6).
+--
+-- Phase-3's SEC-03 walks covered only the purchase pipeline. Phase-4 added
+-- two new HTTP call surfaces (balance dual-GET + finance transactions). For
+-- every Finance API fixture we drive through a full RefreshAccount cycle and
+-- assert no JWT-shape (eyJ-prefixed) string and no literal "Bearer eyJ"
+-- substring appears in any captured print/log line or in LocalStorage values.
+-- ---------------------------------------------------------------------------
+describe("SEC-03 / D-45 extended: Bearer redaction covers Finance API responses (RESEARCH §1.6)", function()
+
+  before_each(function()
+    Mocks.setup()
+    load_artifact()
+  end)
+
+  after_each(function()
+    Mocks.teardown()
+  end)
+
+  -- For each finance fixture: queue purchase + balance pair + the named
+  -- finance fixture as the transactions response; run RefreshAccount; assert
+  -- redaction invariants on all captured surfaces.
+  local cases = {
+    { label = "finance_single_page",
+      purchase = "purchase_simple_sale", finance = "finance_single_page" },
+    { label = "finance_payment_with_fee_linkage",
+      purchase = "purchase_page_with_payments_for_fee_join",
+      finance  = "finance_payment_with_fee_linkage" },
+    { label = "finance_payout",
+      purchase = "purchases_empty", finance = "finance_payout" },
+    { label = "finance_balance_liquid (driven via finance_empty tail)",
+      purchase = "purchase_simple_sale", finance = "finance_empty" },
+    { label = "finance_balance_preliminary (driven via finance_empty tail)",
+      purchase = "purchase_simple_sale", finance = "finance_empty" },
+  }
+
+  for i, c in ipairs(cases) do
+    local org = "org-sec03-" .. tostring(i)
+    it("SEC-03 extended: no JWT / Bearer eyJ leak after RefreshAccount cycle covering " .. c.label,
+       function()
+      seed_token(org)
+      Mocks.push_response({ content = Fixtures.load("purchases/" .. c.purchase) })
+      Mocks.push_response({ content = Fixtures.load("finance/finance_balance_liquid") })
+      Mocks.push_response({ content = Fixtures.load("finance/finance_balance_preliminary") })
+      Mocks.push_response({ content = Fixtures.load("finance/" .. c.finance) })
+      RefreshAccount({ accountNumber = org, currency = "EUR", balance = 0 }, 0)
+
+      -- Gate B: captured print stream — no JWT-shape, no literal "Bearer eyJ".
+      for _, line in ipairs(Mocks._captured_prints) do
+        assert.is_falsy(line:find("eyJ[A-Za-z0-9_%-]+", 1, false),
+          "print line contains JWT-shape (eyJ...) after Finance cycle " .. c.label
+          .. ": " .. line)
+        assert.is_falsy(line:find("Bearer eyJ", 1, true),
+          "print line contains 'Bearer eyJ' after Finance cycle " .. c.label
+          .. ": " .. line)
+      end
+
+      -- Gate A: LocalStorage walk — no string value matches JWT-shape.
+      walk_storage(LocalStorage, function(s)
+        assert.is_falsy(s:find("eyJ[A-Za-z0-9_%-]+", 1, false),
+          "LocalStorage value contains JWT-shape after Finance cycle " .. c.label
+          .. ": " .. s)
+      end)
+    end)
+  end
 
 end)

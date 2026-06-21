@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
 status: executing
-last_updated: "2026-06-20T03:55:54.485Z"
+last_updated: "2026-06-21T08:00:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 8
-  completed_plans: 8
+  completed_plans: 11
   percent: 14
 ---
 
@@ -33,31 +33,58 @@ progress:
 
 ## Current Position
 
-Phase: 03 (sale-spine-first-user-visible-slice) — **SPINE MERGED, verifier report shipping**
-**Status:** Phase-3 spine + post-review fix batch (S/HI/ME findings) squash-merged via PR #8 (`a11287d` on main 2026-06-20). Verifier report (`03-VERIFICATION.md`) shipping in a follow-up PR.
-**Progress:** `[████████████░░░░░░░░] Phase 3 spine on main; Phase 4 unblocked once verifier PR merges`
+Phase: 04 (enrichment-refunds-fees-payouts) — **IMPLEMENTATION + POST-REVIEW FIX BATCH COMPLETE; READY-FOR-RE-VERIFICATION 2026-06-21**
+**Status:** Phase 3 fully merged to main (spine via PR #8 `a11287d`; verifier closure via PR #10 `a201f6c`). Phase 4 planning artifacts complete + Waves 1+2+3+4+5 implementation landed + Plan 04-07 (post-review fix batch) landed:
+- Plan 04-02 (Wave-1 pure-logic) shipped 3 GPG-signed commits (`24990d9` test fixtures + RED scaffolds; `a75f6d7` offset_iterate + manifest consolidation; `c4ed80e` M_finance.parse_transaction + 4 mapping mappers + 12 i18n keys).
+- Plan 04-04 (Wave-3 mapping enrichment) shipped 2 GPG-signed commits (`d3d1311` RED scaffolds + new fixtures; `08207a4` per-rate VAT + card-tail in _format_purpose).
+- Plan 04-03 (Wave-2 Finance HTTP + cross-refresh integration) shipped 2 GPG-signed commits (`54e6fd8` M_finance.fetch + fetch_all + fetch_account_state; `84052c3` 16-step RefreshAccount extension with purchases_by_uuid + payments_by_uuid + SALE-03 promotion + D-49 Option B + payout mapping).
+- Plan 04-05 (Wave-4 invariant gates) shipped 3 GPG-signed commits (`8f3455c` META-03 forbidden-strings spec; `d52e8df` META-02 zero-suppression + META-01 zero-rate edge spec; `0803ed2` D-58 idempotency extensions + D-38 prefix gate + SEC-03 Finance API redaction).
+- Plan 04-06 (Wave-5 release polish + audit) shipped 3 GPG-signed commits (`61ed67f` ADR-0004 Finance API scope + fee-fallback contract; `ec077d9` Phase-3 surface preservation audit spec; `16a06de` CHANGELOG + README v0.2.0 German sections engineering-draft).
+- **Plan 04-07 (post-review fix batch — autonomous-window) shipped 13 GPG-signed commits** addressing REVIEW.md (3 BLOCKER + 4 WARNING) + SECURITY-REVIEW.md (1 HIGH + 4 MEDIUM + 1 LOW). Full per-finding mapping in `04-07-FIX-SUMMARY.md`.
+
+Full suite 328 → **335 successes / 0 failures**; luacheck 0/0 in 38 files; reproducible build sha `6f4f685fd40f2922cb318a786c08b4d7182e0eb167e2c5c90c137fe47308fe54`. Plan 04-01 (Q3 sandbox probe) still pending Yves' live verification. Plan 04-06 Task 4 (loop-lektor pass on CHANGELOG/README/ADR-0004 German wording) deferred to Yves checkpoint after merge per orchestrator standing instruction.
+**Progress:** `[████████████████████░] 3/7 phases shipped; Phase 4 implementation + fix-batch COMPLETE (Plans 04-02..04-07 landed); Plan 04-01 (Yves Q3 probe) + re-verifier + lektor + ship pending`
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
 Phase 2: Authenticated Network Layer       [DONE ✅ — merged via PR #6 + Lows PR #7]
-Phase 3: Sale Spine                        [SPINE MERGED ✅ via PR #8 — verifier report in follow-up PR]
-Phase 4: Enrichment                        [READY — spine on main; discuss-phase next]
+Phase 3: Sale Spine                        [DONE ✅ — merged via PR #8 spine + PR #10 verifier closure]
+Phase 4: Enrichment                        [PLANNED ✅ — 04-CONTEXT/RESEARCH/PATTERNS/6 PLANs/PLAN-REVIEW committed; awaiting Yves unblock]
 Phase 5: Resilience & Error Handling       [BLOCKED on Phase 4]
 Phase 6: Release & Polish                  [BLOCKED on Phase 5]
 Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
-**Branch state:** PR #9 was opened against main with 45 commits, but conflicted because PR #8 had already squash-merged the same 39 source commits — both versions of the same content on different SHAs produced a synthetic 3-way merge conflict. PR #9 was closed; a clean `phase-3/post-review-fixes` branch was opened from current main with only the genuinely missing artifact (`03-VERIFICATION.md`) cherry-picked on. Verifier verdict: 10/10 must-haves PASSED, READY-TO-MERGE; busted 203/0/0/0; reproducible build SHA `344011f9…`; luacheck clean; coverage 99.23 %. Lesson recorded in memory: open Phase PRs before squash-merging the same branch from a different SHA. Memory `feedback_gpg_signed_pr_merge` still governs merge method (`--squash` mandatory).
+**Branch state:** On `phase-4/enrichment` (created 2026-06-21 from `origin/main` @ `a201f6c`). 25 local commits (6 planning + 3 Plan-04-02 + 2 Plan-04-04 + 2 Plan-04-03 + 3 Plan-04-05 + 3 Plan-04-06 + 5 docs/state/summary + 1 tools/probe):
+- `1578b75` docs(04): capture phase 4 enrichment context (autonomous draft)
+- `211da0b` docs(state): mark Phase 3 fully merged, Phase 4 context drafted
+- `0ac35b7` docs(04): research Phase 4 enrichment domain — Finance API surface, fee linkage, payout matching
+- `686df47` docs(04): map Phase 4 enrichment patterns to Phase-1/2/3 analogs
+- `26d6736` docs(04): create Phase 4 plans 04-01..04-06 across 6 waves
+- `c2d857d` docs(04): plan-check verification report — READY-FOR-EXECUTION
+- `b87426f` docs(state): Phase 4 fully planned — READY-FOR-EXECUTION
+- `50adec9` tools(04-01): add probe-finance.sh helper for Q3 sandbox closure
+- `24990d9` test(04-02): add Phase-4 fixtures + RED scaffolds for finance/pagination_offset specs
+- `a75f6d7` feat(04-02): add M_pagination.offset_iterate + consolidate manifest
+- `c4ed80e` feat(04-02): add M_finance.parse_transaction + 4 mapping mappers + 12 i18n keys
+- `d28508c` docs(04): land Yves-checkpoint decisions + Plan 04-02 summary
+- `d3d1311` test(04-04): add fixtures + RED scaffolds for META-01 per-rate VAT + SALE-07 card tail + Phase-3 snapshot
+- `08207a4` feat(04-04): per-rate VAT lines + card-brand+entry-mode tail in _format_purpose (META-01, SALE-07, D-53, D-57)
+- `54e6fd8` feat(04-03): add M_finance.fetch + fetch_all + fetch_account_state (RESEARCH §1.3, §1.4)
+- `f521105` docs(04-04): Plan 04-04 summary — per-rate VAT + card tail enrichments landed
+- `84052c3` feat(04-03): wire finance API + cross-refresh indexes into RefreshAccount
 
-**Phase-3 captured decisions (CONTEXT.md):**
+Not yet pushed — held local pending Yves' review of Q3 / D-49 / D-55. Memory `feedback_gpg_signed_pr_merge` still governs merge method (`--squash` mandatory). Memory `feedback_post_squash_no_repr` records the PR #9 → #10 reconciliation lesson.
 
-- **D-31** Pending/booked: all Phase-3 sales emit `booked=false`; Phase 4 promotes via same `transactionCode`.
-- **D-32** Refunds: own negative transaction `zettle:refund:<purchaseUUID1>`; original sale unchanged.
-- **D-33** First-refresh pagination: clamp `since` to max 90 days back; README documents.
-- **D-36 (Claude's discretion)** `bookingDate`: Europe/Berlin DST-aware via hardcoded EU rules table (2020–2040).
-- **D-34/D-35** purpose/name German bookkeeping format.
-- **D-37** Multi-currency defensive: skip non-EUR purchases silently with INFO log.
-- See `.planning/phases/03-sale-spine-first-user-visible-slice/03-CONTEXT.md` for D-31..D-45 full text.
+**Phase-3 captured decisions** (still authoritative; D-31..D-45 inherited by Phase 4): see `.planning/phases/03-sale-spine-first-user-visible-slice/03-CONTEXT.md`.
+
+**Phase-4 Yves blockers** (queued — autonomous window cannot resolve):
+
+- **Q3** Live probe of `https://finance.izettle.com/v2/accounts/liquid/transactions` with sandbox API key; flip ADR-0003 Q3 from DEFERRED → ACCEPTED. Plan 04-01 (Wave 0) is exactly this single task.
+- **D-49** **RESOLVED 2026-06-21**: Option B (per-refresh date clustering) implemented per Yves checkpoint. README disclaimer queued for Plan 04-06.
+- **D-55** **RESOLVED 2026-06-21**: 13-phrase forbidden-strings list confirmed; Plan 04-05 gating spec lands the invariant.
+
+See `.planning/phases/04-enrichment-refunds-fees-payouts/04-CONTEXT.md` for full D-46..D-60 text.
 
 ---
 

@@ -20,7 +20,7 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 
 - [ ] **ACCT-01**: Extension exposes one MoneyMoney account per PayPal POS merchant of type `AccountTypeGiro`
 - [ ] **ACCT-02**: Account label is `"PayPal POS — <merchant-name>"` so multiple instances are distinguishable in MoneyMoney's sidebar
-- [ ] **ACCT-03**: Refresh returns `balance` (settled/paid-out balance) and `pendingBalance` (sales not yet settled) from the Finance API
+- [x] **ACCT-03**: Refresh returns `balance` (settled/paid-out balance) and `pendingBalance` (sales not yet settled) from the Finance API
 - [ ] **ACCT-04**: User can add the extension multiple times to track multiple merchant accounts (one extension instance per merchant)
 
 ### Sales
@@ -31,30 +31,30 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 - [ ] **SALE-04**: `bookingDate` reflects the sale timestamp converted from Zettle's UTC ISO-8601 to POSIX local time
 - [ ] **SALE-05**: A double-refresh produces zero duplicate transactions (idempotency invariant, enforced via golden-file test)
 - [ ] **SALE-06**: Incremental refresh respects MoneyMoney's `since` parameter — only purchases dated after `since` are fetched and returned
-- [ ] **SALE-07**: Card brand and entry mode (`cardType`, `cardPaymentEntryMode`) are visible in the transaction `purpose` field when the API provides them
+- [x] **SALE-07**: Card brand and entry mode (`cardType`, `cardPaymentEntryMode`) are visible in the transaction `purpose` field when the API provides them
 - [ ] **SALE-08**: `name` field carries the customer-facing payment label (e.g. card brand + last-four when available, otherwise "Kartenzahlung")
 
 ### Refunds
 
 - [ ] **REF-01**: Each refund is returned as one negative MoneyMoney transaction
-- [ ] **REF-02**: Refund `purpose` includes a reference to the original sale's receipt number (`refundsPurchaseUUID1` resolved to `purchaseNumber`)
-- [ ] **REF-03**: Partial refunds are handled — multiple refund transactions can reference the same original sale
+- [x] **REF-02**: Refund `purpose` includes a reference to the original sale's receipt number (`refundsPurchaseUUID1` resolved to `purchaseNumber`)
+- [x] **REF-03**: Partial refunds are handled — multiple refund transactions can reference the same original sale
 
 ### Fees (PayPal POS commission)
 
-- [ ] **FEE-01**: Each PayPal POS transaction fee is returned as one negative MoneyMoney transaction, linked to its originating sale via the Finance API's `originatingTransactionUuid`
-- [ ] **FEE-02**: Fee `purpose` cites the originating sale's receipt number to make per-sale fee inspection possible
-- [ ] **FEE-03**: When per-sale linkage is unavailable (e.g. Finance API returns aggregated fees only), the extension falls back to a single daily-aggregate fee transaction with `purpose = "PayPal POS Transaktionsgebühren <date>"` and logs a clear warning
+- [x] **FEE-01**: Each PayPal POS transaction fee is returned as one negative MoneyMoney transaction, linked to its originating sale via the Finance API's `originatingTransactionUuid`
+- [x] **FEE-02**: Fee `purpose` cites the originating sale's receipt number to make per-sale fee inspection possible
+- [x] **FEE-03**: When per-sale linkage is unavailable (e.g. Finance API returns aggregated fees only), the extension falls back to a single daily-aggregate fee transaction with `purpose = "PayPal POS Transaktionsgebühren <date>"` and logs a clear warning
 
 ### Payouts
 
-- [ ] **PAYOUT-01**: Each payout from PayPal POS to the merchant's bank account is returned as one negative MoneyMoney transaction
-- [ ] **PAYOUT-02**: Payout transactions are labelled `"Auszahlung an Bankkonto"` in `name` to make the cash-flow direction unambiguous
-- [ ] **PAYOUT-03**: Payout `bookingDate` matches the settlement date returned by the Finance API
+- [x] **PAYOUT-01**: Each payout from PayPal POS to the merchant's bank account is returned as one negative MoneyMoney transaction
+- [x] **PAYOUT-02**: Payout transactions are labelled `"Auszahlung an Bankkonto"` in `name` to make the cash-flow direction unambiguous
+- [x] **PAYOUT-03**: Payout `bookingDate` matches the settlement date returned by the Finance API
 
 ### VAT & Tip Display
 
-- [ ] **META-01**: When `groupedVatAmounts` is populated, the `purpose` field includes a per-rate VAT breakdown in German (e.g. `"19% MwSt: 3,83 EUR"`, `"7% MwSt: 1,40 EUR"`)
+- [x] **META-01**: When `groupedVatAmounts` is populated, the `purpose` field includes a per-rate VAT breakdown in German (e.g. `"19% MwSt: 3,83 EUR"`, `"7% MwSt: 1,40 EUR"`)
 - [ ] **META-02**: When `payments[].gratuityAmount` is greater than zero, the `purpose` field includes a German tip line (`"Trinkgeld: X,YY EUR"`); when zero or absent, no tip line appears
 - [ ] **META-03**: The extension never classifies tips as taxable or non-taxable, never claims VAT or GoBD conformance — it surfaces facts and leaves bookkeeping classification to the operator and their Steuerberater
 
@@ -173,7 +173,7 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | AUTH-06 | Phase 2 | Pending |
 | ACCT-01 | Phase 2 | Pending |
 | ACCT-02 | Phase 2 | Pending |
-| ACCT-03 | Phase 4 | Pending |
+| ACCT-03 | Phase 4 | Done (Plan 04-03) |
 | ACCT-04 | Phase 2 | Pending |
 | SALE-01 | Phase 3 | Pending |
 | SALE-02 | Phase 3 | Pending |
@@ -181,18 +181,18 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | SALE-04 | Phase 3 | Pending |
 | SALE-05 | Phase 3 | Pending |
 | SALE-06 | Phase 3 | Pending |
-| SALE-07 | Phase 4 | Pending |
+| SALE-07 | Phase 4 | Done (Plan 04-04) |
 | SALE-08 | Phase 3 | Pending |
 | REF-01 | Phase 4 | Pending |
-| REF-02 | Phase 4 | Pending |
-| REF-03 | Phase 4 | Pending |
-| FEE-01 | Phase 4 | Pending |
-| FEE-02 | Phase 4 | Pending |
-| FEE-03 | Phase 4 | Pending |
-| PAYOUT-01 | Phase 4 | Pending |
-| PAYOUT-02 | Phase 4 | Pending |
-| PAYOUT-03 | Phase 4 | Pending |
-| META-01 | Phase 4 | Pending |
+| REF-02 | Phase 4 | Done (Plan 04-03) |
+| REF-03 | Phase 4 | Done (Plan 04-03) |
+| FEE-01 | Phase 4 | Done (Plan 04-03) |
+| FEE-02 | Phase 4 | Done (Plan 04-03) |
+| FEE-03 | Phase 4 | Done (Plan 04-03) |
+| PAYOUT-01 | Phase 4 | Done (Plan 04-03) |
+| PAYOUT-02 | Phase 4 | Done (Plan 04-03) |
+| PAYOUT-03 | Phase 4 | Done (Plan 04-03) |
+| META-01 | Phase 4 | Done (Plan 04-04) |
 | META-02 | Phase 4 | Pending |
 | META-03 | Phase 4 | Pending |
 | I18N-01 | Phase 3 | Pending |

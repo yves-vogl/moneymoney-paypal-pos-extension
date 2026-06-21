@@ -1,0 +1,11 @@
+{
+  "_source": "github.com/iZettle/api-documentation/blob/master/finance-api/user-guides/fetch-account-transactions-v2.md — single PAYOUT record; amount already negative per RESEARCH §1.6",
+  "data": [
+    {
+      "timestamp": "2026-06-10T08:00:00.000+0000",
+      "amount": -150000,
+      "originatorTransactionType": "PAYOUT",
+      "originatingTransactionUuid": "dddddddd-dddd-dddd-dddd-dddddddddddd"
+    }
+  ]
+}

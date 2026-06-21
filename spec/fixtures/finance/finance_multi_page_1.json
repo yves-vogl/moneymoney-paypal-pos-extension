@@ -1,0 +1,35 @@
+{
+  "_source": "github.com/iZettle/api-documentation/blob/master/finance-api/user-guides/fetch-account-transactions-v2.md — synthetic deterministic 5-record page; pagination_offset_spec.lua test 2 injects params.limit=5 so this fixture's record count == limit, triggering offset++",
+  "data": [
+    {
+      "timestamp": "2026-06-01T10:00:00.000+0000",
+      "amount": 1000,
+      "originatorTransactionType": "PAYMENT",
+      "originatingTransactionUuid": "00000000-0000-0000-0000-000000000001"
+    },
+    {
+      "timestamp": "2026-06-01T10:00:01.000+0000",
+      "amount": -19,
+      "originatorTransactionType": "PAYMENT_FEE",
+      "originatingTransactionUuid": "00000000-0000-0000-0000-000000000001"
+    },
+    {
+      "timestamp": "2026-06-01T10:01:00.000+0000",
+      "amount": 2000,
+      "originatorTransactionType": "PAYMENT",
+      "originatingTransactionUuid": "00000000-0000-0000-0000-000000000002"
+    },
+    {
+      "timestamp": "2026-06-01T10:01:01.000+0000",
+      "amount": -38,
+      "originatorTransactionType": "PAYMENT_FEE",
+      "originatingTransactionUuid": "00000000-0000-0000-0000-000000000002"
+    },
+    {
+      "timestamp": "2026-06-02T08:00:00.000+0000",
+      "amount": -2943,
+      "originatorTransactionType": "PAYOUT",
+      "originatingTransactionUuid": "00000000-0000-0000-0000-000000000003"
+    }
+  ]
+}

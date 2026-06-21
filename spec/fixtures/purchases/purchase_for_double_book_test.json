@@ -1,0 +1,32 @@
+{
+  "_source": "BL-03 (REVIEW) cross-refresh fee re-classification companion fixture. Provides a purchase with payments[0].uuid = aaaaaaaa-... so finance_payment_fee_LINKED_for_double_book_test.json resolves through payments_by_uuid and emits as zettle:fee:<uuid> instead of falling into the aggregate path. Timestamp 2026-06-15T13:30:00Z places the originating sale on the same Berlin-local date (2026-06-15 CEST) as the fee, so refresh N (unlinked) clustered into the 2026-06-15 aggregate.",
+  "purchases": [
+    {
+      "purchaseUUID1": "55555555-5555-5555-5555-555555555555",
+      "amount": 10000,
+      "vatAmount": 1597,
+      "currency": "EUR",
+      "timestamp": "2026-06-15T13:30:00.000+0000",
+      "purchaseNumber": 5001,
+      "refund": false,
+      "refunded": false,
+      "products": [],
+      "payments": [
+        {
+          "uuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "type": "IZETTLE_CARD",
+          "amount": 10000,
+          "gratuityAmount": 0,
+          "attributes": {
+            "cardType": "VISA",
+            "maskedPan": "411111******1111"
+          }
+        }
+      ],
+      "groupedVatAmounts": {
+        "19.0": 1597
+      }
+    }
+  ],
+  "lastPurchaseHash": ""
+}

@@ -1,0 +1,20 @@
+{
+  "_source": "spec/fixtures/purchases — synthetic; UTF-8 round-trip gate (Beispiel-Café merchant name) per Plan 04-04",
+  "purchases": [
+    {
+      "purchaseUUID1": "50505050-5050-5050-5050-505050505050",
+      "amount": 1295,
+      "vatAmount": 207,
+      "currency": "EUR",
+      "timestamp": "2026-06-15T12:00:00.000+0000",
+      "purchaseNumber": 6001,
+      "userDisplayName": "Beispiel-Café",
+      "refund": false,
+      "refunded": false,
+      "products": [],
+      "payments": [],
+      "groupedVatAmounts": {}
+    }
+  ],
+  "lastPurchaseHash": ""
+}

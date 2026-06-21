@@ -1,0 +1,31 @@
+{
+  "_source": "spec/fixtures/purchases — synthetic; CONTACTLESS_EMV entry mode per Plan 04-04 RESEARCH §6",
+  "purchases": [
+    {
+      "purchaseUUID1": "40404040-4040-4040-4040-404040404040",
+      "amount": 995,
+      "vatAmount": 159,
+      "currency": "EUR",
+      "timestamp": "2026-06-15T11:00:00.000+0000",
+      "purchaseNumber": 5001,
+      "refund": false,
+      "refunded": false,
+      "products": [],
+      "payments": [
+        {
+          "uuid": "pay-k1",
+          "type": "IZETTLE_CARD",
+          "amount": 995,
+          "gratuityAmount": 0,
+          "attributes": {
+            "cardType": "VISA",
+            "maskedPan": "411111******1111",
+            "cardPaymentEntryMode": "CONTACTLESS_EMV"
+          }
+        }
+      ],
+      "groupedVatAmounts": {}
+    }
+  ],
+  "lastPurchaseHash": ""
+}

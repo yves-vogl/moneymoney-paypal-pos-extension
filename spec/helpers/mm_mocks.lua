@@ -63,11 +63,17 @@ end
 -- Module-level capture state (accessible from specs)
 -- -------------------------------------------------------------------------
 
-Mocks._response_queue  = {}   -- FIFO of stubbed Connection responses
-Mocks._captured_status = {}   -- args passed to MM.printStatus
-Mocks._captured_prints = {}   -- strings emitted by the extension's print()
-Mocks._original_print  = nil  -- real print, saved in setup, restored in teardown
-Mocks._last_request    = nil  -- most recent {method, url, body, contentType, headers} (Wave 2)
+Mocks._response_queue    = {}  -- FIFO of stubbed Connection responses
+Mocks._captured_status   = {}  -- args passed to MM.printStatus
+Mocks._captured_prints   = {}  -- strings emitted by the extension's print()
+Mocks._original_print    = nil -- real print, saved in setup, restored in teardown
+Mocks._last_request      = nil -- most recent {method, url, body, contentType, headers} (Wave 2)
+-- Plan 04-03: append-only history of every conn:request call (ordered).
+-- Each entry is the same {method, url, body, contentType, headers} shape as
+-- _last_request. Tests that need to inspect a multi-call sequence (e.g. the
+-- dual-GET fetch_account_state) iterate this array directly. Reset on setup
+-- + teardown alongside the other capture buffers.
+Mocks._captured_requests = {}
 
 -- -------------------------------------------------------------------------
 -- push_response(opts) — queue one stubbed response
@@ -116,6 +122,7 @@ local function _make_connection()
       method = method, url = url, body = postContent,
       contentType = postContentType, headers = headers,
     }
+    Mocks._captured_requests[#Mocks._captured_requests + 1] = Mocks._last_request
     return r.content, r.charset, r.mime, r.filename, r.headers
   end
 
@@ -139,10 +146,11 @@ end
 -- -------------------------------------------------------------------------
 function Mocks.setup()
   -- Reset all capture buffers
-  Mocks._response_queue  = {}
-  Mocks._captured_status = {}
-  Mocks._captured_prints = {}
-  Mocks._last_request    = nil
+  Mocks._response_queue    = {}
+  Mocks._captured_status   = {}
+  Mocks._captured_prints   = {}
+  Mocks._last_request      = nil
+  Mocks._captured_requests = {}
 
   -- Connection
   _G.Connection = function()
@@ -298,10 +306,11 @@ end
 -- teardown() — reset all captured state and restore real print
 -- -------------------------------------------------------------------------
 function Mocks.teardown()
-  Mocks._response_queue  = {}
-  Mocks._captured_status = {}
-  Mocks._captured_prints = {}
-  Mocks._last_request    = nil
+  Mocks._response_queue    = {}
+  Mocks._captured_status   = {}
+  Mocks._captured_prints   = {}
+  Mocks._last_request      = nil
+  Mocks._captured_requests = {}
 
   if Mocks._original_print then
     -- luacheck: globals print

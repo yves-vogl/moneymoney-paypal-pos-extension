@@ -1,0 +1,11 @@
+{
+  "_source": "github.com/iZettle/api-documentation/blob/master/finance-api/user-guides/fetch-account-transactions-v2.md — PAYMENT_FEE whose originatingTransactionUuid points nowhere in any purchase fixture; drives D-49 aggregate fallback path",
+  "data": [
+    {
+      "timestamp": "2026-06-15T14:00:00.000+0000",
+      "amount": -250,
+      "originatorTransactionType": "PAYMENT_FEE",
+      "originatingTransactionUuid": "99999999-9999-9999-9999-999999999999"
+    }
+  ]
+}

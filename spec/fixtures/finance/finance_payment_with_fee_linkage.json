@@ -1,0 +1,17 @@
+{
+  "_source": "github.com/iZettle/api-documentation/blob/master/finance-api/user-guides/fetch-account-transactions-v2.md — PAYMENT + PAYMENT_FEE pair sharing originatingTransactionUuid for FEE-01 join test; matches payments[1].uuid in purchase_page_with_payments_for_fee_join.json",
+  "data": [
+    {
+      "timestamp": "2026-06-04T12:00:00.000+0000",
+      "amount": 479300,
+      "originatorTransactionType": "PAYMENT",
+      "originatingTransactionUuid": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    },
+    {
+      "timestamp": "2026-06-04T12:00:01.000+0000",
+      "amount": -8867,
+      "originatorTransactionType": "PAYMENT_FEE",
+      "originatingTransactionUuid": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+    }
+  ]
+}

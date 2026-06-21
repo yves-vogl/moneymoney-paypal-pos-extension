@@ -120,3 +120,127 @@ describe("M_i18n.t() Phase 3 account.purpose.* keys (D-34 / D-35 / I18N-01)", fu
   end)
 
 end)
+
+-- ---------------------------------------------------------------------------
+describe("M_i18n.t() Plan 04-02 fee / payout / payment-method keys (D-49 / D-57 / PAYOUT-02)", function()
+
+  setup(function()
+    Mocks.setup()
+    load_artifact()
+  end)
+
+  teardown(function()
+    Mocks.teardown()
+  end)
+
+  -- ----- de table (normative) -----
+
+  it("de account.name.fee = 'Gebühr'", function()
+    assert.equals("Geb\xc3\xbchr", M_i18n._strings.de["account.name.fee"])
+  end)
+
+  it("de account.name.fee_aggregate = 'PayPal POS Transaktionsgebühren'", function()
+    assert.equals("PayPal POS Transaktionsgeb\xc3\xbchren",
+      M_i18n._strings.de["account.name.fee_aggregate"])
+  end)
+
+  it("de account.name.payout = 'Auszahlung an Bankkonto'", function()
+    assert.equals("Auszahlung an Bankkonto", M_i18n._strings.de["account.name.payout"])
+  end)
+
+  it("de account.purpose.fee_label = 'Gebühr'", function()
+    assert.equals("Geb\xc3\xbchr", M_i18n._strings.de["account.purpose.fee_label"])
+  end)
+
+  it("de account.purpose.fee_for_receipt interpolates receipt number", function()
+    assert.equals("Geb\xc3\xbchr f\xc3\xbcr Beleg #2001",
+      M_i18n.t("account.purpose.fee_for_receipt", "2001"))
+  end)
+
+  it("de account.purpose.fee_aggregate interpolates count + contains em-dash + 'Tagesaggregat'", function()
+    local s = M_i18n.t("account.purpose.fee_aggregate", 3)
+    assert.is_truthy(s:find("Tagesaggregat", 1, true))
+    assert.is_truthy(s:find("3 Einzelgeb\xc3\xbchren", 1, true))
+    -- U+2014 em-dash = \xe2\x80\x94
+    assert.is_truthy(s:find("\xe2\x80\x94", 1, true), "must contain em-dash")
+  end)
+
+  it("de account.purpose.payment_method.kontaktlos = 'kontaktlos'", function()
+    assert.equals("kontaktlos", M_i18n._strings.de["account.purpose.payment_method.kontaktlos"])
+  end)
+
+  it("de account.purpose.payment_method.chip = 'Chip'", function()
+    assert.equals("Chip", M_i18n._strings.de["account.purpose.payment_method.chip"])
+  end)
+
+  it("de account.purpose.payment_method.swipe = 'Magnetstreifen'", function()
+    assert.equals("Magnetstreifen", M_i18n._strings.de["account.purpose.payment_method.swipe"])
+  end)
+
+  it("de account.purpose.payment_method.ecommerce = 'Online'", function()
+    assert.equals("Online", M_i18n._strings.de["account.purpose.payment_method.ecommerce"])
+  end)
+
+  it("de account.purpose.payment_method.manual = 'Manuell'", function()
+    assert.equals("Manuell", M_i18n._strings.de["account.purpose.payment_method.manual"])
+  end)
+
+  it("de account.purpose.payment_method.unknown = 'unbekannt'", function()
+    assert.equals("unbekannt", M_i18n._strings.de["account.purpose.payment_method.unknown"])
+  end)
+
+  -- ----- en table (parity / technical fallback) -----
+
+  it("en account.name.fee = 'Fee'", function()
+    assert.equals("Fee", M_i18n._strings.en["account.name.fee"])
+  end)
+
+  it("en account.name.fee_aggregate = 'PayPal POS Transaction Fees'", function()
+    assert.equals("PayPal POS Transaction Fees", M_i18n._strings.en["account.name.fee_aggregate"])
+  end)
+
+  it("en account.name.payout = 'Payout to Bank Account'", function()
+    assert.equals("Payout to Bank Account", M_i18n._strings.en["account.name.payout"])
+  end)
+
+  it("en account.purpose.fee_label = 'Fee'", function()
+    assert.equals("Fee", M_i18n._strings.en["account.purpose.fee_label"])
+  end)
+
+  it("en account.purpose.fee_for_receipt interpolates receipt number", function()
+    assert.equals("Fee for receipt #2001",
+      M_i18n._strings.en["account.purpose.fee_for_receipt"]:format("2001"))
+  end)
+
+  it("en account.purpose.fee_aggregate contains 'Daily aggregate' + count", function()
+    local en_template = M_i18n._strings.en["account.purpose.fee_aggregate"]
+    local s = en_template:format(5)
+    assert.is_truthy(s:find("Daily aggregate", 1, true))
+    assert.is_truthy(s:find("5 individual fees", 1, true))
+  end)
+
+  it("en account.purpose.payment_method.kontaktlos = 'contactless'", function()
+    assert.equals("contactless", M_i18n._strings.en["account.purpose.payment_method.kontaktlos"])
+  end)
+
+  it("en account.purpose.payment_method.chip = 'Chip'", function()
+    assert.equals("Chip", M_i18n._strings.en["account.purpose.payment_method.chip"])
+  end)
+
+  it("en account.purpose.payment_method.swipe = 'Magstripe'", function()
+    assert.equals("Magstripe", M_i18n._strings.en["account.purpose.payment_method.swipe"])
+  end)
+
+  it("en account.purpose.payment_method.ecommerce = 'Online'", function()
+    assert.equals("Online", M_i18n._strings.en["account.purpose.payment_method.ecommerce"])
+  end)
+
+  it("en account.purpose.payment_method.manual = 'Manual'", function()
+    assert.equals("Manual", M_i18n._strings.en["account.purpose.payment_method.manual"])
+  end)
+
+  it("en account.purpose.payment_method.unknown = 'unknown'", function()
+    assert.equals("unknown", M_i18n._strings.en["account.purpose.payment_method.unknown"])
+  end)
+
+end)
