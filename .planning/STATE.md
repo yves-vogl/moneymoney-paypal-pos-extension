@@ -33,16 +33,17 @@ progress:
 
 ## Current Position
 
-Phase: 04 (enrichment-refunds-fees-payouts) — **IMPLEMENTATION COMPLETE; READY-FOR-VERIFIER 2026-06-21**
-**Status:** Phase 3 fully merged to main (spine via PR #8 `a11287d`; verifier closure via PR #10 `a201f6c`). Phase 4 planning artifacts complete + Waves 1+2+3+4+5 implementation landed:
+Phase: 04 (enrichment-refunds-fees-payouts) — **IMPLEMENTATION + POST-REVIEW FIX BATCH COMPLETE; READY-FOR-RE-VERIFICATION 2026-06-21**
+**Status:** Phase 3 fully merged to main (spine via PR #8 `a11287d`; verifier closure via PR #10 `a201f6c`). Phase 4 planning artifacts complete + Waves 1+2+3+4+5 implementation landed + Plan 04-07 (post-review fix batch) landed:
 - Plan 04-02 (Wave-1 pure-logic) shipped 3 GPG-signed commits (`24990d9` test fixtures + RED scaffolds; `a75f6d7` offset_iterate + manifest consolidation; `c4ed80e` M_finance.parse_transaction + 4 mapping mappers + 12 i18n keys).
 - Plan 04-04 (Wave-3 mapping enrichment) shipped 2 GPG-signed commits (`d3d1311` RED scaffolds + new fixtures; `08207a4` per-rate VAT + card-tail in _format_purpose).
 - Plan 04-03 (Wave-2 Finance HTTP + cross-refresh integration) shipped 2 GPG-signed commits (`54e6fd8` M_finance.fetch + fetch_all + fetch_account_state; `84052c3` 16-step RefreshAccount extension with purchases_by_uuid + payments_by_uuid + SALE-03 promotion + D-49 Option B + payout mapping).
 - Plan 04-05 (Wave-4 invariant gates) shipped 3 GPG-signed commits (`8f3455c` META-03 forbidden-strings spec; `d52e8df` META-02 zero-suppression + META-01 zero-rate edge spec; `0803ed2` D-58 idempotency extensions + D-38 prefix gate + SEC-03 Finance API redaction).
 - Plan 04-06 (Wave-5 release polish + audit) shipped 3 GPG-signed commits (`61ed67f` ADR-0004 Finance API scope + fee-fallback contract; `ec077d9` Phase-3 surface preservation audit spec; `16a06de` CHANGELOG + README v0.2.0 German sections engineering-draft).
+- **Plan 04-07 (post-review fix batch — autonomous-window) shipped 13 GPG-signed commits** addressing REVIEW.md (3 BLOCKER + 4 WARNING) + SECURITY-REVIEW.md (1 HIGH + 4 MEDIUM + 1 LOW). Full per-finding mapping in `04-07-FIX-SUMMARY.md`.
 
-Full suite 203 → 328 successes / 0 failures; luacheck 0/0 in 38 files; reproducible build sha `d6356d5bef63708e49707587d5079c4ece7cd863057f693a18ddd09dd79f1712`. Plan 04-01 (Q3 sandbox probe) still pending Yves' live verification. Plan 04-06 Task 4 (loop-lektor pass on CHANGELOG/README/ADR-0004 German wording) deferred to Yves checkpoint after merge per orchestrator standing instruction.
-**Progress:** `[████████████████████░] 3/7 phases shipped; Phase 4 implementation COMPLETE (Plans 04-02 / 04-03 / 04-04 / 04-05 / 04-06 landed); Plan 04-01 (Yves Q3 probe) + verifier + reviewer + lektor + ship pending`
+Full suite 328 → **335 successes / 0 failures**; luacheck 0/0 in 38 files; reproducible build sha `6f4f685fd40f2922cb318a786c08b4d7182e0eb167e2c5c90c137fe47308fe54`. Plan 04-01 (Q3 sandbox probe) still pending Yves' live verification. Plan 04-06 Task 4 (loop-lektor pass on CHANGELOG/README/ADR-0004 German wording) deferred to Yves checkpoint after merge per orchestrator standing instruction.
+**Progress:** `[████████████████████░] 3/7 phases shipped; Phase 4 implementation + fix-batch COMPLETE (Plans 04-02..04-07 landed); Plan 04-01 (Yves Q3 probe) + re-verifier + lektor + ship pending`
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
