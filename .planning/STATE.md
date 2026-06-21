@@ -33,22 +33,21 @@ progress:
 
 ## Current Position
 
-Phase: 03 (sale-spine-first-user-visible-slice) — PLANNING
-**Phase:** 3 — Sale Spine (first user-visible slice) — **CONTEXT CAPTURED, planner next**
-**Status:** Discuss-phase 3 complete (`03-CONTEXT.md` + `03-DISCUSSION-LOG.md` committed); next step is `/gsd-plan-phase 3` (research → patterns → planner → plan-checker)
-**Progress:** `[█████████░░░░░░░░░░░] 2/7 phases complete` (Phase 1 + Phase 2 merged to main)
+Phase: 03 (sale-spine-first-user-visible-slice) — **SPINE MERGED, verifier report shipping**
+**Status:** Phase-3 spine + post-review fix batch (S/HI/ME findings) squash-merged via PR #8 (`a11287d` on main 2026-06-20). Verifier report (`03-VERIFICATION.md`) shipping in a follow-up PR.
+**Progress:** `[████████████░░░░░░░░] Phase 3 spine on main; Phase 4 unblocked once verifier PR merges`
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
 Phase 2: Authenticated Network Layer       [DONE ✅ — merged via PR #6 + Lows PR #7]
-Phase 3: Sale Spine                        [PLANNING — CONTEXT captured 2026-06-20]
-Phase 4: Enrichment                        [BLOCKED on Phase 3]
+Phase 3: Sale Spine                        [SPINE MERGED ✅ via PR #8 — verifier report in follow-up PR]
+Phase 4: Enrichment                        [READY — spine on main; discuss-phase next]
 Phase 5: Resilience & Error Handling       [BLOCKED on Phase 4]
 Phase 6: Release & Polish                  [BLOCKED on Phase 5]
 Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
-**Branch state:** On `main` @ `b359a2e` (Phase 2 merged via PR #6 rebase + Lows PR #7 squash; Phase 3 CONTEXT just committed). 40 commits ahead of `c644f16` (Phase-1-merged tip). Phase-2 rebased commits are unsigned-on-main (accepted one-off; lesson saved as memory `feedback_gpg_signed_pr_merge`); Lows PR #7's squash commit `ec64b19` is `verified: true` by GitHub web-flow key.
+**Branch state:** PR #9 was opened against main with 45 commits, but conflicted because PR #8 had already squash-merged the same 39 source commits — both versions of the same content on different SHAs produced a synthetic 3-way merge conflict. PR #9 was closed; a clean `phase-3/post-review-fixes` branch was opened from current main with only the genuinely missing artifact (`03-VERIFICATION.md`) cherry-picked on. Verifier verdict: 10/10 must-haves PASSED, READY-TO-MERGE; busted 203/0/0/0; reproducible build SHA `344011f9…`; luacheck clean; coverage 99.23 %. Lesson recorded in memory: open Phase PRs before squash-merging the same branch from a different SHA. Memory `feedback_gpg_signed_pr_merge` still governs merge method (`--squash` mandatory).
 
 **Phase-3 captured decisions (CONTEXT.md):**
 
