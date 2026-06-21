@@ -21,6 +21,22 @@ local STRINGS = {
     ["account.purpose.refund_for"]    = "Rückerstattung zu Beleg #%s",
     ["account.purpose.receipt_number"]= "Beleg #%s",
     ["account.name.card_payment"]     = "Kartenzahlung",
+    -- Plan 04-02: fee / payout names + fee purpose templates (D-49, FEE-01..03, PAYOUT-02)
+    ["account.name.fee"]                              = "Geb\xc3\xbchr",
+    ["account.name.fee_aggregate"]                    = "PayPal POS Transaktionsgeb\xc3\xbchren",
+    ["account.name.payout"]                           = "Auszahlung an Bankkonto",
+    ["account.purpose.fee_label"]                     = "Geb\xc3\xbchr",
+    ["account.purpose.fee_for_receipt"]               = "Geb\xc3\xbchr f\xc3\xbcr Beleg #%s",
+    ["account.purpose.fee_aggregate"] =
+      "Tagesaggregat \xe2\x80\x94 %d Einzelgeb\xc3\xbchren \xe2\x80\x94"
+      .. " Detail-Verkn\xc3\xbcpfung nicht verf\xc3\xbcgbar",
+    -- Plan 04-02: payment-method German labels for the SALE-07 card-tail line (Plan 04-04 consumes)
+    ["account.purpose.payment_method.kontaktlos"]     = "kontaktlos",
+    ["account.purpose.payment_method.chip"]           = "Chip",
+    ["account.purpose.payment_method.swipe"]          = "Magnetstreifen",
+    ["account.purpose.payment_method.ecommerce"]      = "Online",
+    ["account.purpose.payment_method.manual"]         = "Manuell",
+    ["account.purpose.payment_method.unknown"]        = "unbekannt",
     ["error.invalid_grant"]       = "Anmeldung fehlgeschlagen: API-Key wurde abgelehnt.",
     ["error.network"]             = "Netzwerkfehler: %s",
     ["error.rate_limit"]          = "Anfragelimit erreicht — bitte später erneut versuchen.",
@@ -44,6 +60,21 @@ local STRINGS = {
     ["account.purpose.refund_for"]    = "Refund for receipt #%s",
     ["account.purpose.receipt_number"]= "Receipt #%s",
     ["account.name.card_payment"]     = "Card payment",
+    -- Plan 04-02: fee / payout names + fee purpose templates
+    ["account.name.fee"]                              = "Fee",
+    ["account.name.fee_aggregate"]                    = "PayPal POS Transaction Fees",
+    ["account.name.payout"]                           = "Payout to Bank Account",
+    ["account.purpose.fee_label"]                     = "Fee",
+    ["account.purpose.fee_for_receipt"]               = "Fee for receipt #%s",
+    ["account.purpose.fee_aggregate"]                 =
+      "Daily aggregate \xe2\x80\x94 %d individual fees \xe2\x80\x94 per-sale linkage unavailable",
+    -- Plan 04-02: payment-method labels (English fallback)
+    ["account.purpose.payment_method.kontaktlos"]     = "contactless",
+    ["account.purpose.payment_method.chip"]           = "Chip",
+    ["account.purpose.payment_method.swipe"]          = "Magstripe",
+    ["account.purpose.payment_method.ecommerce"]      = "Online",
+    ["account.purpose.payment_method.manual"]         = "Manual",
+    ["account.purpose.payment_method.unknown"]        = "unknown",
     ["error.invalid_grant"]       = "Login failed: API key was rejected.",
     ["error.network"]             = "Network error: %s",
     ["error.rate_limit"]          = "Rate limit reached — please retry later.",

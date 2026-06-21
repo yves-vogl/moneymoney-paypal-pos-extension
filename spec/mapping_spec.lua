@@ -454,4 +454,179 @@ describe("M_mapping", function()
       "refund Netto must be '-8,36 \xe2\x82\xac' (HI-01), got:\n" .. tostring(txn.purpose))
   end)
 
+  -- -------------------------------------------------------------------------
+  -- Plan 04-02: fee_to_transaction (FEE-01)
+  -- -------------------------------------------------------------------------
+
+  it("fee_to_transaction returns valid transaction with zettle:fee: prefix for valid input (FEE-01)", function()
+    local _, fin_decoded = Fixtures.load("finance/finance_payment_with_fee_linkage")
+    local fee_raw = fin_decoded.data[2]
+    assert.equals("PAYMENT_FEE", fee_raw.originatorTransactionType)
+    local fee = M_finance.parse_transaction(fee_raw)
+    assert.is_table(fee, "parse_transaction must yield a table for fee record")
+    local _, purch_decoded = Fixtures.load("purchases/purchase_page_with_payments_for_fee_join")
+    local purchase = purch_decoded.purchases[1]
+    local txn = M_mapping.fee_to_transaction(fee, purchase)
+    assert.is_table(txn)
+    assert.equals("zettle:fee:cccccccc-cccc-cccc-cccc-cccccccccccc", txn.transactionCode)
+    assert.is_true(txn.amount < 0, "fee amount must be negative on sale, got: " .. tostring(txn.amount))
+    assert.is_true(txn.booked)
+    assert.equals("EUR", txn.currency)
+    assert.is_truthy(txn.purpose:find("Beleg #2001", 1, true),
+      "purpose must cite originating purchaseNumber 2001, got:\n" .. tostring(txn.purpose))
+    assert.equals(M_i18n.t("account.name.fee"), txn.name)
+  end)
+
+  it("fee_to_transaction returns nil for fee with empty originatingTransactionUuid", function()
+    local txn = M_mapping.fee_to_transaction({
+      kind = "PAYMENT_FEE",
+      amount = -100,
+      timestamp_iso = "2026-06-01T12:00:00.000+0000",
+      originatingTransactionUuid = "",
+    }, nil)
+    assert.is_nil(txn, "must reject empty originatingTransactionUuid")
+  end)
+
+  it("fee_to_transaction falls back to '?' receipt when originating_purchase is nil", function()
+    local txn = M_mapping.fee_to_transaction({
+      kind = "PAYMENT_FEE",
+      amount = -42,
+      timestamp_iso = "2026-06-01T12:00:00.000+0000",
+      originatingTransactionUuid = "uuid-orphan",
+    }, nil)
+    assert.is_table(txn)
+    assert.is_truthy(txn.purpose:find("Beleg #?", 1, true),
+      "purpose must contain 'Beleg #?' fallback when purchase is nil, got:\n" .. tostring(txn.purpose))
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-02: fee_aggregate_to_transaction (FEE-03 / D-49)
+  -- -------------------------------------------------------------------------
+
+  it("fee_aggregate_to_transaction sums minor units and emits stable transactionCode", function()
+    local fees = {
+      { amount = -100 }, { amount = -50 }, { amount = -200 },
+    }
+    local txn = M_mapping.fee_aggregate_to_transaction(fees, "2026-06-15", 3)
+    assert.is_table(txn)
+    assert.equals("zettle:fee:aggregate:2026-06-15", txn.transactionCode)
+    assert.equals(-3.5, txn.amount, "sum/100 must be -3.50")
+    assert.is_true(txn.booked)
+    assert.equals("EUR", txn.currency)
+    -- "3 Einzelgebühren" — UTF-8 ü is \xc3\xbc
+    assert.is_truthy(txn.purpose:find("3 Einzelgeb\xc3\xbchren", 1, true),
+      "purpose must contain '3 Einzelgebühren', got:\n" .. tostring(txn.purpose))
+  end)
+
+  it("fee_aggregate_to_transaction bookingDate is Berlin-local 00:00 of date_iso", function()
+    -- date_iso "2026-06-15" -> CEST: bookingDate represents 2026-06-15 00:00 Berlin local.
+    -- os.date("!*t", bookingDate) decomposes the Berlin-local POSIX as if UTC, so
+    -- year=2026 month=6 day=15 hour=0 min=0 (same convention as Phase-3 D-36 tests).
+    local txn = M_mapping.fee_aggregate_to_transaction({}, "2026-06-15", 0)
+    assert.is_table(txn)
+    local t = os.date("!*t", txn.bookingDate)
+    assert.equals(2026, t.year)
+    assert.equals(6, t.month)
+    assert.equals(15, t.day)
+    assert.equals(0, t.hour)
+    assert.equals(0, t.min)
+  end)
+
+  it("fee_aggregate_to_transaction returns nil for malformed date_iso", function()
+    assert.is_nil(M_mapping.fee_aggregate_to_transaction({}, "not-a-date", 0))
+    assert.is_nil(M_mapping.fee_aggregate_to_transaction({}, "2026/06/15", 0))
+    assert.is_nil(M_mapping.fee_aggregate_to_transaction({}, nil, 0))
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-02: payout_to_transaction (PAYOUT-01..03)
+  -- -------------------------------------------------------------------------
+
+  it("payout_to_transaction returns valid transaction with zettle:payout: prefix and 'Auszahlung an Bankkonto' name (PAYOUT-01/02/03)", function()
+    local _, fin_decoded = Fixtures.load("finance/finance_payout")
+    local payout = M_finance.parse_transaction(fin_decoded.data[1])
+    assert.is_table(payout)
+    local txn = M_mapping.payout_to_transaction(payout)
+    assert.is_table(txn)
+    assert.equals("zettle:payout:dddddddd-dddd-dddd-dddd-dddddddddddd", txn.transactionCode)
+    assert.equals("Auszahlung an Bankkonto", txn.name)
+    assert.equals(-1500.0, txn.amount, "150000 minor units negative -> -1500.00 EUR")
+    assert.is_true(txn.booked)
+    assert.equals("EUR", txn.currency)
+    assert.is_truthy(txn.purpose:find("Auszahlung an Bankkonto am", 1, true),
+      "purpose must mention 'Auszahlung an Bankkonto am', got:\n" .. tostring(txn.purpose))
+  end)
+
+  it("payout_to_transaction valueDate equals bookingDate (PAYOUT-03 / payout-is-settlement)", function()
+    local _, fin_decoded = Fixtures.load("finance/finance_payout")
+    local payout = M_finance.parse_transaction(fin_decoded.data[1])
+    local txn = M_mapping.payout_to_transaction(payout)
+    assert.equals(txn.bookingDate, txn.valueDate,
+      "valueDate must equal bookingDate — PAYOUT IS the settlement event")
+  end)
+
+  it("payout_to_transaction returns nil for payout with missing originatingTransactionUuid", function()
+    local txn = M_mapping.payout_to_transaction({
+      kind = "PAYOUT",
+      amount = -100,
+      timestamp_iso = "2026-06-01T12:00:00.000+0000",
+      originatingTransactionUuid = "",
+    })
+    assert.is_nil(txn)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-02: promote_to_booked (D-56)
+  -- -------------------------------------------------------------------------
+
+  it("promote_to_booked sets booked=true and valueDate on a phase-3 sale txn (D-56)", function()
+    local p = load_first("purchase_simple_sale")
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    assert.is_false(txn.booked, "Phase 3 sale starts booked=false")
+    local original_code = txn.transactionCode
+    M_mapping.promote_to_booked(txn, 1781920500)
+    assert.is_true(txn.booked)
+    assert.equals(1781920500, txn.valueDate)
+    assert.equals(original_code, txn.transactionCode,
+      "transactionCode must remain unchanged so MoneyMoney dedup updates in place")
+  end)
+
+  it("promote_to_booked is idempotent (calling twice with same args is a no-op)", function()
+    local txn = { booked = false }
+    M_mapping.promote_to_booked(txn, 12345)
+    M_mapping.promote_to_booked(txn, 12345)
+    assert.is_true(txn.booked)
+    assert.equals(12345, txn.valueDate)
+  end)
+
+  it("promote_to_booked silently returns on non-table input", function()
+    assert.has_no.errors(function() M_mapping.promote_to_booked(nil, 0) end)
+    assert.has_no.errors(function() M_mapping.promote_to_booked("not-a-txn", 0) end)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 04-02: refund_to_transaction(p, opts) opts.original_receipt (REF-02 / D-50)
+  -- -------------------------------------------------------------------------
+
+  it("refund_to_transaction(p, opts) cites opts.original_receipt when provided (REF-02 / D-50)", function()
+    local _, decoded = Fixtures.load("purchases/purchase_refund_with_original_in_page")
+    local refund = decoded.purchases[2]
+    assert.is_true(refund.refund, "fixture sanity: second purchase must be the refund")
+    local txn = M_mapping.refund_to_transaction(refund, { original_receipt = 4001 })
+    assert.is_table(txn)
+    assert.is_truthy(txn.purpose:find("R\xc3\xbcckerstattung zu Beleg #4001", 1, true),
+      "purpose must cite 'Rückerstattung zu Beleg #4001', got:\n" .. tostring(txn.purpose))
+  end)
+
+  it("refund_to_transaction(p) without opts falls back to UUID per Phase-3 D-32", function()
+    local _, decoded = Fixtures.load("purchases/purchase_refund_with_original_in_page")
+    local refund = decoded.purchases[2]
+    local txn = M_mapping.refund_to_transaction(refund)
+    assert.is_table(txn)
+    assert.is_truthy(txn.purpose:find("30303030", 1, true),
+      "purpose must contain refundsPurchaseUUID1 substring '30303030' as fallback, got:\n" ..
+      tostring(txn.purpose))
+  end)
+
 end)
