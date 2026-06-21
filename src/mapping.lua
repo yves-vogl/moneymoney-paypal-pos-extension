@@ -284,11 +284,17 @@ local function _format_purpose(p, opts)
     local attrs = type(first_payment) == "table" and first_payment.attributes or nil
     local card_type, entry_mode
     if type(attrs) == "table" then
+      -- S-04 (SEC MEDIUM): cap attacker-controllable cardType /
+      -- cardPaymentEntryMode at 32 bytes before concatenation into purpose.
+      -- All documented Zettle values (VISA, MASTERCARD, GIROCARD,
+      -- CONTACTLESS_EMV, ICC, MSR, ECOMMERCE, MANUAL) fit comfortably under
+      -- 32 chars; a 100KB cardType from a compromised response would bloat
+      -- the purpose field accordingly without this cap.
       if type(attrs.cardType) == "string" and #attrs.cardType > 0 then
-        card_type = attrs.cardType
+        card_type = attrs.cardType:sub(1, 32)
       end
       if type(attrs.cardPaymentEntryMode) == "string" and #attrs.cardPaymentEntryMode > 0 then
-        entry_mode = attrs.cardPaymentEntryMode
+        entry_mode = attrs.cardPaymentEntryMode:sub(1, 32)
       end
     end
     if card_type or entry_mode then
