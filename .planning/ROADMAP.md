@@ -131,7 +131,51 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
   5. When `groupedVatAmounts` is populated, `purpose` includes a per-rate German VAT breakdown (`"19% MwSt: 3,83 EUR"`, `"7% MwSt: 1,40 EUR"`); when `payments[].gratuityAmount > 0`, `purpose` includes a `"Trinkgeld: X,YY EUR"` line; when zero the line is **absent** (no `"Trinkgeld: 0,00 EUR"` noise); the extension never writes a tax-classification phrase such as "USt-frei" or "GoBD-konform" anywhere (`META-01`, `META-02`, `META-03`).
   6. When the Purchase API provides `cardType` and `cardPaymentEntryMode`, they appear as a tail line in `purpose`; a recorded fixture suite covers auth success / `invalid_grant` / 401 / 429 / 5xx / network failure, single + multi-page Purchase API, single + multi-page Finance API for each of sale/refund/fee/payout, dual-rate VAT split, non-zero tip, and umlaut characters in `purpose` (`SALE-07`, `TEST-02`).
 
-**Plans:** TBD
+**Plans:** 6 plans
+**Wave 0** *(human-blocking; Yves runs the Q3 sandbox probe)*
+
+- [ ] 04-01-PLAN.md — Wave 0: Yves Q3 live probe + ADR-0003 Q3 transition (DEFERRED → ACCEPTED / REJECTED)
+
+**Wave 1** *(blocked on no plan; runs in parallel with Wave 0 against the research-recommended host)*
+
+- [ ] 04-02-PLAN.md — Wave 1: pure-logic Finance mapping + offset pagination + 13 new/regenerated fixtures + manifest consolidation (M_pagination.offset_iterate, M_finance.parse_transaction, M_mapping fee_to_transaction/fee_aggregate_to_transaction/payout_to_transaction/promote_to_booked + refund_to_transaction(opts), 12 new i18n keys)
+
+**Wave 2** *(blocked on 04-02)*
+
+- [ ] 04-03-PLAN.md — Wave 2: M_finance HTTP fetch + entry-layer integration (fetch/fetch_all/fetch_account_state; RefreshAccount 14-step sequence: purchases_by_uuid + payments_by_uuid indexes, SALE-03 promotion, D-49 Option B fee classification, payout mapping); surfaces D-49 Option A vs B Yves-blocker
+
+**Wave 3** *(blocked on 04-02; parallel with Wave 2)*
+
+- [ ] 04-04-PLAN.md — Wave 3: per-rate VAT + card-brand+entry-mode tail in _format_purpose; Phase-3 surface preservation snapshot
+
+**Wave 4** *(blocked on 04-03 + 04-04)*
+
+- [ ] 04-05-PLAN.md — Wave 4: META-03 forbidden-strings invariant spec + META-02 zero-suppression spec + extended idempotency (4 D-58 cases) + extended log-redaction (D-38 5-prefix gate + SEC-03 Finance API); surfaces D-55 Yves-blocker
+
+**Wave 5** *(blocked on 04-03 + 04-04 + 04-05)*
+
+- [ ] 04-06-PLAN.md — Wave 5: CI egress allowlist + ADR-0004 + CHANGELOG/README v0.2.0 German sections + Phase-3 surface preservation audit + loop-lektor checkpoint
+
+**Cross-cutting constraints:**
+
+- Commits GPG-signed by FDE07046A6178E89ADB57FD3DE300C53D8E18642; no AI/Claude attribution in commit messages, code, comments, fixtures, or i18n strings
+- Conventional Commits: `feat(04-NN):`, `fix(04-NN):`, `test(04-NN):`, `docs(04-NN):`, `refactor(04-NN):`, `ci(04-NN):`
+- No `require()` of siblings in shipped `src/*.lua` (cross-module access via global M_* tables per D-02)
+- 85%+ coverage on amalgamated artifact (Phase 3 landed 99.23%)
+- Reproducible build SHA across two `lua tools/build.lua --verify` runs
+- luacheck clean across all source + spec files
+- TDD discipline: RED spec committed before GREEN impl in each wave
+- German user-facing strings only; English fallback for technical-contributor docs
+- All HTTP via `M_http.get_json` (D-42 inherited); all errors via `M_errors.from_http_status` (D-43 inherited); Bearer never logged (D-45 SEC-03 extends to Finance API)
+- transactionCode prefix gate extends to fee + fee:aggregate + payout (D-58)
+- since clamp at entry boundary (D-33 inherited); non-EUR records silently skipped (D-37 inherited; applies to Finance records too)
+
+**Yves-blockers (surfaced across the phase):**
+
+- **Q3** (Plan 04-01): live probe of `finance.izettle.com`; ADR-0003 Q3 transition
+- **D-49** (Plan 04-03 preamble): Option A (LocalStorage persistence) vs Option B (per-refresh date clustering); plan defaults to Option B per research recommendation
+- **D-55** (Plan 04-05 preamble): META-03 forbidden-strings list completeness; plan implements the 13-phrase CONTEXT recommendation
+
 **UI hint:** no
 **AI integration hint:** no
 
@@ -206,7 +250,7 @@ These are acknowledged from `REQUIREMENTS.md ## v2 Requirements` but are deliber
 | 1. Foundations & Sandbox Probes | 0/0 | Not started | - |
 | 2. Authenticated Network Layer | 7/7 | Complete   | 2026-06-19 |
 | 3. Sale Spine | 0/0 | Not started | - |
-| 4. Enrichment | 0/0 | Not started | - |
+| 4. Enrichment | 0/6 | Planning complete; ready to execute | - |
 | 5. Resilience & Error Handling | 0/0 | Not started | - |
 | 6. Release & Polish | 0/0 | Not started | - |
 
