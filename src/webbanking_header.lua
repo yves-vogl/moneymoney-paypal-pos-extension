@@ -13,8 +13,7 @@ M_http       = {}
 M_auth       = {}
 M_pagination = {}
 M_purchases  = {}
-M_payouts    = {}
-M_balance    = {}
+M_finance    = {}
 M_mapping    = {}
 
 -- SEC-04: DEBUG must be false in every shipped artifact.

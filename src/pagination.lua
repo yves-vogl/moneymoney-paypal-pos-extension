@@ -86,3 +86,67 @@ M_pagination.iterate = function(fetch_page_fn, initial_params)
 
   return all_purchases, nil
 end
+
+-- M_pagination.offset_iterate(fetch_page_fn, initial_params)
+--
+-- Sibling iterator for the Finance API (Plan 04-02 / D-48 / RESEARCH §1.6).
+-- The Phase-3 cursor iterator above is intentionally NOT modified.
+--
+-- fetch_page_fn(params) must return (page_table|nil, status_integer|nil, raw_string)
+--   page_table: decoded JSON with a "data" array field
+--   status:     HTTP status integer, or nil on network failure
+--   raw:        raw response body string (forwarded to M_errors.from_http_status)
+--
+-- initial_params: table of query parameters for the first page (e.g. {offset=0, limit=1000}).
+--   The caller's table is NEVER mutated — a local copy is made.
+--   Defensive defaults: missing offset -> 0, missing limit -> 1000 (RESEARCH §1.3).
+--
+-- Termination (RESEARCH §1.6 — "Repeat ... until the response is empty or it
+-- contains fewer transactions than the limit"):
+--   loop ends when #page.data == 0 OR #page.data < params.limit.
+--
+-- MAX_PAGES guard (T-03-W3a-01 reused): same 50-page cap as the cursor iterator.
+-- Errors route through M_errors.from_http_status (D-43) — byte-identical to iterate.
+M_pagination.offset_iterate = function(fetch_page_fn, initial_params)
+  local all_records = {}
+
+  -- Copy initial_params so the caller's table is never mutated (D-02 defence).
+  local params = {}
+  for k, v in pairs(initial_params or {}) do
+    params[k] = v
+  end
+  -- Defensive defaults
+  params.offset = params.offset or 0
+  params.limit  = params.limit  or 1000
+
+  local page_count = 0
+
+  repeat
+    page_count = page_count + 1
+
+    if page_count > MAX_PAGES then
+      M_log.warn("M_pagination.offset_iterate: MAX_PAGES exceeded, aborting")
+      return nil, M_i18n.t("error.network", "max_pages")
+    end
+
+    local page, status, raw = fetch_page_fn(params)
+
+    local err = M_errors.from_http_status(status, raw)
+    if err then return nil, err end
+
+    if type(page) ~= "table" or type(page.data) ~= "table" then
+      return nil, M_i18n.t("error.network", "bad_page")
+    end
+
+    for _, r in ipairs(page.data) do
+      all_records[#all_records + 1] = r
+    end
+
+    local got = #page.data
+    params.offset = params.offset + params.limit
+
+  -- Terminate on empty page (got=0) OR short page (got < limit).
+  until got < params.limit
+
+  return all_records, nil
+end

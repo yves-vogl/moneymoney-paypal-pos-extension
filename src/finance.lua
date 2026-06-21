@@ -1,0 +1,9 @@
+-- src/finance.lua
+-- Ownership: ACCT-03 / FEE-01..03 / PAYOUT-01..03 / D-46..D-49 / D-52.
+-- Provides: M_finance.parse_transaction(raw) [Plan 04-02 Task 3]
+--           M_finance.fetch / fetch_all / fetch_account_state [Plan 04-03]
+-- The M_finance table is predeclared in src/webbanking_header.lua.
+-- NO require() of sibling modules (D-02).
+--
+-- Plan 04-02 Task 2 lands the module + manifest insertion + Phase-1-stub
+-- (src/balance.lua + src/payouts.lua) deletion. Task 3 fills parse_transaction.
