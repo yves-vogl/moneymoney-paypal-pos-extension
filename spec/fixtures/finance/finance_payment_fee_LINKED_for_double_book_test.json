@@ -1,0 +1,11 @@
+{
+  "_source": "BL-03 (REVIEW) cross-refresh fee re-classification regression fixture. Mirrors finance_payment_fee_unlinked.json (same UUID, amount, timestamp) BUT now linked to payments[0].uuid in purchase_simple_sale.json (originatingTransactionUuid = aaaaaaaa-...). This exercises the documented Option-B failure mode: on refresh N the fee was aggregated because its UUID did not resolve in payments_by_uuid; on refresh N+1 the SAME fee resolves and emits as zettle:fee:<uuid> — producing BOTH the original aggregate row (still in MoneyMoney from N) AND the new per-sale fee row (from N+1) for the same Berlin-local date. ADR-0004 documents this as a known limitation; the user is instructed to manually delete the stale aggregate row.",
+  "data": [
+    {
+      "timestamp": "2026-06-15T14:00:00.000+0000",
+      "amount": -250,
+      "originatorTransactionType": "PAYMENT_FEE",
+      "originatingTransactionUuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    }
+  ]
+}

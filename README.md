@@ -68,6 +68,16 @@ Der alte Key kann anschließend in der Zettle-Verwaltung deaktiviert werden.
 
 ---
 
+## Bekannte Grenzen
+
+Folgende Verhaltensweisen sind bewusst akzeptiert. Sie sind in [ADR-0004](docs/adr/0004-finance-api-scope-and-fee-fallback.md) dokumentiert und werden mit einer späteren Version ggf. überarbeitet.
+
+- **Verzögerte Buchung von Auszahlungen.** Bei Händlern mit wöchentlichem oder monatlichem Auszahlungsrhythmus werden Verkäufe ein bis zwei Refreshes lang als „nicht-gebucht" angezeigt, bis die zugehörige Auszahlung im Finance-API sichtbar ist. Der Verkauf erscheint ab dem ersten Refresh — nur das Wertstellungsdatum und der Status `booked` ändern sich später.
+- **Tagesaggregat von Gebühren — Sonderfall „nachgereichte Verknüpfung".** Falls Zettle die Zuordnung einer Einzelgebühr zur Original-Karten-Zahlung erst zwischen zwei Refreshes nachreicht, kann es vorkommen, dass die Extension den Tag im ersten Refresh als _„PayPal POS Transaktionsgebühren — Detail-Verknüpfung nicht verfügbar"_ aggregiert bucht und im zweiten Refresh dann zusätzlich die Einzelgebühr als eigene Buchung anlegt. Die Aggregat-Buchung des ersten Refreshes bleibt in MoneyMoney bestehen — Gebühr und Aggregat decken denselben Tag doppelt ab. Sobald das auftritt, einfach die Aggregat-Buchung manuell in MoneyMoney löschen; die Einzel-Buchungen sind dann die richtige, bleibende Sicht.
+- **Mehrere Händler-Konten parallel.** Das Verbinden mehrerer PayPal-POS-Accounts in einem MoneyMoney-Profil ist als zukünftige Erweiterung geplant, in `v0.2.0` aber noch nicht offiziell freigegeben.
+
+---
+
 ## Warum diese Extension
 
 Sole Proprietors und kleine Händler in Deutschland nutzen **PayPal POS** für Karten-Zahlungen am Tresen. MoneyMoney unterstützt von Haus aus keine PayPal-POS-Konten — Karten-Umsätze tauchen erst sichtbar auf, wenn PayPal die Auszahlung auf das Geschäftskonto bucht. Damit sind Einzel-Umsätze, Trinkgelder, Refunds, USt-Aufteilung und Gebühren in MoneyMoney nicht abbildbar — Buchhaltung passiert daneben in Excel.

@@ -367,18 +367,30 @@ describe("Phase-4 D-58 idempotency extensions (CONTEXT D-58 / RESEARCH §10.3)",
   end)
 
   -- -------------------------------------------------------------------------
-  -- D-58 case 4: aggregate fee fallback (D-49 Option B stability).
-  -- finance_payment_fee_unlinked carries an originatingTransactionUuid that
-  -- has no match in any purchase fixture; the entry layer must fall back to
-  -- zettle:fee:aggregate:<Berlin-local-date>. The Berlin-local date of the
-  -- fee timestamp 2026-06-15T14:00:00.000+0000 is 2026-06-15 (CEST +2h).
-  -- Across two refreshes with the same fixture set, the aggregate
-  -- transactionCode must be byte-identical (D-49 Option B once-aggregated
-  -- contract for stable inputs).
+  -- D-58 case 4 (revised per BL-03): D-49 Option B WITHIN-refresh stability
+  -- PLUS explicit enumeration of the known cross-refresh limitation.
+  --
+  -- The Yves-signed-off contract for v0.2.0 is:
+  --   (a) Within a single refresh, the aggregate transactionCode is
+  --       deterministic for stable inputs (sub-case 4a).
+  --   (b) Across refreshes, if Zettle UPGRADES a previously-unlinked fee's
+  --       linkage (back-fills the originatingTransactionUuid → payments[].uuid
+  --       resolution) the per-refresh decision flips: refresh N saw "any
+  --       unlinked → aggregate", refresh N+1 sees "all linked → per-sale".
+  --       MoneyMoney's dedup updates rows in place per transactionCode, so the
+  --       aggregate row from refresh N STAYS, and a NEW zettle:fee:<uuid> row
+  --       appears in refresh N+1 — both coexist (sub-case 4b). This is the
+  --       documented Option-B limitation; ADR-0004 "Known Limitation:
+  --       cross-refresh fee re-classification" + README "Bekannte Grenzen"
+  --       instruct the user to manually delete the stale aggregate row.
+  --
+  -- The test PASSES as long as the system behaves as documented. It does NOT
+  -- prevent the double-booking — preventing it requires Option A (LocalStorage-
+  -- persistent aggregated-date set), which v0.2.0 deliberately defers.
   -- -------------------------------------------------------------------------
-  it("D-58 case 4: aggregate fee emits zettle:fee:aggregate:<date_iso> stable across refreshes", function()
-    seed_token("org-d58-4")
-    local account = { accountNumber = "org-d58-4", currency = "EUR", balance = 0 }
+  it("D-58 case 4a: aggregate fee transactionCode is byte-stable across refreshes when fixtures are stable (within-refresh contract)", function()
+    seed_token("org-d58-4a")
+    local account = { accountNumber = "org-d58-4a", currency = "EUR", balance = 0 }
 
     queue_full_response_set("purchase_simple_sale", "finance_payment_fee_unlinked")
     local r1 = RefreshAccount(account, 0)
@@ -395,13 +407,70 @@ describe("Phase-4 D-58 idempotency extensions (CONTEXT D-58 / RESEARCH §10.3)",
     local codes1 = codes_of(r1)
     for _, t in ipairs(r2.transactions or {}) do
       assert.is_true(codes1[t.transactionCode] ~= nil,
-        "D-58 case 4: NEW transactionCode on second refresh: " .. tostring(t.transactionCode))
+        "D-58 case 4a: NEW transactionCode on second refresh: " .. tostring(t.transactionCode))
     end
     local agg2 = find_txn(r2, agg_code_expected)
     assert.is_table(agg2,
       "second refresh must contain SAME aggregate transactionCode " .. agg_code_expected)
     assert.equals(agg1.transactionCode, agg2.transactionCode,
-      "D-58 case 4: aggregate transactionCode must be byte-identical across refreshes")
+      "D-58 case 4a: aggregate transactionCode must be byte-identical across refreshes")
+  end)
+
+  it("D-58 case 4b: BL-03 documented limitation — when Zettle back-fills fee linkage between refreshes, per-sale row appears alongside surviving aggregate row (NOT prevented in v0.2.0; ADR-0004 known-limitation contract)", function()
+    seed_token("org-d58-4b")
+    local account = { accountNumber = "org-d58-4b", currency = "EUR", balance = 0 }
+
+    -- Refresh 1: the fee's originatingTransactionUuid (aaaaaaaa-...) does NOT
+    -- match any payments[].uuid in purchase_simple_sale (which has no payments).
+    -- D-49 Option B clusters it into zettle:fee:aggregate:2026-06-15.
+    queue_full_response_set("purchase_simple_sale", "finance_payment_fee_unlinked")
+    -- Override the fee fixture in slot 4 with the "linked-uuid" variant so
+    -- refresh 2 below can re-use the same fee under upgraded linkage.
+    -- (queue_full_response_set has already queued the unlinked variant; we
+    -- want refresh 1 to use unlinked, so the default is correct here.)
+    local r1 = RefreshAccount(account, 0)
+    assert.is_table(r1, "first refresh must return a table")
+    local agg_code = "zettle:fee:aggregate:2026-06-15"
+    local agg1 = find_txn(r1, agg_code)
+    assert.is_table(agg1,
+      "BL-03 sub-case 4b refresh 1: must contain aggregate row " .. agg_code
+      .. " (fee UUID unlinked in this refresh)")
+
+    -- Refresh 2: same fee UUID (aaaaaaaa-...), same amount, same timestamp,
+    -- but now the purchase fixture carries payments[0].uuid = aaaaaaaa-...
+    -- so the entry layer's payments_by_uuid lookup SUCCEEDS and the fee
+    -- emits as zettle:fee:aaaaaaaa-... (per-sale path).
+    queue_full_response_set("purchase_for_double_book_test",
+                            "finance_payment_fee_LINKED_for_double_book_test")
+    local r2 = RefreshAccount(account, 0)
+    assert.is_table(r2, "second refresh must return a table")
+
+    -- DOCUMENTED LIMITATION (BL-03 / ADR-0004 cross-refresh re-classification):
+    --   - refresh 2 emits NO aggregate row (no fees are unlinked in this refresh).
+    --   - refresh 2 emits a NEW per-sale zettle:fee:aaaaaaaa-... row.
+    --   - the aggregate row from refresh 1 stays in MoneyMoney (no delete signal).
+    -- This is what the user manually cleans up; the test enumerates the case.
+    local per_sale_code = "zettle:fee:aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    local per_sale2 = find_txn(r2, per_sale_code)
+    assert.is_table(per_sale2,
+      "BL-03 sub-case 4b refresh 2: per-sale row " .. per_sale_code
+      .. " must appear when linkage resolves (Option B per-refresh decision)")
+    local agg2 = find_txn(r2, agg_code)
+    assert.is_nil(agg2,
+      "BL-03 sub-case 4b refresh 2: aggregate row " .. agg_code
+      .. " is NOT re-emitted (no unlinked fee in this refresh) — the "
+      .. "row from refresh 1 survives in MoneyMoney as the documented "
+      .. "double-book artefact the user manually deletes (ADR-0004).")
+
+    -- The transactionCode set DIVERGES across refreshes — this is the
+    -- documented contract. The per-sale code in refresh 2 is NEW relative
+    -- to refresh 1 (which had only the aggregate code). Assert the
+    -- divergence so a future change that "fixes" Option B without updating
+    -- ADR-0004 + README has to revisit this test.
+    local codes1 = codes_of(r1)
+    assert.is_nil(codes1[per_sale_code],
+      "BL-03 sub-case 4b: per-sale code must NOT have existed in refresh 1 "
+      .. "(refresh 1 emitted aggregate only) — enumerating cross-refresh divergence.")
   end)
 
 end)

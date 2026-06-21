@@ -326,9 +326,14 @@ function RefreshAccount(account, since) -- luacheck: ignore 431
   -- rows. This is the load-bearing simplification per CONTEXT D-49 + RESEARCH
   -- §3.5: per-refresh date clustering with no persistent state (D-59).
   --
-  -- Yves-blocker D-49 Option A vs B is documented in 04-03-PLAN.md <objective>;
-  -- if a later phase needs Option A (LocalStorage-persistent date set), replan
-  -- via /gsd-plan-phase 4 --gaps to amend D-59.
+  -- KNOWN LIMITATION (BL-03, ADR-0004 "Cross-refresh fee re-classification"):
+  -- the per-refresh decision means refresh N can aggregate (any-unlinked) and
+  -- refresh N+1 can emit per-sale (all-linked) for the SAME date, producing
+  -- a double-booked day in MoneyMoney. The README "Bekannte Grenzen" section
+  -- documents the manual-cleanup path. Gated by spec/refresh_idempotency_spec
+  -- D-58 case 4a (within-refresh stability) and case 4b (cross-refresh
+  -- divergence enumeration). If a future phase adopts Option A (LocalStorage-
+  -- persistent aggregated-date set), amend D-59 and revisit those two specs.
   local fees_by_date = {}
   for _, fee in ipairs(fin_fees) do
     local date_iso = M_mapping.berlin_local_date(fee.timestamp_iso)

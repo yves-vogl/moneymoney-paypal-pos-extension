@@ -108,6 +108,56 @@ sections 1.2 (OAuth scope), 3.5 (D-49 Option A vs B trade-off), 4.1 / 4.2
   failure mode and the support burden justifies a minimal
   `LocalStorage.zettle.fees_aggregated` set.
 
+#### Known Limitation — cross-refresh fee re-classification
+
+This subsection is **load-bearing** for future maintainers: it is the
+single most likely source of "wrong" merchant-visible behaviour in v0.2.0,
+and the design choice is deliberate.
+
+**The contract Option B can enforce:**
+
+- **Within a single refresh:** the aggregate transactionCode for a given
+  Berlin-local date is deterministic for stable inputs. Two consecutive
+  refreshes that observe an identical Finance API response set produce
+  byte-identical transactionCodes.
+- **Across refreshes with stable Zettle state:** the aggregate row stays
+  byte-stable. Gated by
+  `spec/refresh_idempotency_spec.lua` D-58 case 4a (within-refresh contract).
+
+**The contract Option B CANNOT enforce:**
+
+- **Cross-refresh linkage upgrade.** If Zettle is slow to populate
+  `originatingTransactionUuid` on a fee record (e.g. the back-end runs the
+  linkage reconciliation lazily), refresh N may see the fee as unlinked
+  and emit `zettle:fee:aggregate:<date>`; refresh N+M may see the same
+  fee fully linked and emit `zettle:fee:<uuid>` instead. The aggregate
+  row from refresh N stays in MoneyMoney's database because nothing in
+  refresh N+M's emission set carries the aggregate's transactionCode for
+  MoneyMoney to update in place. The user sees BOTH rows on that date:
+  the aggregate AND the new per-sale row — the same fee booked twice.
+  Gated by `spec/refresh_idempotency_spec.lua` D-58 case 4b (BL-03
+  documented limitation), which enumerates the case rather than
+  preventing it.
+
+**Mitigations available to the user:**
+
+1. Manually delete the stale aggregate row in MoneyMoney once the per-sale
+   row appears. This is the recommended path; the aggregate row carries
+   the German `name = "PayPal POS Transaktionsgebühren"` and a `purpose`
+   citing "Detail-Verknüpfung nicht verfügbar" so it is easy to spot.
+2. If the limitation becomes a recurring support burden, Phase 5 may
+   adopt **Option A**: persist a `LocalStorage.zettle.fees_aggregated`
+   set keyed by Berlin-local date. This amends D-59 to allow an
+   extension-owned state file, with the trade-off that once a date is
+   aggregated it stays aggregated forever — Zettle's eventual linkage
+   would never reach per-sale granularity for that date.
+
+**Escape hatch for the user community:** if real merchants hit this in
+volume, the upgrade path is well-scoped — add the LocalStorage set, OR
+the per-aggregate-date `M_log.warn` trail in `src/entry.lua` step 14
+already provides enough signal for the user to recognise the pattern
+without code changes.
+
 ### Concern 3 — Temporal payout inference rule
 
 - **Inference rule (SALE-03 promotion):** a PAYMENT is "settled by" the
