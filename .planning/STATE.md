@@ -33,9 +33,9 @@ progress:
 
 ## Current Position
 
-Phase: 04 (enrichment-refunds-fees-payouts) — **FULLY PLANNED, READY-FOR-EXECUTION subject to 3 Yves-blockers**
-**Status:** Phase 3 fully merged to main (spine via PR #8 `a11287d`; verifier closure via PR #10 `a201f6c`). Phase 4 planning artifacts complete on `phase-4/enrichment` branch: CONTEXT + RESEARCH + PATTERNS + 6 PLAN files + PLAN-REVIEW. gsd-plan-checker verdict: READY-FOR-EXECUTION (12/12 quality gates PASS, 7/7 RESEARCH overlays integrated, 0 BLOCKERs, 4 documented non-blocking WARNINGs).
-**Progress:** `[████████████████░░░░] 3/7 phases shipped; Phase 4 PLANNED and verified; awaiting Yves to unblock Q3 + D-49 + D-55 before /gsd-execute-phase 4 can launch`
+Phase: 04 (enrichment-refunds-fees-payouts) — **IN EXECUTION; Plan 04-02 (Wave-1 pure-logic) shipped 2026-06-21**
+**Status:** Phase 3 fully merged to main (spine via PR #8 `a11287d`; verifier closure via PR #10 `a201f6c`). Phase 4 planning artifacts complete + Wave-1 implementation landed: Plan 04-02 shipped 3 GPG-signed commits (`24990d9` test fixtures + RED scaffolds; `a75f6d7` offset_iterate + manifest consolidation; `c4ed80e` M_finance.parse_transaction + 4 mapping mappers + 12 i18n keys). Full suite 203 → 255 successes / 0 failures; luacheck 0/0; reproducible build sha `6bc796e66d5af246...`. Plan 04-01 (Q3 sandbox probe) still pending Yves. Plan 04-03 (Wave 2 — Finance API HTTP + cross-refresh indexes) unblocked.
+**Progress:** `[████████████████░░░░] 3/7 phases shipped; Phase 4 Wave 1 (Plan 04-02) shipped; Plan 04-01 (Yves Q3 probe) + Plans 04-03..04-06 pending`
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
@@ -47,13 +47,16 @@ Phase 6: Release & Polish                  [BLOCKED on Phase 5]
 Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
-**Branch state:** On `phase-4/enrichment` (created 2026-06-21 from `origin/main` @ `a201f6c`). 6 local commits:
+**Branch state:** On `phase-4/enrichment` (created 2026-06-21 from `origin/main` @ `a201f6c`). 9 local commits (6 planning + 3 Plan-04-02 execution):
 - `1578b75` docs(04): capture phase 4 enrichment context (autonomous draft)
 - `211da0b` docs(state): mark Phase 3 fully merged, Phase 4 context drafted
 - `0ac35b7` docs(04): research Phase 4 enrichment domain — Finance API surface, fee linkage, payout matching
 - `686df47` docs(04): map Phase 4 enrichment patterns to Phase-1/2/3 analogs
 - `26d6736` docs(04): create Phase 4 plans 04-01..04-06 across 6 waves
 - `c2d857d` docs(04): plan-check verification report — READY-FOR-EXECUTION
+- `24990d9` test(04-02): add Phase-4 fixtures + RED scaffolds for finance/pagination_offset specs
+- `a75f6d7` feat(04-02): add M_pagination.offset_iterate + consolidate manifest
+- `c4ed80e` feat(04-02): add M_finance.parse_transaction + 4 mapping mappers + 12 i18n keys
 
 Not yet pushed — held local pending Yves' review of Q3 / D-49 / D-55. Memory `feedback_gpg_signed_pr_merge` still governs merge method (`--squash` mandatory). Memory `feedback_post_squash_no_repr` records the PR #9 → #10 reconciliation lesson.
 
