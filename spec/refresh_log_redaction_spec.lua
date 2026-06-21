@@ -229,6 +229,14 @@ end)
 -- ---------------------------------------------------------------------------
 
 -- D-38 Phase-4 allowed prefix set (5 entries — closed set).
+-- WR-02 (REVIEW): the prefix `^zettle:fee:` is a STRICT prefix of
+-- `^zettle:fee:aggregate:`. The earlier `matches_allowed_prefix` returned
+-- true for any prefix match, and the "seen_prefixes" walk marked BOTH
+-- prefixes as seen on every aggregate transactionCode — which would let
+-- the "all 5 exercised" assertion pass even if per-sale fees were never
+-- emitted. Fix: longest-match semantics. Each code claims exactly ONE
+-- prefix (the most-specific one). The closed-set assertion then enforces
+-- each of the 5 buckets is non-empty for real.
 local ALLOWED_PREFIXES = {
   "^zettle:sale:",
   "^zettle:refund:",
@@ -237,12 +245,24 @@ local ALLOWED_PREFIXES = {
   "^zettle:payout:",
 }
 
-local function matches_allowed_prefix(code)
-  if type(code) ~= "string" then return false end
+-- longest_matching_prefix(code) -> string|nil
+-- Returns the longest entry from ALLOWED_PREFIXES that matches `code`, or nil
+-- if none matches. "Longest" is computed by string length of the pattern body.
+local function longest_matching_prefix(code)
+  if type(code) ~= "string" then return nil end
+  local best = nil
+  local best_len = -1
   for _, p in ipairs(ALLOWED_PREFIXES) do
-    if code:find(p) then return true end
+    if code:find(p) and #p > best_len then
+      best = p
+      best_len = #p
+    end
   end
-  return false
+  return best
+end
+
+local function matches_allowed_prefix(code)
+  return longest_matching_prefix(code) ~= nil
 end
 
 describe("D-38 extended transactionCode prefix gate (Phase-4: 5 allowed prefixes)", function()
@@ -297,18 +317,18 @@ describe("D-38 extended transactionCode prefix gate (Phase-4: 5 allowed prefixes
       "expected at least 4 transactions across the 4 union refreshes; got " .. tostring(#union))
 
     -- Every emitted transactionCode must match exactly one of the 5 allowed prefixes.
-    -- Also verify that ALL 5 prefixes appear at least once across the union so the
-    -- gate actually exercises every prefix (not just two of them).
+    -- WR-02: each code claims the LONGEST matching prefix (so aggregate fee codes
+    -- count against ^zettle:fee:aggregate:, not also against ^zettle:fee:).
+    -- The "ALL 5 prefixes seen" assertion is then unfalsifiable-without-evidence:
+    -- per-sale fees and aggregate fees must each be exercised by their own
+    -- bucket; the gate cannot pass with only 4 distinct kinds.
     local seen_prefixes = {}
     for _, t in ipairs(union) do
-      assert.is_true(matches_allowed_prefix(t.transactionCode),
+      local longest = longest_matching_prefix(t.transactionCode)
+      assert.is_not_nil(longest,
         "transactionCode '" .. tostring(t.transactionCode) ..
         "' does not match any of the 5 D-38 allowed prefixes")
-      for _, p in ipairs(ALLOWED_PREFIXES) do
-        if type(t.transactionCode) == "string" and t.transactionCode:find(p) then
-          seen_prefixes[p] = true
-        end
-      end
+      seen_prefixes[longest] = true
     end
     for _, p in ipairs(ALLOWED_PREFIXES) do
       assert.is_true(seen_prefixes[p] == true,
