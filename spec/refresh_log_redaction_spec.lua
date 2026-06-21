@@ -261,10 +261,6 @@ local function longest_matching_prefix(code)
   return best
 end
 
-local function matches_allowed_prefix(code)
-  return longest_matching_prefix(code) ~= nil
-end
-
 describe("D-38 extended transactionCode prefix gate (Phase-4: 5 allowed prefixes)", function()
 
   before_each(function()
