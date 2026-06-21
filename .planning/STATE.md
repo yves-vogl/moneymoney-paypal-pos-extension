@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
-status: executing
-last_updated: "2026-06-20T03:55:54.485Z"
+status: "Phase 3 shipped — PR #9 open vs main"
+last_updated: "2026-06-21T12:18:18.893Z"
 progress:
   total_phases: 7
   completed_phases: 1
@@ -33,22 +33,21 @@ progress:
 
 ## Current Position
 
-Phase: 03 (sale-spine-first-user-visible-slice) — PLANNING
-**Phase:** 3 — Sale Spine (first user-visible slice) — **CONTEXT CAPTURED, planner next**
-**Status:** Discuss-phase 3 complete (`03-CONTEXT.md` + `03-DISCUSSION-LOG.md` committed); next step is `/gsd-plan-phase 3` (research → patterns → planner → plan-checker)
-**Progress:** `[█████████░░░░░░░░░░░] 2/7 phases complete` (Phase 1 + Phase 2 merged to main)
+Phase: 03 (sale-spine-first-user-visible-slice) — **SHIPPED, awaiting merge**
+**Status:** Phase 3 shipped — PR #9 open vs main
+**Progress:** `[████████████░░░░░░░░] 2/7 phases merged; Phase 3 in PR review`
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
 Phase 2: Authenticated Network Layer       [DONE ✅ — merged via PR #6 + Lows PR #7]
-Phase 3: Sale Spine                        [PLANNING — CONTEXT captured 2026-06-20]
-Phase 4: Enrichment                        [BLOCKED on Phase 3]
+Phase 3: Sale Spine                        [SHIPPED 🚢 — PR #9 awaiting merge]
+Phase 4: Enrichment                        [BLOCKED on Phase 3 merge]
 Phase 5: Resilience & Error Handling       [BLOCKED on Phase 4]
 Phase 6: Release & Polish                  [BLOCKED on Phase 5]
 Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
-**Branch state:** On `main` @ `b359a2e` (Phase 2 merged via PR #6 rebase + Lows PR #7 squash; Phase 3 CONTEXT just committed). 40 commits ahead of `c644f16` (Phase-1-merged tip). Phase-2 rebased commits are unsigned-on-main (accepted one-off; lesson saved as memory `feedback_gpg_signed_pr_merge`); Lows PR #7's squash commit `ec64b19` is `verified: true` by GitHub web-flow key.
+**Branch state:** On `phase-3/sale-spine-first-user-visible-slice` @ `d2ec9a7`. 45 commits ahead of `main`. PR #9 opened 2026-06-21 against `main` with full verifier report + plan summaries in body. Verifier verdict: 10/10 must-haves PASSED, READY-TO-MERGE. Merge method: `--squash` (per `feedback_gpg_signed_pr_merge`; `--rebase` would break GPG signatures on main).
 
 **Phase-3 captured decisions (CONTEXT.md):**
 
