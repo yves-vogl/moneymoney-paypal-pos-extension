@@ -193,8 +193,12 @@ function M_finance.fetch_account_state(bearer)
       and type(liquid.data.totalBalance) == "number" then
     balance_eur = liquid.data.totalBalance / 100
   else
+    -- S-02 (SEC MEDIUM): cap attacker-controllable currencyId at 8 chars
+    -- before log concat (same pattern as Phase-3 S-01 mapping fix at
+    -- src/mapping.lua:371). ISO 4217 codes are 3 chars; 8 provides margin.
+    local cur = tostring(liquid.data.currencyId or "<nil>"):sub(1, 8)
     M_log.info("M_finance.fetch_account_state: liquid balance non-EUR, skipping (currencyId="
-      .. tostring(liquid.data.currencyId) .. ")")
+      .. cur .. ")")
   end
 
   -- 2) Preliminary (in-flight) balance — ACCT-03 `pendingBalance`
@@ -212,8 +216,10 @@ function M_finance.fetch_account_state(bearer)
       and type(prelim.data.totalBalance) == "number" then
     pending_eur = prelim.data.totalBalance / 100
   else
+    -- S-02 (SEC MEDIUM): same currency-cap pattern as the liquid site above.
+    local cur = tostring(prelim.data.currencyId or "<nil>"):sub(1, 8)
     M_log.info("M_finance.fetch_account_state: preliminary balance non-EUR, skipping (currencyId="
-      .. tostring(prelim.data.currencyId) .. ")")
+      .. cur .. ")")
   end
 
   return { balance = balance_eur, pendingBalance = pending_eur }, nil
