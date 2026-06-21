@@ -260,7 +260,18 @@ function RefreshAccount(account, since) -- luacheck: ignore 431
   -- Step 10: sort payouts ascending by timestamp for the temporal-inference rule
   -- (RESEARCH §4.2) — the SALE-03 promotion sweep walks this list to find the
   -- earliest PAYOUT whose timestamp >= a PAYMENT's timestamp.
-  table.sort(fin_payouts, function(a, b) return a.timestamp_posix < b.timestamp_posix end)
+  -- S-07 (SEC LOW): Lua's table.sort is NOT stable. When two payouts share the
+  -- same timestamp (possible at second-granularity when Zettle batches), the
+  -- relative order is implementation-defined and the SALE-03 promotion's
+  -- valueDate assignment becomes nondeterministic across refreshes. Add an
+  -- originatingTransactionUuid tiebreaker so the sort is byte-stable.
+  table.sort(fin_payouts, function(a, b)
+    if a.timestamp_posix ~= b.timestamp_posix then
+      return a.timestamp_posix < b.timestamp_posix
+    end
+    return tostring(a.originatingTransactionUuid)
+         < tostring(b.originatingTransactionUuid)
+  end)
 
   -- Helper: find earliest covering PAYOUT for a given PAYMENT timestamp.
   -- Pure local closure; never escapes RefreshAccount's scope.
