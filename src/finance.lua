@@ -100,10 +100,14 @@ local _INCLUDE_TYPES_SUFFIX =
   .. "&includeTransactionType=PAYMENT_FEE"
   .. "&includeTransactionType=PAYOUT"
 
--- M_finance.fetch(clamped_since, bearer, offset)
+-- M_finance.fetch(clamped_since, bearer, offset, end_posix)
 --   clamped_since : number     -- POSIX seconds (already clamped by RefreshAccount per D-33)
 --   bearer        : string     -- Bearer token from M_auth.cached_token (D-41 / D-42)
 --   offset        : integer?   -- page offset; defaults to 0
+--   end_posix     : integer?   -- explicit end anchor (POSIX seconds); defaults
+--                                 to os.time()+60 if omitted (legacy behaviour,
+--                                 used only by direct callers — fetch_all
+--                                 always passes a fixed end_posix per WR-01).
 --   -> (parsed_table|nil, status:integer|nil, raw_body:string)
 --
 -- GETs https://finance.izettle.com/v2/accounts/liquid/transactions with
@@ -111,15 +115,16 @@ local _INCLUDE_TYPES_SUFFIX =
 -- offset, and the three appended includeTransactionType= suffix parameters
 -- (PAYMENT, PAYMENT_FEE, PAYOUT). Returns the 3-tuple from M_http.get_json
 -- verbatim so the caller can route errors via M_errors.from_http_status.
-function M_finance.fetch(clamped_since, bearer, offset)
+function M_finance.fetch(clamped_since, bearer, offset, end_posix)
   -- ME-01 belt-and-suspenders: RefreshAccount already guards nil bearer (D-41),
   -- but an explicit assertion here surfaces any future regression loudly rather
   -- than sending "Bearer nil" as the Authorization header value.
   assert(type(bearer) == "string" and #bearer > 0,
     "M_finance.fetch: bearer must be a non-empty string")
   offset = offset or 0
+  end_posix = end_posix or (os.time() + 60)  -- legacy default + WR-01 anchor
   local q = {
-    ["end"] = _iso8601_utc_no_z(os.time() + 60),  -- small future buffer per RESEARCH §1.3
+    ["end"] = _iso8601_utc_no_z(end_posix),
     limit   = "1000",
     offset  = tostring(offset),
     start   = _iso8601_utc_no_z(clamped_since),
@@ -136,13 +141,23 @@ end
 --
 -- Drives the full offset-pagination loop via M_pagination.offset_iterate
 -- (Plan 04-02 sibling iterator). fetch_page_fn closes over clamped_since +
--- bearer and forwards params.offset to each M_finance.fetch call.
+-- bearer + end_posix and forwards params.offset to each M_finance.fetch call.
 -- Returns (records, nil) on full success or (nil, err) on any sub-page error.
+--
+-- WR-01 (REVIEW): end_posix is computed ONCE before the iterator starts and
+-- pinned for every page in the loop. The previous implementation recomputed
+-- os.time()+60 in each M_finance.fetch call — across a multi-page pagination
+-- the end-anchor drifted forward by however long the prior page took,
+-- breaking offset-pagination's "stable dataset across pages" assumption and
+-- causing records that landed in the result window during the loop to be
+-- duplicated (at offset N and offset N-1) or missed (skipped past the limit
+-- window). Pinning end_posix matches Zettle's official sample code.
 function M_finance.fetch_all(clamped_since, bearer)
   assert(type(bearer) == "string" and #bearer > 0,
     "M_finance.fetch_all: bearer must be a non-empty string")
+  local end_posix = os.time() + 60  -- pin once for the whole pagination loop
   local fetch_page_fn = function(params)
-    return M_finance.fetch(clamped_since, bearer, params.offset)
+    return M_finance.fetch(clamped_since, bearer, params.offset, end_posix)
   end
   return M_pagination.offset_iterate(fetch_page_fn, { offset = 0, limit = 1000 })
 end

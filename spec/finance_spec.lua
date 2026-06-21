@@ -274,4 +274,23 @@ describe("M_finance.fetch_all", function()
     assert.has_error(function() M_finance.fetch_all(0, nil) end)
   end)
 
+  it("WR-01: fetch honours an explicit end_posix argument (used by fetch_all to pin the pagination window)", function()
+    -- WR-01 (REVIEW): each M_finance.fetch call previously computed end=
+    -- from os.time() afresh — so across a multi-page pagination the end-anchor
+    -- drifted forward and the offset-pagination dataset stopped being stable.
+    -- Fix: fetch_all pins end_posix once and threads it through each call.
+    -- This test asserts the fetch contract: when end_posix is passed, the URL
+    -- uses exactly that value (formatted as ISO-8601, no Z, no millis).
+    local raw, _ = Fixtures.load("finance/finance_empty")
+    Mocks.push_response({ content = raw })
+    local pinned_end = 1735603200  -- 2024-12-31T00:00:00Z
+    M_finance.fetch(1714521600, "AT-VALID", 0, pinned_end)
+    local url = Mocks._last_request and Mocks._last_request.url or ""
+    -- Expected: end=2024-12-31T00:01:00 — wait, our pinned_end is 1735603200
+    -- which is 2024-12-31T00:00:00Z; _iso8601_utc_no_z would format that as
+    -- "2024-12-31T00:00:00".
+    assert.is_truthy(url:find("end=2024%-12%-31T00:00:00", 1, false),
+      "WR-01: fetch URL must use the pinned end_posix verbatim; got URL=" .. url)
+  end)
+
 end)
