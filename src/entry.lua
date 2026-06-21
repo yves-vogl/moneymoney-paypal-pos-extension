@@ -402,8 +402,22 @@ function RefreshAccount(account, since) -- luacheck: ignore 431
   -- Step 16: return result with the Phase-4 three-field shape.
   -- balance / pendingBalance from Finance API state; fallback to account.balance
   -- when account_state.balance is nil (covers the R-4 non-EUR-liquid case).
+  -- WR-03 (REVIEW): emit a WARN when the fallback fires so the silent
+  -- divergence between the freshly-fetched pendingBalance and the stale
+  -- snapshot balance is at least observable in MoneyMoney's status log.
+  -- ADR-0004 covers the contract; the README "Bekannte Grenzen" section
+  -- does not need to mention this case because users who have not configured
+  -- a non-EUR liquid account will never trip it.
+  local final_balance = account_state and account_state.balance
+  if final_balance == nil then
+    final_balance = account and account.balance
+    if final_balance ~= nil then
+      M_log.warn("RefreshAccount: liquid balance unavailable from Finance API "
+        .. "(non-EUR currency?); falling back to MoneyMoney's cached account.balance")
+    end
+  end
   return {
-    balance        = (account_state and account_state.balance) or (account and account.balance),
+    balance        = final_balance,
     pendingBalance = account_state and account_state.pendingBalance or nil,
     transactions   = transactions,
   }

@@ -739,6 +739,19 @@ describe("RefreshAccount Phase-4 pipeline (ACCT-03 / REF-02 / FEE-01-03 / PAYOUT
       "non-EUR liquid -> fallback to account.balance (42.00)")
     assert.equals(6.78, result.pendingBalance,
       "EUR preliminary still populates when liquid is skipped")
+    -- WR-03 (REVIEW): the fallback must announce itself via WARN so the
+    -- silent divergence between fresh pendingBalance and stale balance
+    -- is observable in MoneyMoney's status log.
+    local saw_warn = false
+    for _, line in ipairs(Mocks._captured_prints or {}) do
+      if type(line) == "string"
+          and line:find("WARN", 1, true)
+          and line:find("liquid balance unavailable", 1, true) then
+        saw_warn = true
+      end
+    end
+    assert.is_true(saw_warn,
+      "WR-03: must log a WARN when the liquid-balance fallback fires")
   end)
 
   -- -------------------------------------------------------------------------
