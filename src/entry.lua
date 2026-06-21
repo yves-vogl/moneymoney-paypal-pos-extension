@@ -174,27 +174,200 @@ function RefreshAccount(account, since) -- luacheck: ignore 431
   local purchases, fetch_err = M_purchases.fetch_all(effective_since, bearer)
   if fetch_err then return fetch_err end
 
-  -- Step 5: map each purchase to a MoneyMoney transaction.
-  -- D-32: refund records (p.refund == true) use refund_to_transaction.
-  -- D-37: non-EUR purchases return nil from M_mapping — silently skip them.
-  -- Any future skip conditions also return nil — the nil check covers all cases.
-  local transactions = {}
+  -- -------------------------------------------------------------------------
+  -- Plan 04-03 — Phase-4 wiring (RESEARCH §2.1, §3.1, §4.2, §4.3).
+  -- Steps 5-14 below extend Phase-3's mapping loop with: cross-refresh
+  -- indexes (purchases_by_uuid + payments_by_uuid), Finance API state +
+  -- transactions fetch (ERR-06 fail-whole-refresh on either), SALE-03
+  -- promotion (D-56 temporal-inference rule), D-49 Option B fee
+  -- classification, and payout mapping.
+  -- -------------------------------------------------------------------------
+
+  -- Step 5: D-50 / REF-02 — index purchases by purchaseUUID1 for refund lookup.
+  -- The refund's `refundsPurchaseUUID1` field points at the original sale's
+  -- purchaseUUID1. When the original is in the SAME refresh window, the refund
+  -- purpose cites "Beleg #<original purchaseNumber>" instead of the UUID.
+  local purchases_by_uuid = {}
   for _, p in ipairs(purchases or {}) do
-    local txn
-    if p.refund == true then
-      txn = M_mapping.refund_to_transaction(p)
-    else
-      txn = M_mapping.purchase_to_transaction(p)
-    end
-    if txn ~= nil then
-      transactions[#transactions + 1] = txn
+    if type(p) == "table" and type(p.purchaseUUID1) == "string" and #p.purchaseUUID1 > 0 then
+      purchases_by_uuid[p.purchaseUUID1] = p
     end
   end
 
-  -- Step 6: return result.
-  -- D-31: balance unchanged in Phase 3 (Finance API is Phase 4 ACCT-03).
-  -- booked=false on every transaction — M_mapping enforces this invariant.
-  return { balance = account.balance, transactions = transactions }
+  -- Step 6: D-49 / FEE-01 — index payments by payments[].uuid for fee join.
+  -- CRITICAL (RESEARCH §3.1): the link key is `payments[].uuid`, NOT
+  -- `purchaseUUID1`. One purchase can carry multiple payment legs; each leg
+  -- has its own UUID, and Finance API PAYMENT_FEE records use that leg-UUID
+  -- as `originatingTransactionUuid`. The CONTEXT D-50 wording said
+  -- "purchaseUUID1" — that was incorrect; the corrected join key is
+  -- payments[].uuid per the FEE-01 end-to-end spec.
+  local payments_by_uuid = {}
+  for _, purchase in ipairs(purchases or {}) do
+    if type(purchase) == "table" and type(purchase.payments) == "table" then
+      for _, payment in ipairs(purchase.payments) do
+        if type(payment) == "table"
+            and type(payment.uuid) == "string"
+            and #payment.uuid > 0 then
+          payments_by_uuid[payment.uuid] = purchase
+        end
+      end
+    end
+  end
+
+  -- Step 7: ACCT-03 / D-52 / RESEARCH §1.4 — fetch balance + pendingBalance.
+  -- Two sequential GETs (liquid then preliminary); ERR-06 fail-whole-refresh
+  -- on either-leg error per RESEARCH §Pitfall 5.
+  local account_state, state_err = M_finance.fetch_account_state(bearer)
+  if state_err then return state_err end
+
+  -- Step 8: fetch all Finance API transaction records (paginated via offset).
+  local fin_records_raw, fin_err = M_finance.fetch_all(effective_since, bearer)
+  if fin_err then return fin_err end
+
+  -- Step 9: parse + split into PAYMENT / PAYMENT_FEE / PAYOUT buckets.
+  -- M_finance.parse_transaction silently filters out non-Phase-4 types
+  -- (ADJUSTMENT, CASHBACK, etc.) per RESEARCH §1.3.
+  local fin_payments, fin_fees, fin_payouts = {}, {}, {}
+  for _, raw in ipairs(fin_records_raw or {}) do
+    local rec = M_finance.parse_transaction(raw)
+    if rec then
+      if     rec.kind == "PAYMENT"     then fin_payments[#fin_payments + 1] = rec
+      elseif rec.kind == "PAYMENT_FEE" then fin_fees[#fin_fees + 1]         = rec
+      elseif rec.kind == "PAYOUT"      then fin_payouts[#fin_payouts + 1]   = rec
+      end
+    end
+  end
+
+  -- Step 10: sort payouts ascending by timestamp for the temporal-inference rule
+  -- (RESEARCH §4.2) — the SALE-03 promotion sweep walks this list to find the
+  -- earliest PAYOUT whose timestamp >= a PAYMENT's timestamp.
+  table.sort(fin_payouts, function(a, b) return a.timestamp_posix < b.timestamp_posix end)
+
+  -- Helper: find earliest covering PAYOUT for a given PAYMENT timestamp.
+  -- Pure local closure; never escapes RefreshAccount's scope.
+  local function _find_covering_payout(payment_posix)
+    for _, po in ipairs(fin_payouts) do
+      if po.timestamp_posix >= payment_posix then return po end
+    end
+    return nil
+  end
+
+  -- Step 11: index Finance PAYMENT records by their originatingTransactionUuid
+  -- (which equals the originating purchase's payments[].uuid per RESEARCH §3.2).
+  local fin_payments_by_uuid = {}
+  for _, fp in ipairs(fin_payments) do
+    fin_payments_by_uuid[fp.originatingTransactionUuid] = fp
+  end
+
+  -- Step 12: map purchases -> sale / refund transactions.
+  -- D-50: refunds use M_mapping.refund_to_transaction(p, opts) with
+  --       opts.original_receipt set from the purchases_by_uuid lookup.
+  -- D-37: non-EUR purchases return nil from M_mapping (silently skip).
+  -- sale_to_purchase tracks the parent purchase per sale txn so the SALE-03
+  -- promotion sweep below can resolve payments[].uuid -> Finance PAYMENT.
+  local transactions = {}
+  local sale_to_purchase = {}
+  for _, p in ipairs(purchases or {}) do
+    if type(p) == "table" then
+      local txn
+      if p.refund == true then
+        local original_receipt = nil
+        if type(p.refundsPurchaseUUID1) == "string" and #p.refundsPurchaseUUID1 > 0 then
+          local original = purchases_by_uuid[p.refundsPurchaseUUID1]
+          if original and original.purchaseNumber then
+            original_receipt = original.purchaseNumber
+          end
+        end
+        txn = M_mapping.refund_to_transaction(p, { original_receipt = original_receipt })
+      else
+        txn = M_mapping.purchase_to_transaction(p)
+        if txn then sale_to_purchase[txn] = p end
+      end
+      if txn ~= nil then
+        transactions[#transactions + 1] = txn
+      end
+    end
+  end
+
+  -- Step 13: D-56 / SALE-03 promotion sweep (RESEARCH §4.2 + §4.3).
+  -- For each sale txn, walk parent purchase's payments[], look up matching
+  -- Finance PAYMENT via payment.uuid -> fin_payments_by_uuid, find earliest
+  -- covering PAYOUT, call M_mapping.promote_to_booked. Idempotent — same
+  -- purchase + same finance fixture set always produces the same valueDate.
+  -- transactionCode is NEVER mutated; MoneyMoney's dedup updates the row in place.
+  for _, sale_txn in ipairs(transactions) do
+    local purchase = sale_to_purchase[sale_txn]
+    if purchase and type(purchase.payments) == "table" then
+      for _, pmt in ipairs(purchase.payments) do
+        if type(pmt) == "table" and type(pmt.uuid) == "string" then
+          local fin_payment = fin_payments_by_uuid[pmt.uuid]
+          if fin_payment then
+            local covering = _find_covering_payout(fin_payment.timestamp_posix)
+            if covering then
+              M_mapping.promote_to_booked(sale_txn, covering.timestamp_posix)
+              break  -- one matching payment leg is enough; further legs would
+                     -- only re-promote to the same (or later) valueDate.
+            end
+          end
+        end
+      end
+    end
+  end
+
+  -- Step 14: D-49 / FEE-01 / FEE-03 / RESEARCH §3.5 (Option B): cluster fees
+  -- by Berlin-local date. For each date, if ANY fee on that date is unlinked
+  -- (no payments_by_uuid match), aggregate ALL fees for that date via
+  -- fee_aggregate_to_transaction. Otherwise emit per-sale fee_to_transaction
+  -- rows. This is the load-bearing simplification per CONTEXT D-49 + RESEARCH
+  -- §3.5: per-refresh date clustering with no persistent state (D-59).
+  --
+  -- Yves-blocker D-49 Option A vs B is documented in 04-03-PLAN.md <objective>;
+  -- if a later phase needs Option A (LocalStorage-persistent date set), replan
+  -- via /gsd-plan-phase 4 --gaps to amend D-59.
+  local fees_by_date = {}
+  for _, fee in ipairs(fin_fees) do
+    local date_iso = M_mapping.berlin_local_date(fee.timestamp_iso)
+    if date_iso then
+      if not fees_by_date[date_iso] then
+        fees_by_date[date_iso] = { fees = {}, any_unlinked = false }
+      end
+      local bucket = fees_by_date[date_iso]
+      bucket.fees[#bucket.fees + 1] = fee
+      local originating = payments_by_uuid[fee.originatingTransactionUuid]
+      if not originating then bucket.any_unlinked = true end
+    end
+  end
+
+  for date_iso, bucket in pairs(fees_by_date) do
+    if bucket.any_unlinked then
+      M_log.warn("RefreshAccount: aggregating " .. tostring(#bucket.fees)
+        .. " fees for date " .. date_iso
+        .. " (at least one missing payments_by_uuid link; D-49 Option B per refresh)")
+      local agg = M_mapping.fee_aggregate_to_transaction(bucket.fees, date_iso, #bucket.fees)
+      if agg then transactions[#transactions + 1] = agg end
+    else
+      for _, fee in ipairs(bucket.fees) do
+        local originating = payments_by_uuid[fee.originatingTransactionUuid]
+        local fee_txn = M_mapping.fee_to_transaction(fee, originating)
+        if fee_txn then transactions[#transactions + 1] = fee_txn end
+      end
+    end
+  end
+
+  -- Step 15: map payouts via payout_to_transaction.
+  for _, po in ipairs(fin_payouts) do
+    local po_txn = M_mapping.payout_to_transaction(po)
+    if po_txn then transactions[#transactions + 1] = po_txn end
+  end
+
+  -- Step 16: return result with the Phase-4 three-field shape.
+  -- balance / pendingBalance from Finance API state; fallback to account.balance
+  -- when account_state.balance is nil (covers the R-4 non-EUR-liquid case).
+  return {
+    balance        = (account_state and account_state.balance) or (account and account.balance),
+    pendingBalance = account_state and account_state.pendingBalance or nil,
+    transactions   = transactions,
+  }
 end
 
 function EndSession()

@@ -64,16 +64,31 @@ describe("RefreshAccount idempotency (TEST-03 / SALE-02 / SALE-05 / D-39)", func
 
   -- -------------------------------------------------------------------------
   -- refresh_with_fixture(fixture_name, orgUuid)
-  -- Seeds token, queues the fixture content twice (once per RefreshAccount
-  -- call), runs both calls, and returns the two result tables.
-  -- The fixture is queued twice so each call can perform one HTTP fetch.
+  -- Seeds token, queues the Phase-4 four-response set TWICE (once per
+  -- RefreshAccount call), runs both calls, and returns the two result tables.
+  --
+  -- Plan 04-03 expansion: each RefreshAccount now consumes FOUR sequential
+  -- mock responses:
+  --   1) purchase fixture
+  --   2) /v2/accounts/liquid/balance       (finance_balance_liquid.json)
+  --   3) /v2/accounts/preliminary/balance  (finance_balance_preliminary.json)
+  --   4) /v2/accounts/liquid/transactions  (finance_empty.json by default)
+  -- So a double-refresh queues 8 responses total. Plan 04-05 adds the actual
+  -- D-58 idempotency assertions on top of this queueing infrastructure.
   -- -------------------------------------------------------------------------
   local function refresh_with_fixture(fixture_name, orgUuid)
     seed_token(orgUuid)
-    local raw = Fixtures.load("purchases/" .. fixture_name)
-    -- Queue twice: once for the first RefreshAccount call, once for the second.
-    Mocks.push_response({ content = raw })
-    Mocks.push_response({ content = raw })
+    local purchase_raw     = Fixtures.load("purchases/" .. fixture_name)
+    local liquid_raw       = Fixtures.load("finance/finance_balance_liquid")
+    local preliminary_raw  = Fixtures.load("finance/finance_balance_preliminary")
+    local finance_raw      = Fixtures.load("finance/finance_empty")
+    -- Queue the full 4-response tuple twice (once per RefreshAccount call).
+    for _ = 1, 2 do
+      Mocks.push_response({ content = purchase_raw })
+      Mocks.push_response({ content = liquid_raw })
+      Mocks.push_response({ content = preliminary_raw })
+      Mocks.push_response({ content = finance_raw })
+    end
     local account = { accountNumber = orgUuid, currency = "EUR", balance = 0 }
     local result1 = RefreshAccount(account, 0)
     local result2 = RefreshAccount(account, 0)

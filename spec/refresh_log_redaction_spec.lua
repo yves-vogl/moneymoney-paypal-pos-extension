@@ -61,6 +61,17 @@ local function walk_storage(t, visit)
   end
 end
 
+-- Plan 04-03: each RefreshAccount now consumes FOUR sequential responses
+-- (purchase + liquid balance + preliminary balance + finance transactions).
+-- Phase-3 redaction tests only care about the purchase pipeline; queue the
+-- 3 trailing Finance API responses with empty/EUR fixtures so the new call
+-- shape is satisfied without changing the gate semantics.
+local function queue_finance_tail()
+  Mocks.push_response({ content = Fixtures.load("finance/finance_balance_liquid") })
+  Mocks.push_response({ content = Fixtures.load("finance/finance_balance_preliminary") })
+  Mocks.push_response({ content = Fixtures.load("finance/finance_empty") })
+end
+
 -- ---------------------------------------------------------------------------
 describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix gate", function()
 
@@ -81,6 +92,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs1")
     local raw = Fixtures.load("purchases/purchase_simple_sale")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     RefreshAccount({ accountNumber = "org-rs1", currency = "EUR", balance = 0 }, 0)
 
     -- Gate A: walk LocalStorage; no value may match the JWT-head pattern.
@@ -94,6 +106,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs2")
     local raw = Fixtures.load("purchases/purchase_simple_sale")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     RefreshAccount({ accountNumber = "org-rs2", currency = "EUR", balance = 0 }, 0)
 
     -- Gate B: captured print stream must never contain "Bearer eyJ..." pattern.
@@ -109,6 +122,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs3")
     local raw = Fixtures.load("purchases/purchase_simple_sale")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     local result = RefreshAccount({ accountNumber = "org-rs3", currency = "EUR", balance = 0 }, 0)
 
     assert.is_table(result, "result must be a table")
@@ -134,6 +148,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs4")
     local raw = Fixtures.load("purchases/purchase_refund")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     RefreshAccount({ accountNumber = "org-rs4", currency = "EUR", balance = 0 }, 0)
 
     walk_storage(LocalStorage, function(s)
@@ -146,6 +161,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs5")
     local raw = Fixtures.load("purchases/purchase_refund")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     local result = RefreshAccount({ accountNumber = "org-rs5", currency = "EUR", balance = 0 }, 0)
 
     assert.is_table(result, "result must be a table for refund fixture")
@@ -177,6 +193,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs6")
     local raw = Fixtures.load("purchases/purchase_with_vat_and_tip")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     RefreshAccount({ accountNumber = "org-rs6", currency = "EUR", balance = 0 }, 0)
 
     walk_storage(LocalStorage, function(s)
@@ -189,6 +206,7 @@ describe("Phase-3 RefreshAccount: no JWT/Bearer leak and transactionCode prefix 
     seed_token("org-rs7")
     local raw = Fixtures.load("purchases/purchase_with_vat_and_tip")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     RefreshAccount({ accountNumber = "org-rs7", currency = "EUR", balance = 0 }, 0)
 
     for _, line in ipairs(Mocks._captured_prints) do

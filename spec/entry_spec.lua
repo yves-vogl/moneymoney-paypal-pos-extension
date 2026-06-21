@@ -448,6 +448,22 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     }):json()
   end
 
+  -- Plan 04-03: a successful RefreshAccount now issues FOUR sequential GETs:
+  --   1) purchase pages (Phase 3)
+  --   2) /v2/accounts/liquid/balance       (ACCT-03 — Plan 04-03)
+  --   3) /v2/accounts/preliminary/balance  (ACCT-03 — Plan 04-03)
+  --   4) Finance API transactions pages    (Phase 4 — Plan 04-03)
+  -- Phase-3 tests that only care about the purchase pipeline queue empty
+  -- balance + finance fixtures via this helper to satisfy the new call shape.
+  -- Tests that exercise an HTTP failure on the purchase fetch (ERR-06) leave
+  -- the trailing 3 responses queued harmlessly — they are never consumed
+  -- because the purchase fetch short-circuits the refresh.
+  local function queue_finance_tail()
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_liquid") })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_preliminary") })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_empty") })
+  end
+
   -- -------------------------------------------------------------------------
 
   it("RefreshAccount returns error string when accountNumber is missing (guard)", function()
@@ -471,6 +487,7 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     seed_token("org-1")
     local raw = Fixtures.load("purchases/purchase_simple_sale")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     local result = RefreshAccount({ accountNumber = "org-1", currency = "EUR", balance = 0 }, 0)
     assert.is_table(result, "result must be a table on success")
     assert.is_table(result.transactions, "result.transactions must be a table")
@@ -489,6 +506,7 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     seed_token("org-2")
     local raw = Fixtures.load("purchases/purchase_refund")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     local result = RefreshAccount({ accountNumber = "org-2", currency = "EUR", balance = 0 }, 0)
     assert.is_table(result, "result must be a table for refund fixture")
     assert.equals(1, #result.transactions, "expected 1 transaction from purchase_refund")
@@ -503,6 +521,7 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     seed_token("org-3")
     local raw = Fixtures.load("purchases/purchase_non_eur")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     local result = RefreshAccount({ accountNumber = "org-3", currency = "EUR", balance = 0 }, 0)
     assert.is_table(result, "result must be a table even when all purchases are skipped")
     assert.is_table(result.transactions, "result.transactions must be a table")
@@ -514,6 +533,7 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     seed_token("org-4")
     local raw = Fixtures.load("purchases/purchases_empty")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     local result = RefreshAccount({ accountNumber = "org-4", currency = "EUR", balance = 0 }, os.time() - 60)
     assert.is_table(result, "result must be a table for empty purchase page")
     assert.is_table(result.transactions, "result.transactions must be a table")
@@ -525,10 +545,13 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     seed_token("org-5")
     local raw = Fixtures.load("purchases/purchases_empty")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     RefreshAccount({ accountNumber = "org-5", currency = "EUR", balance = 0 }, 0)
-    local url = Mocks._last_request.url
+    -- _last_request is now the final Finance API call; assert on the purchase
+    -- URL via _captured_requests[1] which is the Phase-3 purchase fetch.
+    local url = Mocks._captured_requests[1] and Mocks._captured_requests[1].url or ""
     assert.truthy(url:find("startDate=", 1, true),
-      "URL must include startDate query param, got: " .. tostring(url))
+      "purchase URL must include startDate query param, got: " .. tostring(url))
     -- The startDate must NOT be the epoch (1970-01-01); it must reflect the 90-day clamp.
     local ok = not url:find("startDate=1970", 1, true)
     assert.is_true(ok,
@@ -539,31 +562,43 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     seed_token("org-6")
     local raw = Fixtures.load("purchases/purchases_empty")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     local recent = os.time() - 3600  -- 1 hour ago — well within 90 days
     RefreshAccount({ accountNumber = "org-6", currency = "EUR", balance = 0 }, recent)
-    local url = Mocks._last_request.url
+    -- Inspect the purchase URL (first captured request) — D-33 is about
+    -- the purchase fetch's startDate, not the Finance API's start= param.
+    local url = Mocks._captured_requests[1] and Mocks._captured_requests[1].url or ""
     assert.truthy(url:find("startDate=", 1, true),
-      "URL must include startDate query param, got: " .. tostring(url))
+      "purchase URL must include startDate query param, got: " .. tostring(url))
     -- The year-month substring of the recent timestamp should appear in the URL.
     local recent_iso = os.date("!%Y-%m", recent)
     assert.truthy(url:find(recent_iso, 1, true),
-      "URL must contain year-month " .. recent_iso .. " for recent since, got: " .. url)
+      "purchase URL must contain year-month " .. recent_iso .. " for recent since, got: " .. url)
   end)
 
-  it("RefreshAccount preserves account.balance in return value (Phase 3 ACCT-03 not-yet-wired)", function()
+  it("RefreshAccount returns Finance-API balance when liquid call succeeds (ACCT-03)", function()
+    -- Phase-4 ACCT-03 wired: balance now comes from /v2/accounts/liquid/balance
+    -- (= 12345 / 100 = 123.45 EUR per finance_balance_liquid fixture), NOT
+    -- account.balance pass-through. The fallback to account.balance fires only
+    -- when account_state.balance is nil (e.g. non-EUR liquid per R-4).
     seed_token("org-7")
     local raw = Fixtures.load("purchases/purchases_empty")
     Mocks.push_response({ content = raw })
-    local result = RefreshAccount({ accountNumber = "org-7", currency = "EUR", balance = 123.45 }, os.time() - 60)
+    queue_finance_tail()
+    local result = RefreshAccount({ accountNumber = "org-7", currency = "EUR", balance = 999.99 }, os.time() - 60)
     assert.is_table(result, "result must be a table")
     assert.equals(123.45, result.balance,
-      "balance must be passed through unchanged (D-31: Finance API is Phase 4)")
+      "balance must come from finance_balance_liquid fixture (12345 / 100)")
+    assert.equals(6.78, result.pendingBalance,
+      "pendingBalance must come from finance_balance_preliminary fixture (678 / 100)")
   end)
 
-  it("RefreshAccount returns string error on HTTP failure (ERR-06 fail-whole-refresh)", function()
+  it("RefreshAccount returns string error on purchase-fetch HTTP failure (ERR-06 fail-whole-refresh)", function()
     seed_token("org-8")
-    -- Push a 429 response body so M_errors.from_http_status returns the German rate_limit string.
-    Mocks.push_response({ content = '{"errorType":"RATE_LIMIT"}', status = 429 })
+    -- Use a rate_limit body so M_http._infer_status -> 429 -> German rate_limit
+    -- string. The purchase fetch errors first; the Finance API tail GETs are
+    -- never issued so no further responses need to be queued.
+    Mocks.push_response({ content = '{"error":"rate_limit"}' })
     local result = RefreshAccount({ accountNumber = "org-8", currency = "EUR", balance = 0 }, 0)
     -- The result must be an error string (not a table) — ERR-06 fail-whole-refresh.
     assert.is_string(result, "RefreshAccount must return an error string on HTTP failure (ERR-06)")
@@ -581,6 +616,7 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     seed_token("org-s04")
     local raw = Fixtures.load("purchases/purchases_empty")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     local ok, result = pcall(RefreshAccount,
       { accountNumber = "org-s04", currency = "EUR", balance = 0 },
       math.huge)
@@ -598,17 +634,327 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     seed_token("org-s04b")
     local raw = Fixtures.load("purchases/purchases_empty")
     Mocks.push_response({ content = raw })
+    queue_finance_tail()
     local future_since = os.time() + 86400 * 365  -- 1 year in the future
     local ok = pcall(RefreshAccount,
       { accountNumber = "org-s04b", currency = "EUR", balance = 0 },
       future_since)
     assert.is_true(ok,
       "RefreshAccount must not crash when since is in the future (S-04)")
-    -- With the cap, the URL should NOT contain a future year (e.g. 2027+).
-    local url = Mocks._last_request and Mocks._last_request.url or ""
+    -- With the cap, the purchase URL (first captured request) should NOT
+    -- contain a future year. The Finance API end= param naturally contains
+    -- the current year so we must inspect the purchase URL specifically.
+    local url = Mocks._captured_requests[1] and Mocks._captured_requests[1].url or ""
     local future_year = tostring(os.date("!%Y", future_since))
     assert.is_falsy(url:find(future_year, 1, true),
-      "startDate must not be a future date when since is in the future (S-04), url: " .. url)
+      "purchase startDate must not be a future date when since is in the future (S-04), url: " .. url)
+  end)
+
+end)
+
+-- ---------------------------------------------------------------------------
+-- Phase-4 RefreshAccount integration tests (Plan 04-03)
+-- Covers: ACCT-03 (balance + pendingBalance), REF-02 (refund in-window lookup
+-- via purchases_by_uuid), FEE-01 (per-sale fee linkage via payments_by_uuid),
+-- FEE-03 (D-49 Option B aggregate fallback), PAYOUT-01/02 (payout mapping),
+-- SALE-03 (D-56 promotion via temporal-inference covering payout), ERR-06
+-- (fail-whole-refresh on either Finance API leg error).
+-- ---------------------------------------------------------------------------
+-- luacheck: globals RefreshAccount LocalStorage M_i18n JSON M_auth
+describe("RefreshAccount Phase-4 pipeline (ACCT-03 / REF-02 / FEE-01-03 / PAYOUT-01-02 / SALE-03 / ERR-06)", function()
+
+  local function load_artifact()
+    local ok, _, code = os.execute("lua tools/build.lua 2>/dev/null")
+    if not ok or code ~= 0 then
+      error("entry_spec phase-4: failed to build dist/paypal-pos.lua")
+    end
+    dofile("dist/paypal-pos.lua")
+  end
+
+  before_each(function()
+    Mocks.setup()
+    load_artifact()
+  end)
+
+  after_each(function()
+    Mocks.teardown()
+  end)
+
+  local function seed_token(orgUuid)
+    LocalStorage["zettle:" .. orgUuid] = JSON():set({
+      access_token = "AT-VALID",
+      expires_at   = os.time() + 7200,
+      obtained_at  = os.time(),
+      client_id    = "client-x",
+      uuid         = "u-1",
+      publicName   = "Beispiel Caf\195\169",
+    }):json()
+  end
+
+  -- queue_refresh(purchase_fixture, finance_fixture, opts)
+  -- Queues the FOUR responses a Phase-4 RefreshAccount consumes:
+  --   1) purchase fixture
+  --   2) liquid balance fixture (default: finance_balance_liquid)
+  --   3) preliminary balance fixture (default: finance_balance_preliminary)
+  --   4) finance transactions fixture
+  local function queue_refresh(purchase_fixture, finance_fixture, opts)
+    opts = opts or {}
+    Mocks.push_response({ content = Fixtures.load("purchases/" .. purchase_fixture) })
+    Mocks.push_response({
+      content = opts.liquid_raw or Fixtures.load("finance/finance_balance_liquid"),
+    })
+    Mocks.push_response({
+      content = opts.preliminary_raw or Fixtures.load("finance/finance_balance_preliminary"),
+    })
+    Mocks.push_response({ content = Fixtures.load("finance/" .. finance_fixture) })
+  end
+
+  -- -------------------------------------------------------------------------
+  -- ACCT-03 — balance + pendingBalance populated from Finance API
+  -- -------------------------------------------------------------------------
+
+  it("ACCT-03: result.balance and result.pendingBalance populate from Finance API balance fixtures", function()
+    seed_token("org-acct03")
+    queue_refresh("purchase_simple_sale", "finance_empty")
+    local result = RefreshAccount(
+      { accountNumber = "org-acct03", currency = "EUR", balance = 0 }, 0)
+    assert.is_table(result)
+    assert.equals(123.45, result.balance,
+      "result.balance must come from finance_balance_liquid (12345 / 100)")
+    assert.equals(6.78, result.pendingBalance,
+      "result.pendingBalance must come from finance_balance_preliminary (678 / 100)")
+  end)
+
+  it("R-4: balance = nil fallback when liquid currency non-EUR; pendingBalance still EUR", function()
+    seed_token("org-r4")
+    -- Override liquid with GBP so the currency-guard fires and balance = nil.
+    -- The fallback rule in entry.lua returns account.balance when account_state.balance is nil.
+    queue_refresh("purchase_simple_sale", "finance_empty", {
+      liquid_raw = '{"data": {"totalBalance": 9999, "currencyId": "GBP"}}',
+    })
+    local result = RefreshAccount(
+      { accountNumber = "org-r4", currency = "EUR", balance = 42.00 }, 0)
+    assert.is_table(result)
+    assert.equals(42.00, result.balance,
+      "non-EUR liquid -> fallback to account.balance (42.00)")
+    assert.equals(6.78, result.pendingBalance,
+      "EUR preliminary still populates when liquid is skipped")
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- REF-02 / D-50 — refund cites original purchaseNumber when both in window
+  -- -------------------------------------------------------------------------
+
+  it("REF-02: refund purpose cites original purchaseNumber when both in same purchases page (D-50)", function()
+    seed_token("org-ref02")
+    queue_refresh("purchase_refund_with_original_in_page", "finance_empty")
+    local result = RefreshAccount(
+      { accountNumber = "org-ref02", currency = "EUR", balance = 0 }, 0)
+    assert.is_table(result)
+    -- Two transactions expected: sale (purchaseNumber=4001) + refund (purchaseNumber=4002)
+    assert.equals(2, #result.transactions,
+      "expected 2 transactions (1 sale + 1 refund), got " .. tostring(#result.transactions))
+    local refund_txn
+    for _, t in ipairs(result.transactions) do
+      if t.transactionCode:find("^zettle:refund:", 1, false) then
+        refund_txn = t
+      end
+    end
+    assert.is_not_nil(refund_txn, "refund transaction must be present")
+    -- D-50: refund purpose must cite "Beleg #4001" (the ORIGINAL sale's purchaseNumber)
+    assert.is_truthy(refund_txn.purpose:find("R\xc3\xbcckerstattung zu Beleg #4001", 1, true),
+      "refund purpose must cite original sale purchaseNumber #4001, got: " .. refund_txn.purpose)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- FEE-01 — per-sale fee linkage via payments_by_uuid
+  -- -------------------------------------------------------------------------
+
+  it("FEE-01: fee linked via payments_by_uuid emits zettle:fee:<uuid> with originating receipt #", function()
+    seed_token("org-fee01")
+    queue_refresh("purchase_page_with_payments_for_fee_join", "finance_payment_with_fee_linkage")
+    local result = RefreshAccount(
+      { accountNumber = "org-fee01", currency = "EUR", balance = 0 }, 0)
+    assert.is_table(result)
+    -- Find the fee transaction by transactionCode prefix.
+    local fee_txn
+    for _, t in ipairs(result.transactions) do
+      if type(t.transactionCode) == "string"
+          and t.transactionCode:find("^zettle:fee:[^a]", 1, false)
+          and not t.transactionCode:find("^zettle:fee:aggregate:", 1, false) then
+        fee_txn = t
+      end
+    end
+    assert.is_not_nil(fee_txn,
+      "expected a per-sale zettle:fee:<uuid> transaction; got transactions: " ..
+      table.concat((function()
+        local codes = {}
+        for _, t in ipairs(result.transactions) do
+          codes[#codes + 1] = tostring(t.transactionCode)
+        end
+        return codes
+      end)(), ", "))
+    -- transactionCode = "zettle:fee:" .. originatingTransactionUuid
+    assert.is_truthy(fee_txn.transactionCode:find("zettle:fee:cccccccc", 1, true),
+      "fee transactionCode must use the originatingTransactionUuid cccccccc-..., got: " ..
+      fee_txn.transactionCode)
+    -- Purpose must cite originating sale's purchaseNumber 2001
+    assert.is_truthy(fee_txn.purpose:find("Beleg #2001", 1, true),
+      "fee purpose must cite originating purchaseNumber #2001, got: " .. fee_txn.purpose)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- FEE-03 / D-49 Option B — date-aggregate fallback when any unlinked fee
+  -- -------------------------------------------------------------------------
+
+  it("FEE-03: D-49 Option B emits zettle:fee:aggregate:<date> when ANY fee on that date is unlinked", function()
+    seed_token("org-fee03")
+    -- The unlinked fee fixture has a single PAYMENT_FEE with no matching
+    -- payments_by_uuid entry, so the whole date clusters into an aggregate.
+    queue_refresh("purchase_simple_sale", "finance_payment_fee_unlinked")
+    local result = RefreshAccount(
+      { accountNumber = "org-fee03", currency = "EUR", balance = 0 }, 0)
+    assert.is_table(result)
+    -- Find the aggregate transaction
+    local agg_txn
+    local per_sale_fees = 0
+    for _, t in ipairs(result.transactions) do
+      if type(t.transactionCode) == "string" then
+        if t.transactionCode:find("^zettle:fee:aggregate:", 1, false) then
+          agg_txn = t
+        elseif t.transactionCode:find("^zettle:fee:", 1, false) then
+          per_sale_fees = per_sale_fees + 1
+        end
+      end
+    end
+    assert.is_not_nil(agg_txn,
+      "expected a zettle:fee:aggregate:<date> transaction for the unlinked-fee date")
+    assert.equals(0, per_sale_fees,
+      "no per-sale zettle:fee:<uuid> transactions expected on a day that aggregates")
+    -- The aggregate transactionCode anchors on the Berlin-local date
+    -- (fixture timestamp 2026-06-15T14:00:00 UTC = 2026-06-15 Berlin local).
+    assert.is_truthy(agg_txn.transactionCode:find("zettle:fee:aggregate:2026%-06%-15"),
+      "aggregate transactionCode must anchor on 2026-06-15 (Berlin local), got: " ..
+      agg_txn.transactionCode)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- PAYOUT-01 / PAYOUT-02 — payout transaction mapped from finance_payout
+  -- -------------------------------------------------------------------------
+
+  it("PAYOUT-01/02: payout emits zettle:payout:<uuid> with name 'Auszahlung an Bankkonto', negative amount", function()
+    seed_token("org-po")
+    queue_refresh("purchase_simple_sale", "finance_payout")
+    local result = RefreshAccount(
+      { accountNumber = "org-po", currency = "EUR", balance = 0 }, 0)
+    assert.is_table(result)
+    local payout_txn
+    for _, t in ipairs(result.transactions) do
+      if type(t.transactionCode) == "string"
+          and t.transactionCode:find("^zettle:payout:", 1, false) then
+        payout_txn = t
+      end
+    end
+    assert.is_not_nil(payout_txn, "expected a zettle:payout: transaction")
+    assert.equals("Auszahlung an Bankkonto", payout_txn.name,
+      "payout name must be 'Auszahlung an Bankkonto' (PAYOUT-02)")
+    assert.is_true(payout_txn.amount < 0,
+      "payout amount must be negative (PAYOUT-01: -150000 / 100 = -1500.00)")
+    assert.equals(-1500.00, payout_txn.amount,
+      "payout amount must be -1500.00 EUR from fixture")
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- SALE-03 / D-56 — sale promoted to booked=true on second refresh once a
+  -- covering PAYOUT exists in the Finance API records
+  -- -------------------------------------------------------------------------
+
+  it("SALE-03 D-56: first refresh sale booked=false; second refresh w/ covering PAYOUT promotes booked=true", function()
+    seed_token("org-sale03")
+    -- Phase 1: queue purchase + balances + EMPTY finance.
+    -- Sale must be booked=false (no Finance PAYMENT / PAYOUT linkage).
+    -- The purchase_page_with_payments_for_fee_join fixture has
+    -- payments[1].uuid = cccccccc-... which matches the finance fixture below.
+    queue_refresh("purchase_page_with_payments_for_fee_join", "finance_empty")
+    local r1 = RefreshAccount(
+      { accountNumber = "org-sale03", currency = "EUR", balance = 0 }, 0)
+    assert.is_table(r1)
+    local sale1
+    for _, t in ipairs(r1.transactions) do
+      if t.transactionCode:find("^zettle:sale:", 1, false) then sale1 = t end
+    end
+    assert.is_not_nil(sale1, "first refresh must emit a sale transaction")
+    assert.is_false(sale1.booked,
+      "first refresh sale must be booked=false (no covering PAYOUT yet)")
+    assert.is_nil(sale1.valueDate,
+      "first refresh sale must have no valueDate (D-31 carry-over)")
+
+    -- Phase 2: queue a second refresh whose finance fixture pairs the matching
+    -- PAYMENT (originatingTransactionUuid = cccccccc-...) with a later PAYOUT.
+    -- The temporal-inference rule (RESEARCH §4.2) promotes the sale.
+    local finance_promotion_raw = [[{
+      "data": [
+        {
+          "timestamp": "2026-06-04T12:00:00.000+0000",
+          "amount": 479300,
+          "originatorTransactionType": "PAYMENT",
+          "originatingTransactionUuid": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+        },
+        {
+          "timestamp": "2026-06-06T08:00:00.000+0000",
+          "amount": -479300,
+          "originatorTransactionType": "PAYOUT",
+          "originatingTransactionUuid": "ffffffff-ffff-ffff-ffff-fffffffffff2"
+        }
+      ]
+    }]]
+    Mocks.push_response({ content = Fixtures.load("purchases/purchase_page_with_payments_for_fee_join") })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_liquid") })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_preliminary") })
+    Mocks.push_response({ content = finance_promotion_raw })
+    local r2 = RefreshAccount(
+      { accountNumber = "org-sale03", currency = "EUR", balance = 0 }, 0)
+    assert.is_table(r2)
+    local sale2
+    for _, t in ipairs(r2.transactions) do
+      if t.transactionCode:find("^zettle:sale:", 1, false) then sale2 = t end
+    end
+    assert.is_not_nil(sale2, "second refresh must emit a sale transaction")
+    assert.is_true(sale2.booked,
+      "second refresh sale must be booked=true after promote_to_booked (D-56)")
+    assert.is_number(sale2.valueDate,
+      "second refresh sale must have a numeric valueDate after promotion")
+    -- transactionCode must be byte-identical (idempotency anchor; D-39)
+    assert.equals(sale1.transactionCode, sale2.transactionCode,
+      "transactionCode must remain byte-identical across promotion (D-39 stability)")
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- ERR-06 — fail-whole-refresh on Finance API leg errors
+  -- -------------------------------------------------------------------------
+
+  it("ERR-06: 500 on liquid balance call -> RefreshAccount returns error string (fail-whole-refresh)", function()
+    seed_token("org-err06a")
+    -- Queue purchase OK + non-JSON liquid (forces (nil, nil, raw) -> network err).
+    -- Preliminary and finance transactions are NOT queued; they must never be called.
+    Mocks.push_response({ content = Fixtures.load("purchases/purchase_simple_sale") })
+    Mocks.push_response({ content = "this is not json" })
+    local result = RefreshAccount(
+      { accountNumber = "org-err06a", currency = "EUR", balance = 0 }, 0)
+    assert.is_string(result, "must return error string on liquid balance failure")
+    assert.is_truthy(#result > 0, "error string must be non-empty")
+  end)
+
+  it("ERR-06: 500 on Finance transactions call -> RefreshAccount returns error string", function()
+    seed_token("org-err06b")
+    Mocks.push_response({ content = Fixtures.load("purchases/purchase_simple_sale") })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_liquid") })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_preliminary") })
+    Mocks.push_response({ content = "this is not json either" })
+    local result = RefreshAccount(
+      { accountNumber = "org-err06b", currency = "EUR", balance = 0 }, 0)
+    assert.is_string(result, "must return error string on Finance transactions failure")
+    assert.is_truthy(#result > 0, "error string must be non-empty")
   end)
 
 end)
