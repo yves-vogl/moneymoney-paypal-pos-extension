@@ -1,10 +1,12 @@
 ---
 phase: 04-enrichment-refunds-fees-payouts
 reviewed: 2026-06-21T12:00:00Z
+re_reviewed: 2026-06-21T22:55:00Z
 depth: deep
 branch: phase-4/enrichment
 diff_base: a201f6c
 head: c283673
+head_round2: 7bff4de
 files_reviewed: 40
 files_reviewed_list:
   - src/balance.lua
@@ -52,6 +54,12 @@ findings:
   warning: 6
   info: 4
   total: 13
+findings_round2:
+  closed: 7
+  new_high: 0
+  new_medium: 0
+  new_low: 2
+  new_total: 2
 status: findings_present
 ---
 
@@ -262,5 +270,90 @@ No `<structural_findings>` block was provided in the briefing. The narrative fin
 ---
 
 _Reviewed: 2026-06-21T12:00:00Z_
+_Reviewer: Claude (gsd-code-reviewer)_
+_Depth: deep_
+
+---
+
+## Round 2 (2026-06-21 re-review)
+
+**Re-reviewed:** 2026-06-21T22:55:00Z
+**Branch:** `phase-4/enrichment`
+**HEAD at re-review:** `7bff4de` (post-fix-batch + summary commit)
+**Commits in scope:** `f804e97..7bff4de` (the 04-07 fix-batch + docs commit)
+**Test suite:** 335 / 0 failures / 0 errors (verified locally)
+**Verdict:** **FINDINGS_PRESENT** — all 7 addressed items confirmed CLOSED; 2 new LOW findings introduced by the fix batch itself.
+
+### Close-verification on addressed items
+
+- **BL-01 — CLOSED via commit `f804e97`.** `src/entry.lua:307-311` now wraps `M_mapping.to_berlin_local_time(covering.timestamp_posix)` before `M_mapping.promote_to_booked`. The wrapping helper is exported at `src/mapping.lua:338-340`. Regression test `spec/entry_spec.lua:955-1014` asserts both (a) `sale.valueDate == M_mapping.to_berlin_local_time(payout_utc)` (literal value check) and (b) `sale.valueDate == payout_txn.bookingDate` (end-to-end same-convention sanity). Convention-match enforced.
+
+- **BL-02 — CLOSED via commit `b1ae8cf`.** `tools/probe-finance.sh:78-79` now uses `[[:space:]]*` POSIX class in both name-class and id-class rules. A smoke test (`_probe_finance_smoke_test`) defined at lines 84-131 runs unconditionally at script-load time (invocation at line 132), exercising name (space-around-colon), userId (compact), UUID, and an over-redaction specificity check; aborts with `exit 3` and a `FATAL` banner if any branch regresses. Documentation comment at lines 70-77 explains the BSD-vs-GNU sed pitfall for future maintainers.
+
+- **BL-03 — CLOSED via commit `6c12da4`.** ADR-0004 gained a load-bearing "Known Limitation — cross-refresh fee re-classification" subsection (50 lines; spells out what Option B enforces, what it can't, user mitigations, and the Option A escape hatch). README "Bekannte Grenzen" section added (3 German bullets including the BL-03 case with manual-cleanup instruction pointing at the user-visible name "PayPal POS Transaktionsgebühren"). `spec/refresh_idempotency_spec.lua` split case 4 into 4a (within-refresh stability) and 4b (cross-refresh divergence enumeration); case 4b at lines 419-474 cleanly isolates the BL-03 case — queues two distinct fixture sets (`purchase_simple_sale`+`finance_payment_fee_unlinked` for refresh 1, then `purchase_for_double_book_test`+`finance_payment_fee_LINKED_for_double_book_test` for refresh 2), asserts the aggregate appears in r1, the per-sale code appears in r2, the aggregate is NOT re-emitted in r2, AND the per-sale code did NOT exist in r1. The test description explicitly flags "**NOT prevented in v0.2.0; ADR-0004 known-limitation contract**" so future contributors cannot mistake it for a regression test that's expected to harden. The in-code comment at `src/entry.lua:329-336` now references ADR-0004 + case 4a/4b explicitly. Two new fixtures audited: well-formed JSON, no PII, idiomatic `_source` provenance comment, and intentional shared UUID (`aaaaaaaa-...`) across the two fixtures so the linkage upgrade is mechanically reproducible.
+
+- **WR-01 — CLOSED via commit `4fe3a2a`.** `src/finance.lua:148` now computes `local end_posix = os.time() + 60` ONCE before the iterator starts and threads it through every page via the closure at line 150. `M_finance.fetch` grew an optional `end_posix` 4th argument (line 118), with legacy default `os.time() + 60` preserved at line 127 for direct callers. Regression test in `spec/finance_spec.lua` asserts the contract that the URL emits exactly the passed `end_posix` value.
+
+- **WR-02 — CLOSED via commits `5bde30c` + `14625ef` (cleanup).** `spec/refresh_log_redaction_spec.lua:249-263` introduces `longest_matching_prefix(code)` that scans `ALLOWED_PREFIXES` and returns the entry with the maximum body length (computed correctly with `#p`, ties handled by first-seen but no ties exist in the closed 5-entry set). The "seen_prefixes" walk at lines 320-330 now bucketises by longest-match only, so the "all 5 buckets non-empty" assertion at line 334 genuinely requires both `^zettle:fee:` and `^zettle:fee:aggregate:` to be populated independently. Mechanism is stable, not a brittle workaround. The follow-up commit `14625ef` correctly drops the (now-unused) `matches_allowed_prefix` thin wrapper — also no luacheck regression.
+
+- **WR-03 — CLOSED via commit `6119035`.** `src/entry.lua:412-422` restructured: first reads `account_state.balance`; if nil, falls back to `account.balance` AND emits `M_log.warn("RefreshAccount: liquid balance unavailable from Finance API (non-EUR currency?); falling back to MoneyMoney's cached account.balance")`. The WARN is a static string with no dynamic interpolation, so it is **redaction-safe** (no SEC-03 risk). R-4 test extended to assert the WARN is captured.
+
+- **WR-05 — CLOSED via commit `f598f84`.** `src/mapping.lua:188-189` normalises `card_type_upper = card_type:upper()` before `BRAND_MAP[card_type_upper]` lookup, mirroring the convention `_format_purpose` already used at line 286. New regression test in `spec/mapping_spec.lua` feeds mixed-case `cardType="Visa"` and asserts both `name` and `purpose` render "Visa" consistently.
+
+### New findings introduced by the fix batch
+
+#### R2-01 (LOW) — S-04's 32-byte `cardType` cap is missing in the sibling `_format_label` unknown-brand fallback
+
+**File:** `src/mapping.lua:174, 192`
+**Severity:** LOW (defence-in-depth gap; same threat class as the fix that closed it elsewhere)
+**Issue:** Commit `8b98065` (S-04) capped `attrs.cardType` and `attrs.cardPaymentEntryMode` at 32 bytes in `_format_purpose`'s card-tail block (lines 287-295). The sibling function `_format_label` reads `local card_type = attrs.cardType` at line 174 with **no cap**, then at line 192 (unknown-brand fallback) concatenates the full string via `card_type:sub(1, 1):upper() .. card_type:sub(2):lower()` into `brand`, which flows into `txn.name`. A pathological 100KB `cardType` from a compromised CDN would bloat the sale's `name` field per transaction — exactly the attack S-04 deemed worth defending against in `_format_purpose`. The known-brand path (line 189) is safe because `BRAND_MAP[card_type_upper]` lookup returns the short brand string, but only as long as Zettle keeps shipping a finite enumeration of card types.
+
+**Fix:** Cap once at the top of `_format_label` right after the `#card_type == 0` guard: `card_type = card_type:sub(1, 32)`. No behaviour change for the documented Zettle values (all <16 chars), forecloses the unknown-brand exfil-bloat path. Same one-line pattern as the S-04 fix; consider rolling into the deferred follow-up batch.
+
+#### R2-02 (LOW) — S-05 scheme-less hostname gate's exclusion list is broad enough to mask `entry.evil.com`-style hosts
+
+**File:** `.github/workflows/ci.yml:114`
+**Severity:** LOW (defence-in-depth gate; primary scheme-prefix gate is unaffected)
+**Issue:** Commit `b1bac98` (S-05) added a complementary TLD-pattern grep, then excluded any token starting with a known Lua namespace prefix:
+```
+grep -Ev '^(account|transaction|credential|error|purpose|http|finance|mapping|auth|entry)\.'
+```
+This subtraction is necessary (to suppress i18n keys like `account.purpose.fee_amount`) but it's structurally broad: an attacker hostname like `entry.evil.com` or `transaction.exfil.io` would land in source as a literal scheme-less host and bypass the gate because of the namespace exclusion. The TLD enumeration itself (`com|net|org|io|dev|app|cloud|sh|de|info|co|biz|me|xyz|tech`) is also finite — `.ru`, `.cn`, `.uk`, `.fr` slip through. Neither weakness is exploitable today (the scheme-prefix gate above is the primary defence and catches `https://...` and `http://...` regardless of TLD), but the secondary gate's marketing as "scheme + scheme-less" overstates its actual coverage.
+
+**Fix:** Either (a) tighten the namespace exclusion by requiring a `.lua`-style dotted path rather than a TLD-suffix match (e.g. exclude `account.purpose.*` where `purpose` is itself a known Lua sub-namespace, not any TLD-shaped trailing label), or (b) lengthen the TLD allowlist OR switch to a denylist of known non-allowlisted-host markers — either approach widens real coverage. Lowest-effort hardening: remove `entry` from the exclusion list (the only Lua i18n key it shields is in test fixtures, not in shipped `dist/`); the same applies to `http`, `finance`, `mapping`, `auth` which are internal module names that should not legitimately appear in shipped i18n string keys.
+
+### Spec quality on the new tests
+
+- **`spec/refresh_idempotency_spec.lua` case 4b** isolates the BL-03 enumeration cleanly: separate `it()` block, dedicated `org-d58-4b` token namespace (no leakage from 4a), explicit assertion that the per-sale code did NOT exist in refresh 1 (locks the cross-refresh divergence). The test description string explicitly flags "**NOT prevented in v0.2.0; ADR-0004 known-limitation contract**" — a future contributor cannot mistake this for a regression test. Strong.
+- **`spec/entry_spec.lua` BL-01 test** asserts the literal value (not just type) for `sale.valueDate` — the original review's recommended hardening. Includes a defensive sanity check `sale.valueDate == payout.bookingDate` for cross-row convention parity.
+- **`spec/mapping_spec.lua` S-01 tests** (single-rate fallback + multi-rate path with pathological keys) cover both surfaces of the range-guard. Mixed-case WR-05 test asserts both `name` and `purpose` consistency — passes the cross-function gate.
+- **`spec/entry_spec.lua` S-06 test** asserts both (a) WARN logged with UUID prefix AND (b) the refund cites the first-seen `purchaseNumber 8001` — gates the first-write-wins semantic, not just the WARN side-effect.
+
+### Fix-batch SHA spot-checks
+
+| Claimed SHA in summary | Actual `git log` SHA | Match |
+|---|---|---|
+| `f804e97` BL-01 | `f804e97` (entry.lua + entry_spec, 2 files, 78 ins) | ✓ |
+| `b1ae8cf` BL-02 | `b1ae8cf` (probe-finance.sh, 1 file) | ✓ |
+| `6c12da4` BL-03 | `6c12da4` (6 files, ADR + README + spec + 2 fixtures + entry.lua) | ✓ |
+| `cab01e1` S-01 | `cab01e1` (mapping.lua + mapping_spec) | ✓ |
+| `885f406` S-06 | `885f406` (entry.lua + entry_spec) | ✓ |
+| `554d09a` S-07 | `554d09a` (entry.lua) | ✓ |
+| `4fe3a2a` WR-01 | `4fe3a2a` (finance.lua + finance_spec) | ✓ |
+
+All 7 spot-checked SHAs match the FIX-SUMMARY table. Test-suite progression `328 → 335` confirmed.
+
+### Round 2 summary
+
+- **Items closed:** 7 of 7 (BL-01, BL-02, BL-03, WR-01, WR-02, WR-03, WR-05). All confirmed by reading the cited file ranges + the regression test that locks each fix.
+- **Items deferred (correctly per Tier-3 boundary):** WR-04, WR-06, IN-01..IN-04 — each carries follow-up handle in `04-07-FIX-SUMMARY.md`.
+- **New findings introduced by fix batch:** 2 (both LOW). Neither is a regression of the round-1 items; both are sibling-class defects in the same defence-in-depth surface as the fixes that introduced them.
+- **No round-2 HIGH or MEDIUM findings.** No round-1 BLOCKER is "still present despite being claimed fixed".
+
+The fix-batch is structurally clean: each fix carries a TDD regression test, no luacheck suppressions added, no SEC-03 redaction-safety regressions, no Phase-3 surface drift, and the new fixtures are well-formed with idiomatic provenance. The two LOW findings can roll into the next post-review batch alongside the deferred WR-04/WR-06 items.
+
+---
+
+_Re-reviewed: 2026-06-21T22:55:00Z_
 _Reviewer: Claude (gsd-code-reviewer)_
 _Depth: deep_
