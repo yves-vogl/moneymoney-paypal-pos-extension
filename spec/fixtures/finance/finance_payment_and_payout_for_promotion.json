@@ -1,0 +1,17 @@
+{
+  "_source": "github.com/iZettle/api-documentation/blob/master/finance-api/user-guides/fetch-account-transactions-v2.md — PAYMENT at 2026-06-01 covered by later PAYOUT at 2026-06-03 for D-56 promote-to-booked test (Plan 04-03)",
+  "data": [
+    {
+      "timestamp": "2026-06-01T10:00:00.000+0000",
+      "amount": 5000,
+      "originatorTransactionType": "PAYMENT",
+      "originatingTransactionUuid": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+    },
+    {
+      "timestamp": "2026-06-03T08:00:00.000+0000",
+      "amount": -4900,
+      "originatorTransactionType": "PAYOUT",
+      "originatingTransactionUuid": "ffffffff-ffff-ffff-ffff-ffffffffffff"
+    }
+  ]
+}

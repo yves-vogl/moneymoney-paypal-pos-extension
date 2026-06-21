@@ -1,0 +1,22 @@
+{
+  "_source": "github.com/iZettle/api-documentation/purchase.adoc — VAT split fixture: groupedVatAmounts decimal-string keys per RESEARCH §5.1",
+  "purchases": [
+    {
+      "purchaseUUID1": "12121212-1212-1212-1212-121212121212",
+      "amount": 2000,
+      "vatAmount": 458,
+      "currency": "EUR",
+      "timestamp": "2026-06-15T13:00:00.000+0000",
+      "purchaseNumber": 3001,
+      "refund": false,
+      "refunded": false,
+      "products": [],
+      "payments": [],
+      "groupedVatAmounts": {
+        "19.0": 318,
+        "7.0": 140
+      }
+    }
+  ],
+  "lastPurchaseHash": ""
+}

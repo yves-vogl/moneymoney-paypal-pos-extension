@@ -1,0 +1,7 @@
+{
+  "_source": "github.com/iZettle/api-documentation/blob/master/finance-api/user-guides/fetch-account-balance-v2.md",
+  "data": {
+    "totalBalance": 678,
+    "currencyId": "EUR"
+  }
+}

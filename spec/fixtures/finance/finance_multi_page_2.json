@@ -1,0 +1,17 @@
+{
+  "_source": "github.com/iZettle/api-documentation/blob/master/finance-api/user-guides/fetch-account-transactions-v2.md — partial page after finance_multi_page_1.json; pagination_offset_spec terminates loop here",
+  "data": [
+    {
+      "timestamp": "2026-06-03T10:00:00.000+0000",
+      "amount": 1500,
+      "originatorTransactionType": "PAYMENT",
+      "originatingTransactionUuid": "00000000-0000-0000-0000-000000000004"
+    },
+    {
+      "timestamp": "2026-06-03T10:00:01.000+0000",
+      "amount": -29,
+      "originatorTransactionType": "PAYMENT_FEE",
+      "originatingTransactionUuid": "00000000-0000-0000-0000-000000000004"
+    }
+  ]
+}

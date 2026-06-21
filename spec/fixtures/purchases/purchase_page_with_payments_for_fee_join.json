@@ -1,0 +1,32 @@
+{
+  "_source": "github.com/iZettle/api-documentation/purchase.adoc — purchase with payments[1].uuid matching finance_payment_with_fee_linkage.json originatingTransactionUuid for FEE-01 end-to-end join test",
+  "purchases": [
+    {
+      "purchaseUUID1": "20202020-2020-2020-2020-202020202020",
+      "amount": 479300,
+      "vatAmount": 76528,
+      "currency": "EUR",
+      "timestamp": "2026-06-04T12:00:00.000+0000",
+      "purchaseNumber": 2001,
+      "refund": false,
+      "refunded": false,
+      "products": [],
+      "payments": [
+        {
+          "uuid": "cccccccc-cccc-cccc-cccc-cccccccccccc",
+          "type": "IZETTLE_CARD",
+          "amount": 479300,
+          "gratuityAmount": 0,
+          "attributes": {
+            "cardType": "VISA",
+            "maskedPan": "411111******1111"
+          }
+        }
+      ],
+      "groupedVatAmounts": {
+        "19.0": 76528
+      }
+    }
+  ],
+  "lastPurchaseHash": ""
+}

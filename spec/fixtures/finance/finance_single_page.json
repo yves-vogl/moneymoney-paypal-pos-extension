@@ -1,0 +1,23 @@
+{
+  "_source": "github.com/iZettle/api-documentation/blob/master/finance-api/user-guides/fetch-account-transactions-v2.md",
+  "data": [
+    {
+      "timestamp": "2026-06-01T10:30:00.000+0000",
+      "amount": 479300,
+      "originatorTransactionType": "PAYMENT",
+      "originatingTransactionUuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    },
+    {
+      "timestamp": "2026-06-01T10:30:01.000+0000",
+      "amount": -8867,
+      "originatorTransactionType": "PAYMENT_FEE",
+      "originatingTransactionUuid": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
+    },
+    {
+      "timestamp": "2026-06-02T08:00:00.000+0000",
+      "amount": -470433,
+      "originatorTransactionType": "PAYOUT",
+      "originatingTransactionUuid": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+    }
+  ]
+}
