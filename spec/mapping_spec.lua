@@ -151,6 +151,39 @@ describe("M_mapping", function()
       "card name must be 'Visa •••• 1111', got: " .. tostring(txn.name))
   end)
 
+  it("WR-05: _format_label and _format_purpose card-tail produce same brand for mixed-case cardType", function()
+    -- WR-05 (REVIEW): _format_label used BRAND_MAP[card_type] (raw) while
+    -- _format_purpose used BRAND_MAP[card_type:upper()]. If Zettle ever sent
+    -- "Visa" or "visa" instead of "VISA", the sale name and purpose tail would
+    -- carry mismatched brand spellings. After the fix both must agree.
+    local p = {
+      purchaseUUID1 = "ca5eca5e-ca5e-ca5e-ca5e-ca5eca5eca5e",
+      amount = 1500, vatAmount = 0, currency = "EUR",
+      timestamp = "2026-06-15T10:00:00.000+0000",
+      purchaseNumber = 9001,
+      payments = {
+        {
+          uuid = "p-ca5e",
+          amount = 1500, gratuityAmount = 0, type = "IZETTLE_CARD",
+          attributes = {
+            cardType = "Visa",            -- mixed case (Zettle could in theory return this)
+            maskedPan = "411111******1111",
+            cardPaymentEntryMode = "CONTACTLESS_EMV",
+          },
+        },
+      },
+      groupedVatAmounts = {},
+    }
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn)
+    -- name comes from _format_label
+    assert.is_truthy(txn.name:find("Visa ", 1, true),
+      "WR-05: sale name must use BRAND_MAP['VISA']='Visa', got: " .. tostring(txn.name))
+    -- purpose card-tail comes from _format_purpose
+    assert.is_truthy(txn.purpose:find("Zahlart: Visa", 1, true),
+      "WR-05: purpose card-tail must also say 'Visa', got: " .. tostring(txn.purpose))
+  end)
+
   -- -------------------------------------------------------------------------
   -- I18N-01 / D-34 / purpose format
   -- -------------------------------------------------------------------------

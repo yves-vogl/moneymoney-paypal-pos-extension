@@ -180,7 +180,13 @@ local function _format_label(payments)
   if type(masked_pan) ~= "string" or #masked_pan < 4 then
     return M_i18n.t("account.name.card_payment")
   end
-  local brand = BRAND_MAP[card_type]
+  -- WR-05 (REVIEW): normalise case before BRAND_MAP lookup so _format_label
+  -- and _format_purpose's card-tail (which already does :upper() at line 286)
+  -- produce byte-identical brand strings for the same purchase. Today Zettle
+  -- delivers uppercase cardType values; this guards against a future API
+  -- change that ships mixed-case (e.g. "Visa" or "visa").
+  local card_type_upper = card_type:upper()
+  local brand = BRAND_MAP[card_type_upper]
   if not brand then
     -- Unknown brand: capitalize literal (e.g. DISCOVER -> Discover)
     brand = card_type:sub(1, 1):upper() .. card_type:sub(2):lower()
