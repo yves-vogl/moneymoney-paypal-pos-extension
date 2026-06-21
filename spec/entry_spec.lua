@@ -1002,6 +1002,84 @@ describe("RefreshAccount Phase-4 pipeline (ACCT-03 / REF-02 / FEE-01-03 / PAYOUT
   end)
 
   -- -------------------------------------------------------------------------
+  -- S-06 (SEC MEDIUM): duplicate purchaseUUID1 on the same page must not
+  -- silently overwrite the cross-refresh index. First-write-wins policy
+  -- with a German WARN log so the user-trust failure (refund pointing at the
+  -- wrong original sale) becomes observable in the log stream.
+  -- -------------------------------------------------------------------------
+
+  it("S-06: duplicate purchaseUUID1 logs a German WARN and applies first-write-wins", function()
+    seed_token("org-s06a")
+    -- Two purchases share purchaseUUID1; first has purchaseNumber 8001, second 8002.
+    -- The third record is a refund pointing at the shared UUID — under first-write-wins,
+    -- the refund must cite Beleg #8001 (the first-seen sale), not 8002.
+    local purchases_raw = [[{
+      "purchases": [
+        {
+          "purchaseUUID1": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+          "amount": 1000, "vatAmount": 0, "currency": "EUR",
+          "timestamp": "2026-06-15T10:00:00.000+0000",
+          "purchaseNumber": 8001, "refund": false, "refunded": false,
+          "products": [], "payments": [], "groupedVatAmounts": {}
+        },
+        {
+          "purchaseUUID1": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+          "amount": 2000, "vatAmount": 0, "currency": "EUR",
+          "timestamp": "2026-06-15T11:00:00.000+0000",
+          "purchaseNumber": 8002, "refund": false, "refunded": false,
+          "products": [], "payments": [], "groupedVatAmounts": {}
+        },
+        {
+          "purchaseUUID1": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+          "amount": -1000, "vatAmount": 0, "currency": "EUR",
+          "timestamp": "2026-06-15T12:00:00.000+0000",
+          "purchaseNumber": 8003, "refund": true, "refunded": false,
+          "refundsPurchaseUUID1": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+          "products": [], "payments": [], "groupedVatAmounts": {}
+        }
+      ],
+      "lastPurchaseHash": ""
+    }]]
+    Mocks.push_response({ content = purchases_raw })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_liquid") })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_preliminary") })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_empty") })
+
+    local result = RefreshAccount(
+      { accountNumber = "org-s06a", currency = "EUR", balance = 0 }, 0)
+    assert.is_table(result, "RefreshAccount must succeed despite duplicate UUID")
+
+    -- WARN log must have been emitted for the duplicate.
+    local saw_warn = false
+    for _, line in ipairs(Mocks._captured_prints or {}) do
+      if type(line) == "string"
+          and line:find("WARN", 1, true)
+          and line:find("purchaseUUID1", 1, true)
+          and line:find("dddddddd", 1, true) then
+        saw_warn = true
+      end
+    end
+    assert.is_true(saw_warn,
+      "S-06: must log a German WARN on duplicate purchaseUUID1; captured prints: "
+      .. table.concat(Mocks._captured_prints or {}, " || "))
+
+    -- First-write-wins: the refund's purpose must cite Beleg #8001, NOT #8002.
+    local refund_txn
+    for _, t in ipairs(result.transactions) do
+      if type(t.transactionCode) == "string"
+          and t.transactionCode:find("^zettle:refund:", 1, false) then
+        refund_txn = t
+      end
+    end
+    assert.is_not_nil(refund_txn, "refund txn must be emitted")
+    assert.is_truthy(refund_txn.purpose:find("Beleg #8001", 1, true),
+      "S-06 first-write-wins: refund must cite first-seen purchaseNumber 8001, got: "
+      .. refund_txn.purpose)
+    assert.is_falsy(refund_txn.purpose:find("Beleg #8002", 1, true),
+      "S-06: refund must NOT cite the overwritten purchaseNumber 8002")
+  end)
+
+  -- -------------------------------------------------------------------------
   -- ERR-06 — fail-whole-refresh on Finance API leg errors
   -- -------------------------------------------------------------------------
 

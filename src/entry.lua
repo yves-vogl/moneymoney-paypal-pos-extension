@@ -190,7 +190,18 @@ function RefreshAccount(account, since) -- luacheck: ignore 431
   local purchases_by_uuid = {}
   for _, p in ipairs(purchases or {}) do
     if type(p) == "table" and type(p.purchaseUUID1) == "string" and #p.purchaseUUID1 > 0 then
-      purchases_by_uuid[p.purchaseUUID1] = p
+      -- S-06 (SEC MEDIUM): first-write-wins guard. Silently overwriting a
+      -- duplicate purchaseUUID1 entry would resolve refund cross-references
+      -- to the wrong original sale (bookkeeping-integrity failure). Log a
+      -- WARN with a fragment of the UUID so the user sees the conflict in
+      -- their MoneyMoney status log; keep the first-seen record (more
+      -- likely the canonical entry in a Zettle backfill scenario).
+      if purchases_by_uuid[p.purchaseUUID1] == nil then
+        purchases_by_uuid[p.purchaseUUID1] = p
+      else
+        M_log.warn("RefreshAccount: duplicate purchaseUUID1 on same page; "
+          .. "first-write-wins (uuid prefix=" .. p.purchaseUUID1:sub(1, 8) .. ")")
+      end
     end
   end
 
@@ -208,7 +219,15 @@ function RefreshAccount(account, since) -- luacheck: ignore 431
         if type(payment) == "table"
             and type(payment.uuid) == "string"
             and #payment.uuid > 0 then
-          payments_by_uuid[payment.uuid] = purchase
+          -- S-06 (SEC MEDIUM): first-write-wins guard. A duplicate
+          -- payments[].uuid would mis-link a fee to the wrong sale's
+          -- receipt in the fee purpose text (FEE-01 join).
+          if payments_by_uuid[payment.uuid] == nil then
+            payments_by_uuid[payment.uuid] = purchase
+          else
+            M_log.warn("RefreshAccount: duplicate payments[].uuid on same page; "
+              .. "first-write-wins (uuid prefix=" .. payment.uuid:sub(1, 8) .. ")")
+          end
         end
       end
     end
@@ -256,7 +275,17 @@ function RefreshAccount(account, since) -- luacheck: ignore 431
   -- (which equals the originating purchase's payments[].uuid per RESEARCH §3.2).
   local fin_payments_by_uuid = {}
   for _, fp in ipairs(fin_payments) do
-    fin_payments_by_uuid[fp.originatingTransactionUuid] = fp
+    -- S-06 (SEC MEDIUM): first-write-wins guard. A duplicate Finance
+    -- PAYMENT originatingTransactionUuid would cause SALE-03 promotion
+    -- to associate the sale with the wrong PAYMENT timestamp (and thus
+    -- with the wrong covering PAYOUT's valueDate).
+    if fin_payments_by_uuid[fp.originatingTransactionUuid] == nil then
+      fin_payments_by_uuid[fp.originatingTransactionUuid] = fp
+    else
+      M_log.warn("RefreshAccount: duplicate Finance PAYMENT originatingTransactionUuid; "
+        .. "first-write-wins (uuid prefix="
+        .. tostring(fp.originatingTransactionUuid):sub(1, 8) .. ")")
+    end
   end
 
   -- Step 12: map purchases -> sale / refund transactions.
