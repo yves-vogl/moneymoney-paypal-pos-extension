@@ -70,12 +70,72 @@ PRELIM_BAL_URL="${HOST}/v2/accounts/preliminary/balance"
 
 # Redaction filter — replaces UUID-shaped, email-shaped, and obvious
 # merchant-name fields with placeholders so the printed body is ADR-safe.
+#
+# BL-02 (REVIEW): The whitespace shorthand `\s` is a PCRE/GNU-sed extension
+# that BSD sed (macOS default — the platform this script targets) does NOT
+# recognise inside `-E` ERE. The POSIX `[[:space:]]` character class works
+# on both BSD sed and GNU sed and is the portable equivalent.
+# Smoke-tested on macOS 25.5.0 BSD sed:
+#   echo '{"name" : "X"}' | sed -E 's/("(name)"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"<REDACTED>"/g'
+#   -> {"name" : "<REDACTED>"}   ✓
 redact() {
   sed -E \
     -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/<UUID-REDACTED>/g' \
-    -e 's/("(merchantName|userDisplayName|organizationName|name|email|displayName)"\s*:\s*)"[^"]*"/\1"<REDACTED>"/g' \
-    -e 's/("(organizationId|userId|orgId)"\s*:\s*)"[^"]*"/\1"<REDACTED>"/g'
+    -e 's/("(merchantName|userDisplayName|organizationName|name|email|displayName)"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"<REDACTED>"/g' \
+    -e 's/("(organizationId|userId|orgId)"[[:space:]]*:[[:space:]]*)"[^"]*"/\1"<REDACTED>"/g'
 }
+
+# BL-02 smoke test (runs at script load time; aborts if redactor fails).
+# Catches the BSD-vs-GNU sed gotcha if a future contributor reverts the
+# POSIX class back to `\s`. Uses a known PII string covering all three
+# patterns: UUID, name-class, id-class.
+_probe_finance_smoke_test() {
+  # Sample exercises all three regex branches:
+  #   - name (jq pretty-print style, with literal space after colon)
+  #   - userId (compact style, no space after colon)
+  #   - bare UUID embedded in a non-redacted-key value (must hit UUID rule)
+  local sample='{"name" : "Alice Tester","userId":"abc-test-id","trace":"12345678-1234-1234-1234-123456789abc","random":"keepme"}'
+  local got
+  got="$(printf '%s' "${sample}" | redact)"
+  # name (with space-around-colon, the BSD vs GNU sed gotcha) MUST be redacted.
+  case "${got}" in
+    *'"name" : "<REDACTED>"'*) : ;;
+    *)
+      echo "FATAL: probe-finance.sh redact() smoke test FAILED — 'name' not redacted." >&2
+      echo "       Got: ${got}" >&2
+      echo "       Likely cause: sed does not honour [[:space:]]; revert is broken." >&2
+      exit 3
+      ;;
+  esac
+  # userId (no space, id-class pattern) MUST be redacted.
+  case "${got}" in
+    *'"userId":"<REDACTED>"'*) : ;;
+    *)
+      echo "FATAL: probe-finance.sh redact() smoke test FAILED — 'userId' not redacted." >&2
+      echo "       Got: ${got}" >&2
+      exit 3
+      ;;
+  esac
+  # Bare UUID in 'trace' field MUST be replaced.
+  case "${got}" in
+    *'<UUID-REDACTED>'*) : ;;
+    *)
+      echo "FATAL: probe-finance.sh redact() smoke test FAILED — UUID not redacted." >&2
+      echo "       Got: ${got}" >&2
+      exit 3
+      ;;
+  esac
+  # Random key must NOT be redacted (specificity check).
+  case "${got}" in
+    *'"random":"keepme"'*) : ;;
+    *)
+      echo "FATAL: probe-finance.sh redact() over-redacted; random key was modified." >&2
+      echo "       Got: ${got}" >&2
+      exit 3
+      ;;
+  esac
+}
+_probe_finance_smoke_test
 
 probe_one() {
   local label="$1"
