@@ -148,6 +148,16 @@ local BRAND_MAP = {
 -- U+2022 BULLET = "\xe2\x80\xa2" (UTF-8)
 local BULLET = "\xe2\x80\xa2"
 
+-- D-57 / SALE-07: API value -> i18n key suffix for cardPaymentEntryMode (RESEARCH §6.2).
+-- Any value not in the map falls through to "unknown" (-> "unbekannt" in DE per i18n.lua).
+local ENTRY_MODE_MAP = {
+  CONTACTLESS_EMV = "kontaktlos",
+  ICC             = "chip",
+  MSR             = "swipe",
+  ECOMMERCE       = "ecommerce",
+  MANUAL          = "manual",
+}
+
 local function _format_label(payments)
   -- Guard: payments must be a non-empty table with a first element
   if type(payments) ~= "table" then
@@ -200,12 +210,38 @@ local function _format_purpose(p, opts)
   -- Brutto (always)
   lines[#lines + 1] = M_i18n.t("account.purpose.gross", _format_amount(p.amount or 0))
 
-  -- MwSt: show when vatAmount ~= 0 (covers both positive sales and negative refunds).
-  -- HI-01: using ~= 0 instead of > 0 ensures the VAT line appears on refunds
-  -- with negative vatAmount, which German UStG-Voranmeldung requires.
+  -- D-53 / META-01: per-rate VAT block when groupedVatAmounts has >=2 entries.
+  -- Else fall through to Phase-3 single MwSt line (preserves byte-identity for
+  -- single-rate / empty-map / no-VAT fixtures per RESEARCH §Pitfall 8).
   local vat = type(p.vatAmount) == "number" and p.vatAmount or 0
-  if vat ~= 0 then
-    lines[#lines + 1] = M_i18n.t("account.purpose.vat", _format_amount(vat))
+  local gva = type(p.groupedVatAmounts) == "table" and p.groupedVatAmounts or {}
+  local rate_entries = {}
+  for k, v in pairs(gva) do
+    -- tonumber accepts both "19.0" decimal-string AND "19" integer-string (R-5 defensive).
+    local rate_num = tonumber(k)
+    if rate_num and type(v) == "number" then
+      rate_entries[#rate_entries + 1] = { rate = rate_num, amount = v }
+    end
+  end
+  if #rate_entries >= 2 then
+    -- META-01 multi-rate path: sort descending by rate, emit one line per rate.
+    -- Format: "<rate>% MwSt: <amount_de> EUR" (literal EUR, distinct from
+    -- the Phase-3 single-line "MwSt: <amount> €" to make the per-rate path greppable).
+    table.sort(rate_entries, function(a, b) return a.rate > b.rate end)
+    for _, e in ipairs(rate_entries) do
+      local rate_display
+      if e.rate == math.floor(e.rate) then
+        rate_display = string.format("%d", e.rate)
+      else
+        rate_display = string.format("%g", e.rate)
+      end
+      lines[#lines + 1] = rate_display .. "% MwSt: " .. _format_amount(e.amount) .. " EUR"
+    end
+  else
+    -- Phase-3 single-VAT fallback (HI-01: ~= 0 so negative refund VAT also renders).
+    if vat ~= 0 then
+      lines[#lines + 1] = M_i18n.t("account.purpose.vat", _format_amount(vat))
+    end
   end
 
   -- Trinkgeld (only when sum of payments[].gratuityAmount > 0)
@@ -226,6 +262,45 @@ local function _format_purpose(p, opts)
   -- We compute net as: amount - vat - tip_sum regardless of sign.
   local net = (p.amount or 0) - vat - tip_sum
   lines[#lines + 1] = M_i18n.t("account.purpose.net", _format_amount(net))
+
+  -- D-57 / SALE-07: card-brand + entry-mode tail line (between Netto and Beleg).
+  -- Both fields present  -> "Zahlart: <brand_de> (<entry_mode_de>)"
+  -- Only cardType        -> "Zahlart: <brand_de>"
+  -- Only entry-mode      -> "Zahlart: Kartenzahlung (<entry_mode_de>)"
+  -- Neither              -> line OMITTED entirely (no "unbekannt (unbekannt)" noise).
+  do
+    local first_payment = type(p.payments) == "table" and p.payments[1] or nil
+    local attrs = type(first_payment) == "table" and first_payment.attributes or nil
+    local card_type, entry_mode
+    if type(attrs) == "table" then
+      if type(attrs.cardType) == "string" and #attrs.cardType > 0 then
+        card_type = attrs.cardType
+      end
+      if type(attrs.cardPaymentEntryMode) == "string" and #attrs.cardPaymentEntryMode > 0 then
+        entry_mode = attrs.cardPaymentEntryMode
+      end
+    end
+    if card_type or entry_mode then
+      local brand_de
+      if card_type then
+        brand_de = BRAND_MAP[card_type:upper()]
+        if not brand_de then
+          -- Unknown brand: capitalize literal (Phase-3 BRAND_MAP fallback convention).
+          brand_de = card_type:sub(1, 1):upper() .. card_type:sub(2):lower()
+        end
+      else
+        -- Entry-mode only: fall back to generic "Kartenzahlung" brand label.
+        brand_de = M_i18n.t("account.name.card_payment")
+      end
+      if entry_mode then
+        local mode_key = ENTRY_MODE_MAP[entry_mode:upper()] or "unknown"
+        local mode_de = M_i18n.t("account.purpose.payment_method." .. mode_key)
+        lines[#lines + 1] = "Zahlart: " .. brand_de .. " (" .. mode_de .. ")"
+      else
+        lines[#lines + 1] = "Zahlart: " .. brand_de
+      end
+    end
+  end
 
   -- Beleg #<purchaseNumber> (always — final line)
   lines[#lines + 1] = M_i18n.t("account.purpose.receipt_number", tostring(p.purchaseNumber or ""))
