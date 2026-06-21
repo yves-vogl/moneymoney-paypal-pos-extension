@@ -33,31 +33,31 @@ progress:
 
 ## Current Position
 
-Phase: 03 (sale-spine-first-user-visible-slice) — **SPINE MERGED, verifier report shipping**
-**Status:** Phase-3 spine + post-review fix batch (S/HI/ME findings) squash-merged via PR #8 (`a11287d` on main 2026-06-20). Verifier report (`03-VERIFICATION.md`) shipping in a follow-up PR.
-**Progress:** `[████████████░░░░░░░░] Phase 3 spine on main; Phase 4 unblocked once verifier PR merges`
+Phase: 04 (enrichment-refunds-fees-payouts) — **CONTEXT DRAFTED (autonomous), awaiting Yves on Q3 + Pay/Compliance**
+**Status:** Phase 3 fully merged to main (spine + post-review fixes via PR #8 `a11287d`; verifier report via PR #10 `a201f6c`). Phase 4 context drafted on `phase-4/enrichment` branch as `04-CONTEXT.md` with D-46..D-60 + 3 explicit Yves-blockers queued.
+**Progress:** `[████████████████░░░░] 3/7 phases shipped; Phase 4 in PLANNING (CONTEXT drafted, awaiting Yves unblock)`
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
 Phase 2: Authenticated Network Layer       [DONE ✅ — merged via PR #6 + Lows PR #7]
-Phase 3: Sale Spine                        [SPINE MERGED ✅ via PR #8 — verifier report in follow-up PR]
-Phase 4: Enrichment                        [READY — spine on main; discuss-phase next]
+Phase 3: Sale Spine                        [DONE ✅ — merged via PR #8 spine + PR #10 verifier closure]
+Phase 4: Enrichment                        [PLANNING — 04-CONTEXT.md drafted, 3 Yves-blockers queued]
 Phase 5: Resilience & Error Handling       [BLOCKED on Phase 4]
 Phase 6: Release & Polish                  [BLOCKED on Phase 5]
 Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
-**Branch state:** PR #9 was opened against main with 45 commits, but conflicted because PR #8 had already squash-merged the same 39 source commits — both versions of the same content on different SHAs produced a synthetic 3-way merge conflict. PR #9 was closed; a clean `phase-3/post-review-fixes` branch was opened from current main with only the genuinely missing artifact (`03-VERIFICATION.md`) cherry-picked on. Verifier verdict: 10/10 must-haves PASSED, READY-TO-MERGE; busted 203/0/0/0; reproducible build SHA `344011f9…`; luacheck clean; coverage 99.23 %. Lesson recorded in memory: open Phase PRs before squash-merging the same branch from a different SHA. Memory `feedback_gpg_signed_pr_merge` still governs merge method (`--squash` mandatory).
+**Branch state:** On `phase-4/enrichment` (created 2026-06-21 from `origin/main` @ `a201f6c`). 1 local commit: `1578b75 docs(04): capture phase 4 enrichment context (autonomous draft)`. Not yet pushed — held local until Yves reviews the 3 queued blockers (Q3 host probe, D-49 fee-fallback contract, D-55 META-03 forbidden-strings list). PR reconciliation lessons recorded in memory `feedback_post_squash_no_repr`. Memory `feedback_gpg_signed_pr_merge` still governs merge method (`--squash` mandatory).
 
-**Phase-3 captured decisions (CONTEXT.md):**
+**Phase-3 captured decisions** (still authoritative; D-31..D-45 inherited by Phase 4): see `.planning/phases/03-sale-spine-first-user-visible-slice/03-CONTEXT.md`.
 
-- **D-31** Pending/booked: all Phase-3 sales emit `booked=false`; Phase 4 promotes via same `transactionCode`.
-- **D-32** Refunds: own negative transaction `zettle:refund:<purchaseUUID1>`; original sale unchanged.
-- **D-33** First-refresh pagination: clamp `since` to max 90 days back; README documents.
-- **D-36 (Claude's discretion)** `bookingDate`: Europe/Berlin DST-aware via hardcoded EU rules table (2020–2040).
-- **D-34/D-35** purpose/name German bookkeeping format.
-- **D-37** Multi-currency defensive: skip non-EUR purchases silently with INFO log.
-- See `.planning/phases/03-sale-spine-first-user-visible-slice/03-CONTEXT.md` for D-31..D-45 full text.
+**Phase-4 Yves blockers** (queued — autonomous window cannot resolve):
+
+- **Q3** Live probe of `https://finance.izettle.com/v2/accounts/liquid/transactions` with sandbox API key; flip ADR-0003 Q3 from DEFERRED → ACCEPTED. Plan 04-01 (Wave 0) is exactly this single task.
+- **D-49** Pay/Compliance sign-off on fee-fallback contract: aggregate persistence wins over linkage upgrades (slightly lossy fee linkage in exchange for hard dedup; once aggregated for a date, never re-emitted as per-sale rows).
+- **D-55** Pay/Compliance sign-off on META-03 forbidden-strings list (13 phrases drafted; permanent invariant once locked).
+
+See `.planning/phases/04-enrichment-refunds-fees-payouts/04-CONTEXT.md` for full D-46..D-60 text.
 
 ---
 
