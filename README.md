@@ -24,6 +24,48 @@ Wer den Fortschritt verfolgen oder mitwirken möchte: ⭐ das Repository markier
 > _Hier erscheint nach `v0.1.0` ein Screenshot der Extension in MoneyMoney._
 > <!-- TODO: screenshot/demo GIF after v0.1.0 -->
 
+<!-- lektor-review: pending — die v0.2.0-Abschnitte unten ("Was die Extension jetzt kann", "Was die Extension nicht macht", "Inbetriebnahme bei bestehendem v0.1.0 API-Key") sind als Engineering-Draft per Plan 04-06 Task 3 verfasst; ein finaler Lektorats-Durchgang ist als Yves-Checkpoint nach dem Merge eingeplant. -->
+
+---
+
+## Was die Extension jetzt kann
+
+Mit `v0.2.0` zeigt die Extension folgende Daten aus PayPal POS / Zettle direkt in MoneyMoney:
+
+- Vollständige Buchhaltungssicht: Auszahlungen, Gebühren, MwSt-Aufschlüsselung sowie beglichene und offene Salden in einem Konto.
+- Refunds verlinken zum ursprünglichen Beleg — die Belegnummer des Original-Verkaufs steht im Verwendungszweck der Rückerstattungsbuchung.
+- Pro Kartenzahlung: Kartentyp und Zahlungsart (kontaktlos, Chip, online) im Verwendungszweck.
+- MwSt-Aufschlüsselung pro Satz, wenn das Unternehmen mit gemischten Sätzen arbeitet (z.B. 19 % auf Speisen vor Ort, 7 % zum Mitnehmen).
+- Abgeschlossene Verkäufe werden mit Wertstellungsdatum (dem Auszahlungstag) gebucht, sobald die Auszahlung im Finance-API sichtbar ist.
+
+---
+
+## Was die Extension nicht macht
+
+Die Extension beschränkt sich auf die Darstellung der PayPal-POS-Daten in MoneyMoney. Sie nimmt explizit keine Bewertungen vor, die der Steuerberatung obliegen:
+
+- Wir nehmen keine steuerrechtliche Bewertung von Umsätzen oder Trinkgeldern vor.
+- Wir bestätigen keine GoBD-Bewertung.
+- Wir erstellen keine USt-Voranmeldung.
+- Wir ersetzen den Steuerberater nicht.
+
+Die exportierten Daten sind als Grundlage für die Buchhaltung gedacht — die Einordnung selbst bleibt in der Verantwortung der jeweiligen Fachperson.
+
+---
+
+## Inbetriebnahme bei bestehendem v0.1.0 API-Key
+
+Wer bereits einen API-Key aus `v0.1.0` verwendet, braucht für `v0.2.0` einen neuen Schlüssel mit erweitertem Berechtigungsumfang. Grund: das Finance-API (Auszahlungen, Gebühren, Salden) erfordert die zusätzliche Berechtigung `READ:FINANCE`, die in `v0.1.0`-Schlüsseln nicht gesetzt war. Ohne den neuen Scope schlägt die Aktualisierung mit einem Anmelde-Fehler fehl.
+
+Schritt-für-Schritt-Anleitung:
+
+1. **Neuen Key erzeugen** unter <https://my.zettle.com/apps/api-keys?scopes=READ:PURCHASE+READ:FINANCE>. Beide Scopes — `READ:PURCHASE` **und** `READ:FINANCE` — müssen aktiviert sein.
+2. Den neuen JWT-Key kopieren (Zettle zeigt ihn nur einmal an).
+3. In MoneyMoney unter **Konten → PayPal POS → entfernen** das bestehende Konto löschen.
+4. **Konto hinzufügen → PayPal POS** wählen, den neuen Key einfügen — das Konto erscheint mit allen `v0.2.0`-Funktionen.
+
+Der alte Key kann anschließend in der Zettle-Verwaltung deaktiviert werden.
+
 ---
 
 ## Warum diese Extension
