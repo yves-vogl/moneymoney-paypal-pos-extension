@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
 status: executing
-last_updated: "2026-06-20T03:55:54.485Z"
+last_updated: "2026-06-21T08:00:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 1
   total_plans: 8
-  completed_plans: 8
+  completed_plans: 11
   percent: 14
 ---
 
@@ -33,9 +33,14 @@ progress:
 
 ## Current Position
 
-Phase: 04 (enrichment-refunds-fees-payouts) — **IN EXECUTION; Plan 04-02 (Wave-1 pure-logic) shipped 2026-06-21**
-**Status:** Phase 3 fully merged to main (spine via PR #8 `a11287d`; verifier closure via PR #10 `a201f6c`). Phase 4 planning artifacts complete + Wave-1 implementation landed: Plan 04-02 shipped 3 GPG-signed commits (`24990d9` test fixtures + RED scaffolds; `a75f6d7` offset_iterate + manifest consolidation; `c4ed80e` M_finance.parse_transaction + 4 mapping mappers + 12 i18n keys). Full suite 203 → 255 successes / 0 failures; luacheck 0/0; reproducible build sha `6bc796e66d5af246...`. Plan 04-01 (Q3 sandbox probe) still pending Yves. Plan 04-03 (Wave 2 — Finance API HTTP + cross-refresh indexes) unblocked.
-**Progress:** `[████████████████░░░░] 3/7 phases shipped; Phase 4 Wave 1 (Plan 04-02) shipped; Plan 04-01 (Yves Q3 probe) + Plans 04-03..04-06 pending`
+Phase: 04 (enrichment-refunds-fees-payouts) — **IN EXECUTION; Plans 04-02 / 04-04 / 04-03 shipped 2026-06-21**
+**Status:** Phase 3 fully merged to main (spine via PR #8 `a11287d`; verifier closure via PR #10 `a201f6c`). Phase 4 planning artifacts complete + Waves 1+2+3 implementation landed:
+- Plan 04-02 (Wave-1 pure-logic) shipped 3 GPG-signed commits (`24990d9` test fixtures + RED scaffolds; `a75f6d7` offset_iterate + manifest consolidation; `c4ed80e` M_finance.parse_transaction + 4 mapping mappers + 12 i18n keys).
+- Plan 04-04 (Wave-3 mapping enrichment) shipped 2 GPG-signed commits (`d3d1311` RED scaffolds + new fixtures; `08207a4` per-rate VAT + card-tail in _format_purpose).
+- Plan 04-03 (Wave-2 Finance HTTP + cross-refresh integration) shipped 2 GPG-signed commits (`54e6fd8` M_finance.fetch + fetch_all + fetch_account_state; `84052c3` 16-step RefreshAccount extension with purchases_by_uuid + payments_by_uuid + SALE-03 promotion + D-49 Option B + payout mapping).
+
+Full suite 203 → 300 successes / 0 failures; luacheck 0/0; reproducible build sha `d6356d5bef63708e49707587d5079c4ece7cd863057f693a18ddd09dd79f1712`. Plan 04-01 (Q3 sandbox probe) still pending Yves. Plans 04-05 (META-03 invariant + D-58 idempotency + log redaction prefix gate update) and 04-06 (release polish + Phase-3 surface audit + ADR-0004) unblocked.
+**Progress:** `[██████████████████░░] 3/7 phases shipped; Phase 4 Waves 1+2+3 shipped (Plans 04-02 / 04-03 / 04-04); Plan 04-01 (Yves Q3 probe) + Plans 04-05..04-06 pending`
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
@@ -47,16 +52,24 @@ Phase 6: Release & Polish                  [BLOCKED on Phase 5]
 Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
-**Branch state:** On `phase-4/enrichment` (created 2026-06-21 from `origin/main` @ `a201f6c`). 9 local commits (6 planning + 3 Plan-04-02 execution):
+**Branch state:** On `phase-4/enrichment` (created 2026-06-21 from `origin/main` @ `a201f6c`). 16 local commits (6 planning + 3 Plan-04-02 + 2 Plan-04-04 + 2 Plan-04-03 + 2 docs/state + 1 tools/probe):
 - `1578b75` docs(04): capture phase 4 enrichment context (autonomous draft)
 - `211da0b` docs(state): mark Phase 3 fully merged, Phase 4 context drafted
 - `0ac35b7` docs(04): research Phase 4 enrichment domain — Finance API surface, fee linkage, payout matching
 - `686df47` docs(04): map Phase 4 enrichment patterns to Phase-1/2/3 analogs
 - `26d6736` docs(04): create Phase 4 plans 04-01..04-06 across 6 waves
 - `c2d857d` docs(04): plan-check verification report — READY-FOR-EXECUTION
+- `b87426f` docs(state): Phase 4 fully planned — READY-FOR-EXECUTION
+- `50adec9` tools(04-01): add probe-finance.sh helper for Q3 sandbox closure
 - `24990d9` test(04-02): add Phase-4 fixtures + RED scaffolds for finance/pagination_offset specs
 - `a75f6d7` feat(04-02): add M_pagination.offset_iterate + consolidate manifest
 - `c4ed80e` feat(04-02): add M_finance.parse_transaction + 4 mapping mappers + 12 i18n keys
+- `d28508c` docs(04): land Yves-checkpoint decisions + Plan 04-02 summary
+- `d3d1311` test(04-04): add fixtures + RED scaffolds for META-01 per-rate VAT + SALE-07 card tail + Phase-3 snapshot
+- `08207a4` feat(04-04): per-rate VAT lines + card-brand+entry-mode tail in _format_purpose (META-01, SALE-07, D-53, D-57)
+- `54e6fd8` feat(04-03): add M_finance.fetch + fetch_all + fetch_account_state (RESEARCH §1.3, §1.4)
+- `f521105` docs(04-04): Plan 04-04 summary — per-rate VAT + card tail enrichments landed
+- `84052c3` feat(04-03): wire finance API + cross-refresh indexes into RefreshAccount
 
 Not yet pushed — held local pending Yves' review of Q3 / D-49 / D-55. Memory `feedback_gpg_signed_pr_merge` still governs merge method (`--squash` mandatory). Memory `feedback_post_squash_no_repr` records the PR #9 → #10 reconciliation lesson.
 
@@ -65,8 +78,8 @@ Not yet pushed — held local pending Yves' review of Q3 / D-49 / D-55. Memory `
 **Phase-4 Yves blockers** (queued — autonomous window cannot resolve):
 
 - **Q3** Live probe of `https://finance.izettle.com/v2/accounts/liquid/transactions` with sandbox API key; flip ADR-0003 Q3 from DEFERRED → ACCEPTED. Plan 04-01 (Wave 0) is exactly this single task.
-- **D-49** Pay/Compliance sign-off on fee-fallback contract: aggregate persistence wins over linkage upgrades (slightly lossy fee linkage in exchange for hard dedup; once aggregated for a date, never re-emitted as per-sale rows).
-- **D-55** Pay/Compliance sign-off on META-03 forbidden-strings list (13 phrases drafted; permanent invariant once locked).
+- **D-49** **RESOLVED 2026-06-21**: Option B (per-refresh date clustering) implemented per Yves checkpoint. README disclaimer queued for Plan 04-06.
+- **D-55** **RESOLVED 2026-06-21**: 13-phrase forbidden-strings list confirmed; Plan 04-05 gating spec lands the invariant.
 
 See `.planning/phases/04-enrichment-refunds-fees-payouts/04-CONTEXT.md` for full D-46..D-60 text.
 

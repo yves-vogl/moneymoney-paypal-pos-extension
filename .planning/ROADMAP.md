@@ -139,15 +139,15 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
 
 **Wave 1** *(blocked on no plan; runs in parallel with Wave 0 against the research-recommended host)*
 
-- [ ] 04-02-PLAN.md — Wave 1: pure-logic Finance mapping + offset pagination + 13 new/regenerated fixtures + manifest consolidation (M_pagination.offset_iterate, M_finance.parse_transaction, M_mapping fee_to_transaction/fee_aggregate_to_transaction/payout_to_transaction/promote_to_booked + refund_to_transaction(opts), 12 new i18n keys)
+- [x] 04-02-PLAN.md — Wave 1: pure-logic Finance mapping + offset pagination + 13 new/regenerated fixtures + manifest consolidation (M_pagination.offset_iterate, M_finance.parse_transaction, M_mapping fee_to_transaction/fee_aggregate_to_transaction/payout_to_transaction/promote_to_booked + refund_to_transaction(opts), 12 new i18n keys) — **SHIPPED 2026-06-21** (3 commits, 255/0 successes)
 
 **Wave 2** *(blocked on 04-02)*
 
-- [ ] 04-03-PLAN.md — Wave 2: M_finance HTTP fetch + entry-layer integration (fetch/fetch_all/fetch_account_state; RefreshAccount 14-step sequence: purchases_by_uuid + payments_by_uuid indexes, SALE-03 promotion, D-49 Option B fee classification, payout mapping); surfaces D-49 Option A vs B Yves-blocker
+- [x] 04-03-PLAN.md — Wave 2: M_finance HTTP fetch + entry-layer integration (fetch/fetch_all/fetch_account_state; RefreshAccount 16-step sequence: purchases_by_uuid + payments_by_uuid indexes, SALE-03 promotion, D-49 Option B fee classification, payout mapping); D-49 Yves-blocker RESOLVED (Option B) — **SHIPPED 2026-06-21** (2 commits, 300/0 successes, repro SHA `d6356d5b...`)
 
 **Wave 3** *(blocked on 04-02; parallel with Wave 2)*
 
-- [ ] 04-04-PLAN.md — Wave 3: per-rate VAT + card-brand+entry-mode tail in _format_purpose; Phase-3 surface preservation snapshot
+- [x] 04-04-PLAN.md — Wave 3: per-rate VAT + card-brand+entry-mode tail in _format_purpose; Phase-3 surface preservation snapshot — **SHIPPED 2026-06-21** (2 commits)
 
 **Wave 4** *(blocked on 04-03 + 04-04)*
 
