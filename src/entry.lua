@@ -304,7 +304,12 @@ function RefreshAccount(account, since) -- luacheck: ignore 431
           if fin_payment then
             local covering = _find_covering_payout(fin_payment.timestamp_posix)
             if covering then
-              M_mapping.promote_to_booked(sale_txn, covering.timestamp_posix)
+              -- BL-01: convert covering payout's UTC POSIX -> Berlin-local POSIX
+              -- so sale.valueDate uses the SAME convention as sale.bookingDate
+              -- (D-36) and matches payout_to_transaction's bookingDate (D-PAYOUT-03).
+              -- covering.timestamp_posix is pure UTC seconds (M_finance.parse_transaction).
+              local valueDate_local = M_mapping.to_berlin_local_time(covering.timestamp_posix)
+              M_mapping.promote_to_booked(sale_txn, valueDate_local)
               break  -- one matching payment leg is enough; further legs would
                      -- only re-promote to the same (or later) valueDate.
             end

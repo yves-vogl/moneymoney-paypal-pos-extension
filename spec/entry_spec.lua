@@ -930,6 +930,78 @@ describe("RefreshAccount Phase-4 pipeline (ACCT-03 / REF-02 / FEE-01-03 / PAYOUT
   end)
 
   -- -------------------------------------------------------------------------
+  -- BL-01 (REVIEW): SALE-03 promotion must convert Finance payment UTC
+  -- timestamp to Berlin-local POSIX before passing as valueDate. Both
+  -- bookingDate and valueDate on the promoted sale must use the SAME
+  -- Berlin-local POSIX convention (D-36) — otherwise users see the value
+  -- date displayed 1-2 hours earlier than the booking date (DST-dependent),
+  -- and at 23:00 UTC during CEST the two fields fall on different calendar
+  -- days. payout_to_transaction uses Berlin-local; promote_to_booked must match.
+  -- -------------------------------------------------------------------------
+
+  it("BL-01: promoted sale.valueDate uses Berlin-local POSIX (matches bookingDate convention)", function()
+    seed_token("org-bl01")
+    -- Phase 1 — empty finance, sale stays booked=false.
+    queue_refresh("purchase_page_with_payments_for_fee_join", "finance_empty")
+    RefreshAccount({ accountNumber = "org-bl01", currency = "EUR", balance = 0 }, 0)
+
+    -- Phase 2 — finance fixture pairs PAYMENT + a single covering PAYOUT.
+    -- The PAYMENT timestamp 2026-06-04T12:00:00Z is during CEST (+7200);
+    -- Berlin-local POSIX should equal UTC+7200.
+    local payment_utc_iso = "2026-06-04T12:00:00.000+0000"
+    local payout_utc_iso  = "2026-06-06T08:00:00.000+0000"
+    local finance_promotion_raw = [[{
+      "data": [
+        {
+          "timestamp": "]] .. payment_utc_iso .. [[",
+          "amount": 479300,
+          "originatorTransactionType": "PAYMENT",
+          "originatingTransactionUuid": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+        },
+        {
+          "timestamp": "]] .. payout_utc_iso .. [[",
+          "amount": -479300,
+          "originatorTransactionType": "PAYOUT",
+          "originatingTransactionUuid": "ffffffff-ffff-ffff-ffff-fffffffffff2"
+        }
+      ]
+    }]]
+    Mocks.push_response({ content = Fixtures.load("purchases/purchase_page_with_payments_for_fee_join") })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_liquid") })
+    Mocks.push_response({ content = Fixtures.load("finance/finance_balance_preliminary") })
+    Mocks.push_response({ content = finance_promotion_raw })
+    local r2 = RefreshAccount({ accountNumber = "org-bl01", currency = "EUR", balance = 0 }, 0)
+
+    local sale2, payout2
+    for _, t in ipairs(r2.transactions) do
+      if t.transactionCode:find("^zettle:sale:", 1, false) then sale2 = t end
+      if t.transactionCode:find("^zettle:payout:", 1, false) then payout2 = t end
+    end
+    assert.is_not_nil(sale2, "promoted sale must be present")
+    assert.is_not_nil(payout2, "covering payout txn must be present")
+    assert.is_true(sale2.booked, "sale must be promoted to booked=true")
+
+    -- The covering PAYOUT timestamp is 2026-06-06T08:00:00Z.
+    -- promote_to_booked should pass the PAYMENT's posix (timestamp_posix of
+    -- PAYMENT, per entry.lua step 13: `covering.timestamp_posix`) — but actually
+    -- entry.lua passes covering.timestamp_posix where `covering` IS the payout.
+    -- So sale.valueDate should equal the Berlin-local POSIX of the PAYOUT timestamp.
+    local payout_utc = M_mapping.parse_iso8601_utc(payout_utc_iso)
+    assert.is_number(payout_utc, "payout UTC parse must succeed")
+    local expected_valueDate = M_mapping.to_berlin_local_time(payout_utc)
+    assert.equals(expected_valueDate, sale2.valueDate,
+      "BL-01: sale.valueDate must be Berlin-local POSIX (UTC+offset); got "
+      .. tostring(sale2.valueDate) .. " expected " .. tostring(expected_valueDate)
+      .. " (diff seconds = " .. tostring((sale2.valueDate or 0) - expected_valueDate) .. ")")
+
+    -- Defensive: bookingDate and valueDate must share the same time convention.
+    -- payout_to_transaction sets valueDate=bookingDate (Berlin-local), so the
+    -- sale's promoted valueDate should equal the payout txn's bookingDate too.
+    assert.equals(payout2.bookingDate, sale2.valueDate,
+      "BL-01: sale.valueDate must equal payout.bookingDate (both Berlin-local POSIX)")
+  end)
+
+  -- -------------------------------------------------------------------------
   -- ERR-06 — fail-whole-refresh on Finance API leg errors
   -- -------------------------------------------------------------------------
 
