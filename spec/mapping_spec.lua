@@ -701,6 +701,81 @@ describe("M_mapping", function()
       "integer-string key '7' must produce '7% MwSt: 1,40 EUR' line, got:\n" .. tostring(txn.purpose))
   end)
 
+  it("S-01: pathological groupedVatAmounts key (scientific notation, oversize, non-numeric) does NOT crash purchase_to_transaction", function()
+    -- SEC-01 (HIGH): groupedVatAmounts keys come straight from the Zettle
+    -- response (or a compromised CDN). string.format("%d", tonumber("1e308"))
+    -- raises "number has no integer representation" — uncaught Lua error that
+    -- would abort RefreshAccount. Range-guard tonumber(k) to [0, 100] (a real
+    -- VAT rate cannot fall outside this range for any tax regime).
+    local p = {
+      purchaseUUID1 = "5e505e50-5e50-5e50-5e50-5e505e505e50",
+      amount = 2000,
+      vatAmount = 318,
+      currency = "EUR",
+      timestamp = "2026-06-15T10:00:00.000+0000",
+      purchaseNumber = 7100,
+      payments = {},
+      -- Three pathological keys + one legitimate key.
+      -- "1e308" parses to a finite float with no integer representation -> %d crash.
+      -- "abc"   is non-numeric and must be skipped.
+      -- "999"   is numeric but outside [0..100] and must be skipped.
+      -- "19"    is legitimate and must drive the single-rate fallback.
+      groupedVatAmounts = {
+        ["1e308"] = 100,
+        ["abc"] = 50,
+        ["999"] = 10,
+        ["19"] = 318,
+      },
+    }
+    local ok, result = pcall(M_mapping.purchase_to_transaction, p)
+    assert.is_true(ok,
+      "S-01: purchase_to_transaction must NOT raise a Lua error on pathological "
+      .. "groupedVatAmounts keys; got: " .. tostring(result))
+    assert.is_table(result, "S-01: must still return a valid txn table")
+    -- The "19" key is the only one to pass the range guard, so the single-rate
+    -- fallback fires (only 1 entry in rate_entries -> not >= 2).
+    -- Defensive: the resulting purpose must NOT contain "1e308" or "999%" or "abc".
+    assert.is_falsy(result.purpose:find("1e308", 1, true),
+      "S-01: pathological '1e308' key must NOT appear in purpose")
+    assert.is_falsy(result.purpose:find("999%%", 1, false),
+      "S-01: out-of-range '999' key must NOT appear in purpose")
+  end)
+
+  it("S-01: pathological groupedVatAmounts key in multi-rate path is skipped silently (oversize float, non-numeric)", function()
+    -- Same defence with TWO legitimate rates so the multi-rate branch fires.
+    local p = {
+      purchaseUUID1 = "5e515e51-5e51-5e51-5e51-5e515e515e51",
+      amount = 2000,
+      vatAmount = 458,
+      currency = "EUR",
+      timestamp = "2026-06-15T10:00:00.000+0000",
+      purchaseNumber = 7101,
+      payments = {},
+      groupedVatAmounts = {
+        ["19.0"] = 318,
+        ["7.0"]  = 140,
+        ["1e308"] = 100,    -- range-guard rejects (math.huge > 100)
+        ["-5"]    = 25,     -- range-guard rejects (rate < 0)
+        ["abc"]   = 50,     -- tonumber returns nil, falls through guard
+      },
+    }
+    local ok, result = pcall(M_mapping.purchase_to_transaction, p)
+    assert.is_true(ok,
+      "S-01: multi-rate path must NOT raise a Lua error on pathological keys; got: "
+      .. tostring(result))
+    assert.is_table(result)
+    -- Multi-rate path emits 19% and 7% lines.
+    assert.is_truthy(result.purpose:find("19% MwSt: 3,18 EUR", 1, true),
+      "S-01: legitimate 19% rate must still render in multi-rate path")
+    assert.is_truthy(result.purpose:find("7% MwSt: 1,40 EUR", 1, true),
+      "S-01: legitimate 7% rate must still render in multi-rate path")
+    -- Pathological rates must NOT appear.
+    assert.is_falsy(result.purpose:find("1e308", 1, true),
+      "S-01: oversize float rate '1e308' must be silently skipped")
+    assert.is_falsy(result.purpose:find("-5%", 1, true),
+      "S-01: negative rate must be silently skipped")
+  end)
+
   it("META-01: negative VAT amounts on refund records render with leading minus", function()
     local p = {
       purchaseUUID1 = "cccccccc-cccc-cccc-cccc-cccccccccccc",

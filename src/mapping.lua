@@ -219,7 +219,12 @@ local function _format_purpose(p, opts)
   for k, v in pairs(gva) do
     -- tonumber accepts both "19.0" decimal-string AND "19" integer-string (R-5 defensive).
     local rate_num = tonumber(k)
-    if rate_num and type(v) == "number" then
+    -- S-01 (SEC HIGH): range-guard rate_num to [0..100]. Attacker-controlled
+    -- keys like "1e308" parse to a finite float with no integer representation
+    -- which crashes string.format("%d", rate_num) downstream. No real-world
+    -- tax regime carries a VAT rate outside this range, so the cap is safe.
+    if rate_num and type(v) == "number"
+        and rate_num >= 0 and rate_num <= 100 then
       rate_entries[#rate_entries + 1] = { rate = rate_num, amount = v }
     end
   end
