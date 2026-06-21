@@ -180,6 +180,13 @@ local function _format_label(payments)
   if type(masked_pan) ~= "string" or #masked_pan < 4 then
     return M_i18n.t("account.name.card_payment")
   end
+  -- S-11 (SEC R2 / R2-01 REVIEW): mirror S-04's 32-byte cardType cap from
+  -- _format_purpose here in _format_label too. An unbounded `cardType` from a
+  -- compromised CDN or adversarial response would otherwise balloon the
+  -- transaction `name` field (which is the more user-visible surface than
+  -- `purpose`). 32 bytes accommodates every published Zettle card brand
+  -- (longest known: MASTERCARD = 10) with substantial headroom.
+  card_type = card_type:sub(1, 32)
   -- WR-05 (REVIEW): normalise case before BRAND_MAP lookup so _format_label
   -- and _format_purpose's card-tail (which already does :upper() at line 286)
   -- produce byte-identical brand strings for the same purchase. Today Zettle

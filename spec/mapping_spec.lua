@@ -916,6 +916,42 @@ describe("M_mapping", function()
       "Phase-3 purpose surface must be byte-identical for no-VAT-no-card fixture")
   end)
 
+  -- -------------------------------------------------------------------------
+  -- S-11 (SEC R2 / R2-01 REVIEW): _format_label must cap cardType at 32 bytes
+  -- so an adversarial response cannot balloon the user-visible `name` field.
+  -- Mirrors the S-04 cap already in _format_purpose; both label and purpose
+  -- now bound the cardType surface defensively.
+  -- -------------------------------------------------------------------------
+
+  it("purchase_to_transaction caps cardType at 32 bytes in name (S-11)", function()
+    local long_card_type = string.rep("X", 10000)
+    local p = {
+      purchaseUUID1  = "uuid-s11-label",
+      amount         = 100,
+      vatAmount      = 0,
+      currency       = "EUR",
+      timestamp      = "2026-06-01T10:00:00Z",
+      purchaseNumber = 9011,
+      payments       = {
+        {
+          attributes = {
+            cardType   = long_card_type,
+            maskedPan  = "411111******1111",
+          },
+        },
+      },
+    }
+    local txn = M_mapping.purchase_to_transaction(p)
+    assert.is_table(txn, "purchase_to_transaction must return a table (S-11)")
+    assert.is_string(txn.name, "name must be a string (S-11)")
+    -- Adversarial cardType (10000 bytes) must not balloon the name field.
+    -- Cap is 32 bytes for the brand portion + " " + 4 bullets + " " + 4 digits.
+    -- Each bullet is 3 UTF-8 bytes, so worst-case label length is bounded by:
+    --   32 (brand) + 1 (space) + 4*3 (bullets) + 1 (space) + 4 (digits) = 50 bytes.
+    assert.is_true(#txn.name <= 60,
+      "name must be length-capped; got " .. #txn.name .. " bytes (S-11)")
+  end)
+
   it("META-01: UTF-8 umlauts round-trip via dkjson and survive in fixture", function()
     local raw, decoded = Fixtures.load("purchases/purchase_umlauts_purpose")
     assert.is_string(raw)
