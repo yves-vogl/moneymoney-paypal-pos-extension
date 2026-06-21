@@ -1,15 +1,15 @@
 {
-  "_source": "github.com/iZettle/api-documentation/blob/master/finance-api/user-guides/fetch-account-transactions-v2.md — PAYMENT at 2026-06-01 covered by later PAYOUT at 2026-06-03 for D-56 promote-to-booked test (Plan 04-03)",
+  "_source": "github.com/iZettle/api-documentation/blob/master/finance-api/user-guides/fetch-account-transactions-v2.md — PAYMENT at 2026-06-04 (originatingTransactionUuid matches payments[0].uuid cccccccc-...-cccccccccccc from purchase_page_with_payments_for_fee_join.json) covered by later PAYOUT at 2026-06-06 for D-56/SALE-03 promote-to-booked test (Plan 04-05 D-58 case 1). Plan 04-02 originally used eeeeeeee-...; Plan 04-05 regenerated to cccccccc- per plan recommendation so the promotion test reuses the existing fee-join purchase fixture (purchase fixture unchanged).",
   "data": [
     {
-      "timestamp": "2026-06-01T10:00:00.000+0000",
-      "amount": 5000,
+      "timestamp": "2026-06-04T12:00:00.000+0000",
+      "amount": 479300,
       "originatorTransactionType": "PAYMENT",
-      "originatingTransactionUuid": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
+      "originatingTransactionUuid": "cccccccc-cccc-cccc-cccc-cccccccccccc"
     },
     {
-      "timestamp": "2026-06-03T08:00:00.000+0000",
-      "amount": -4900,
+      "timestamp": "2026-06-06T08:00:00.000+0000",
+      "amount": -470433,
       "originatorTransactionType": "PAYOUT",
       "originatingTransactionUuid": "ffffffff-ffff-ffff-ffff-ffffffffffff"
     }
