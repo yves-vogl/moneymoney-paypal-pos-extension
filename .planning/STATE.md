@@ -33,21 +33,29 @@ progress:
 
 ## Current Position
 
-Phase: 04 (enrichment-refunds-fees-payouts) — **CONTEXT DRAFTED (autonomous), awaiting Yves on Q3 + Pay/Compliance**
-**Status:** Phase 3 fully merged to main (spine + post-review fixes via PR #8 `a11287d`; verifier report via PR #10 `a201f6c`). Phase 4 context drafted on `phase-4/enrichment` branch as `04-CONTEXT.md` with D-46..D-60 + 3 explicit Yves-blockers queued.
-**Progress:** `[████████████████░░░░] 3/7 phases shipped; Phase 4 in PLANNING (CONTEXT drafted, awaiting Yves unblock)`
+Phase: 04 (enrichment-refunds-fees-payouts) — **FULLY PLANNED, READY-FOR-EXECUTION subject to 3 Yves-blockers**
+**Status:** Phase 3 fully merged to main (spine via PR #8 `a11287d`; verifier closure via PR #10 `a201f6c`). Phase 4 planning artifacts complete on `phase-4/enrichment` branch: CONTEXT + RESEARCH + PATTERNS + 6 PLAN files + PLAN-REVIEW. gsd-plan-checker verdict: READY-FOR-EXECUTION (12/12 quality gates PASS, 7/7 RESEARCH overlays integrated, 0 BLOCKERs, 4 documented non-blocking WARNINGs).
+**Progress:** `[████████████████░░░░] 3/7 phases shipped; Phase 4 PLANNED and verified; awaiting Yves to unblock Q3 + D-49 + D-55 before /gsd-execute-phase 4 can launch`
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
 Phase 2: Authenticated Network Layer       [DONE ✅ — merged via PR #6 + Lows PR #7]
 Phase 3: Sale Spine                        [DONE ✅ — merged via PR #8 spine + PR #10 verifier closure]
-Phase 4: Enrichment                        [PLANNING — 04-CONTEXT.md drafted, 3 Yves-blockers queued]
+Phase 4: Enrichment                        [PLANNED ✅ — 04-CONTEXT/RESEARCH/PATTERNS/6 PLANs/PLAN-REVIEW committed; awaiting Yves unblock]
 Phase 5: Resilience & Error Handling       [BLOCKED on Phase 4]
 Phase 6: Release & Polish                  [BLOCKED on Phase 5]
 Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
-**Branch state:** On `phase-4/enrichment` (created 2026-06-21 from `origin/main` @ `a201f6c`). 1 local commit: `1578b75 docs(04): capture phase 4 enrichment context (autonomous draft)`. Not yet pushed — held local until Yves reviews the 3 queued blockers (Q3 host probe, D-49 fee-fallback contract, D-55 META-03 forbidden-strings list). PR reconciliation lessons recorded in memory `feedback_post_squash_no_repr`. Memory `feedback_gpg_signed_pr_merge` still governs merge method (`--squash` mandatory).
+**Branch state:** On `phase-4/enrichment` (created 2026-06-21 from `origin/main` @ `a201f6c`). 6 local commits:
+- `1578b75` docs(04): capture phase 4 enrichment context (autonomous draft)
+- `211da0b` docs(state): mark Phase 3 fully merged, Phase 4 context drafted
+- `0ac35b7` docs(04): research Phase 4 enrichment domain — Finance API surface, fee linkage, payout matching
+- `686df47` docs(04): map Phase 4 enrichment patterns to Phase-1/2/3 analogs
+- `26d6736` docs(04): create Phase 4 plans 04-01..04-06 across 6 waves
+- `c2d857d` docs(04): plan-check verification report — READY-FOR-EXECUTION
+
+Not yet pushed — held local pending Yves' review of Q3 / D-49 / D-55. Memory `feedback_gpg_signed_pr_merge` still governs merge method (`--squash` mandatory). Memory `feedback_post_squash_no_repr` records the PR #9 → #10 reconciliation lesson.
 
 **Phase-3 captured decisions** (still authoritative; D-31..D-45 inherited by Phase 4): see `.planning/phases/03-sale-spine-first-user-visible-slice/03-CONTEXT.md`.
 
