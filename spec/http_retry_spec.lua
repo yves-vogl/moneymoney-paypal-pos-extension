@@ -69,11 +69,13 @@ describe("M_http retry-with-backoff (Phase 5 / D-62 / D-63 / ADR-0005 Invariants
   -- GREEN (Plan 05-03): D-62 + D-63 behaviors
   -- ---------------------------------------------------------------------
 
-  it("5xx retry: 3 attempts then surface 599 sentinel (D-62 / ADR-0005 Invariant 2)", function()
-    -- Empty body × 3 → Phase-2 ERR-05 path: returns (nil, nil, "") (NOT 599).
-    -- The 599 sentinel is for non-empty body-shape 5xx (covered separately when
-    -- _infer_status grows a 5xx body branch; for now empty-body is the only
-    -- 5xx-equivalent we recognise per RESEARCH §4.b heuristic).
+  it("5xx-equivalent empty-body storm: 3 attempts then (nil,nil,raw) → error.network (D-62 / ERR-05)", function()
+    -- WR-02 (05-06): renamed from the misleading "5xx retry: 3 attempts then
+    -- surface 599 sentinel" title. Empty body × 3 is the Phase-2 ERR-05 path
+    -- (DNS / connect / timeout / 5xx-without-body) and returns (nil, nil, "")
+    -- — NOT the 599 sentinel. The genuine 599 sentinel emission via 5xx body
+    -- shapes (server_error / service_unavailable / server_busy) is now gated
+    -- by the new "5xx body: server_error × 3 → 599 sentinel" test below.
     Mocks.push_response({ content = "" })
     Mocks.push_response({ content = "" })
     Mocks.push_response({ content = "" })

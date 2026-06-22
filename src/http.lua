@@ -115,11 +115,23 @@ end
 -- from the decoded response body so M_errors.from_http_status can route errors.
 --
 -- Contract (in priority order):
---   parsed.error == "invalid_grant"   | "invalid_request"    -> 400
---   parsed.error == "invalid_client"  | "unauthorized_client" -> 401
---   parsed.error == "rate_limit"                              -> 429 (H-01)
---   parsed.error non-nil (unknown)                           -> 400 (conservative; Pitfall 5)
---   otherwise                                                 -> 200
+--   parsed.error == "invalid_grant"   | "invalid_request"             -> 400
+--   parsed.error == "invalid_client"  | "unauthorized_client"          -> 401
+--   parsed.error == "rate_limit"                                       -> 429 (H-01)
+--   parsed.error == "service_unavailable" | "temporarily_unavailable"  -> 503 (Phase-5 fix-batch S-02)
+--   parsed.error == "server_error" | "internal_error" | "backend_error"-> 500 (Phase-5 fix-batch S-02)
+--   parsed.error == "server_busy"                                      -> 599 (Phase-5 fix-batch S-02)
+--   parsed.error non-nil (unknown)                                     -> 400 (conservative; Pitfall 5)
+--   otherwise                                                          -> 200
+--
+-- 05-06 fix-batch (S-02 / WR-01 / S-05): the 5xx body-shape branch makes the
+-- retry loop's 5xx branch + 599 sentinel emission live. Any 5xx-classified
+-- response triggers the retry-with-backoff path; exhaustion emits the 599
+-- sentinel which M_errors.from_http_status routes to error.server_busy.
+-- S-05 (sentinel collision) is mitigated: an upstream `{"error":"server_busy"}`
+-- body classifies as 599 directly, which also routes to error.server_busy —
+-- both paths converge on the same German user-facing string with no semantic
+-- ambiguity. See ADR-0005 §Implementation Pin "599 sentinel emission contract".
 function M_http._infer_status(parsed)
   if parsed.error then
     if parsed.error == "invalid_grant" or parsed.error == "invalid_request" then
@@ -130,6 +142,16 @@ function M_http._infer_status(parsed)
     end
     if parsed.error == "rate_limit" then
       return 429
+    end
+    if parsed.error == "service_unavailable" or parsed.error == "temporarily_unavailable" then
+      return 503
+    end
+    if parsed.error == "server_error" or parsed.error == "internal_error"
+       or parsed.error == "backend_error" then
+      return 500
+    end
+    if parsed.error == "server_busy" then
+      return _SENTINEL_5XX_EXHAUSTED  -- 599 — converges with retry-exhaust sentinel (S-05 mitigation)
     end
     return 400  -- conservative: unknown error names treated as 400 (Pitfall 5)
   end
