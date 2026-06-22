@@ -214,9 +214,9 @@ Two new keys per `src/i18n.lua` in both `STRINGS.de` and `STRINGS.en`
 UTF-8 byte-escape style (`\xe2\x80\x94` em-dash; `\xc3\xa4` umlaut) per
 Phase-4 convention. Source: `.planning/phases/05-resilience-error-handling/05-02-SUMMARY.md`.
 
-### M_http retry constants actually used (Plan 05-03)
+### M_http retry constants actually used (Plan 05-03 + 05-06 fix-batch)
 
-Five module-private constants in `src/http.lua`:
+Six module-private constants in `src/http.lua`:
 
 | Constant                    | Value           | Role                                                                                       |
 |-----------------------------|-----------------|--------------------------------------------------------------------------------------------|
@@ -225,8 +225,58 @@ Five module-private constants in `src/http.lua`:
 | `_RETRY_AFTER_CAP`          | `60`            | 429 Retry-After upper bound (seconds; D-63)                                                |
 | `_RATE_LIMIT_DEFAULT`       | `30`            | 429 fallback when Retry-After absent / unparseable (seconds; D-63)                         |
 | `_SENTINEL_5XX_EXHAUSTED`   | `599`           | Phase-5-internal status sentinel; M_errors maps to `error.server_busy` (Plan 05-02)        |
+| `_WALL_CLOCK_CAP`           | `60`            | Per-request elapsed-time cap (seconds); 05-06 fix-batch S-01 / WR-03                       |
 
-Source: `.planning/phases/05-resilience-error-handling/05-03-SUMMARY.md`.
+Source: `.planning/phases/05-resilience-error-handling/05-03-SUMMARY.md`
++ `.planning/phases/05-resilience-error-handling/05-06-FIX-SUMMARY.md`.
+
+### 599 sentinel emission contract (05-06 fix-batch S-02 / WR-01 / S-05)
+
+The 599 sentinel emission path is now reachable in production. Two
+independent code paths converge on `status == 599` → `M_errors.from_http_status`
+→ `M_i18n.t("error.server_busy")`:
+
+1. **Inferred 599 (direct):** `M_http._infer_status` returns 599 when the
+   response body is `{"error":"server_busy"}`. The retry loop's 5xx branch
+   sleeps, retries, and (on exhaustion) emits the same 599 sentinel from
+   `_SENTINEL_5XX_EXHAUSTED`.
+2. **Inferred 500 / 503 → exhausted-retry 599:** `_infer_status` classifies
+   `{"error":"server_error" | "internal_error" | "backend_error"}` as 500
+   and `{"error":"service_unavailable" | "temporarily_unavailable"}` as 503.
+   Both trigger the retry-with-backoff path; on exhaustion the loop emits
+   `_SENTINEL_5XX_EXHAUSTED` (= 599).
+
+**S-05 collision mitigation:** both paths route to the same German
+user-facing string. An attacker upstream cannot exploit the convergence
+because no behaviour downstream of `error.server_busy` branches on whether
+the 599 came from inference or from exhaustion.
+
+Gating tests live in `spec/http_retry_spec.lua`:
+- `5xx body: server_error × 3 → 599 sentinel surfaces error.server_busy`
+- `5xx body: service_unavailable inferred as 503 → retried then 599 surfaces`
+- `5xx body: server_error → recovers on 2nd attempt → status 200`
+
+### Wall-clock cap emission contract (05-06 fix-batch S-01 / WR-03)
+
+`_request_with_retry` records `os.time()` at loop entry. Before every
+`_sleep_with_log` call, the loop checks `(elapsed + next_sleep) > _WALL_CLOCK_CAP`
+and aborts if true, returning the most recent attempt's tuple deterministically:
+
+| Path                                | Tuple returned on cap abort                       |
+|-------------------------------------|---------------------------------------------------|
+| Empty body (5xx-equivalent / ERR-05)| `(nil, nil, raw)` → `error.network`               |
+| 429 (rate-limit)                    | `(parsed, 429, raw)` → `error.rate_limit`         |
+| 5xx (server-shaped JSON body)       | `(parsed, 599, raw)` → `error.server_busy`        |
+
+One `M_log.info` line is emitted per cap-firing event so operators can
+observe the abort. The cap bounds the previously unbounded adversarial
+`[429 Retry-After=60, empty, empty]` sequence (was ~62s on a single
+endpoint) to a single 60s sleep, keeping the 4-endpoint RefreshAccount
+pipeline within MoneyMoney's per-call timeout window.
+
+Gating tests live in `spec/http_retry_spec.lua`:
+- `wall-clock budget: [429 Retry-After=60, empty, empty] aborts after first sleep`
+- `wall-clock budget: 5xx body × 3 still completes within cap (budget non-interference)`
 
 ### 401-direct-check call sites (Plan 05-04)
 
@@ -349,26 +399,37 @@ than aborting `RefreshAccount`.
 
 ## Worst-case timing budget
 
-Per Phase-5 RESEARCH §9:
+Per Phase-5 RESEARCH §9 (post-05-06-fix-batch values):
 
 - Single-endpoint 5xx storm: ~9 s
   (1 s + 2 s backoff + 3 × ~500 ms-2 s HTTP roundtrips).
 - 3-endpoint 5xx storm (purchase + finance state + finance
   transactions): ~27 s.
 - Single 429 with `Retry-After`: up to 60 s (capped).
+- Mixed `[429 Retry-After=60, empty, empty]` storm: ≤ 60 s per endpoint
+  (was unbounded ~62 s before 05-06 fix-batch S-01 / WR-03 added
+  `_WALL_CLOCK_CAP`).
 
 The 3-endpoint 5xx worst case fits within MoneyMoney's per-call
 timeout estimate (~30-60 s per ADR-0003 + community survey) but is
-uncomfortably close. Mitigation strategies (NOT applied in v1.0.0):
+uncomfortably close. Mitigation strategies (PARTIALLY applied in v1.0.0):
 
+- ✅ **Applied (05-06 fix-batch):** per-request `_WALL_CLOCK_CAP = 60 s`
+  bounds adversarial mixed-error sequences. Each `_request_with_retry`
+  call returns deterministically within 60 s of `os.time()` at entry
+  (modulo the underlying HTTP roundtrip time, which is bounded by
+  `Connection()` defaults).
 - Reduce backoff curve to `{1, 2}` (saves 4 s per endpoint, ~12 s
   total for the 3-endpoint case).
 - Reduce `MAX_ATTEMPTS` from 3 to 2.
-- Implement a global `RefreshAccount` timeout that cancels remaining
-  sleeps once a wall-clock budget is exceeded.
+- Implement a cross-endpoint `RefreshAccount` global timeout (currently
+  only the per-`_request_with_retry` cap is enforced; 4 endpoints × 60 s
+  = 240 s theoretical worst case across the pipeline if every endpoint
+  hits its own cap).
 
-v1.0.0 ships the `{1, 2, 4}` 3-attempt curve. Monitor real-world
-reports; tune in v1.0.x if observed timeout breaches occur.
+v1.0.0 ships the `{1, 2, 4}` 3-attempt curve + the per-request 60 s
+wall-clock cap. Monitor real-world reports; tune in v1.0.x if observed
+timeout breaches occur.
 
 ## Cross-reference table
 
