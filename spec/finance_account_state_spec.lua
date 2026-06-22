@@ -8,6 +8,8 @@
 -- whole-refresh on either-leg HTTP error. The Bearer header pass-through
 -- (D-42) mirrors M_finance.fetch.
 
+-- luacheck: ignore 631
+
 local Mocks    = require("spec.helpers.mm_mocks")
 local Fixtures = require("spec.helpers.fixtures")
 

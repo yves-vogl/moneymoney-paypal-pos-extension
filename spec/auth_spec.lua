@@ -10,6 +10,8 @@
 -- test starts with a clean module-local state (including _conn, token cache).
 -- This matches the before_each pattern from spec/log_redaction_spec.lua L41-48.
 
+-- luacheck: ignore 631
+
 local Mocks    = require("spec.helpers.mm_mocks")
 local Fixtures = require("spec.helpers.fixtures")
 
