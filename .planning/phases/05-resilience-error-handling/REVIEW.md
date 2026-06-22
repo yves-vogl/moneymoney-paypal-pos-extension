@@ -1,6 +1,7 @@
 ---
 phase: 05-resilience-error-handling
 reviewed: 2026-06-22T00:00:00Z
+re_reviewed: 2026-06-22T12:00:00Z
 depth: deep
 files_reviewed: 19
 files_reviewed_list:
@@ -28,7 +29,12 @@ findings:
   warning: 4
   info: 4
   total: 8
-status: issues_found
+round_2_findings:
+  blocker: 0
+  warning: 0
+  info: 1
+  total: 1
+status: findings_present
 ---
 
 # Phase 5: Code Review Report
@@ -166,4 +172,74 @@ No structural pre-pass was provided in the prompt. Cross-module references verif
 
 _Reviewed: 2026-06-22_
 _Reviewer: Claude (gsd-code-reviewer)_
+_Depth: deep_
+
+---
+
+## Round 2 (2026-06-22 re-review)
+
+**Re-review verdict:** FINDINGS_PRESENT (1 INFO carryover, no new blockers)
+**Build SHA confirmed:** `5dbcb8ea97ae2fb2b675442439ac93b342893e84b9e7849b29df07e9612b777e` (reproducible — built once locally, matches `05-06-FIX-SUMMARY.md` claim).
+**Test suite:** 373 / 0 / 0 / 0 (was 365 before the fix-batch; +8 new tests as claimed).
+**Commits audited (fix-batch):** 9 SHAs from FIX-SUMMARY all present in `git log` between `74f644c` and `HEAD = 6b0e41e`:
+
+| Claimed SHA | Subject prefix                                                  | Verified |
+|-------------|-----------------------------------------------------------------|----------|
+| c781acc     | test(05-06) RED 599 sentinel emission for 5xx error bodies      | ✅        |
+| 43ebc46     | fix(05-06) make 599 sentinel emission live for 5xx error bodies | ✅        |
+| cf1f23b     | test(05-06) RED wall-clock budget abort                         | ✅        |
+| bdb78cd     | fix(05-06) add _WALL_CLOCK_CAP=60s budget                       | ✅        |
+| f119f02     | test(05-06) RED Retry-After=0x10 must reject                    | ✅        |
+| 301e157     | fix(05-06) tighten _parse_retry_after                           | ✅        |
+| 51e09e1     | test(05-06) Gate D extended (S-03)                              | ✅        |
+| 9efab5b     | test(05-06) cover degraded MM.sleep pcall path                  | ✅        |
+| 714ff3e     | docs(05-06) update ADR-0005 Implementation Pin                  | ✅        |
+
+### Close-verification on Round-1 findings
+
+- **WR-01 — CLOSED via `43ebc46`** (file:line evidence: `src/http.lua:165-174` adds the 5xx body→500/503/599 branches in `_infer_status`; `_request_with_retry` at `src/http.lua:271-287` reaches the 599-emission branch on real 5xx bodies). The unreachable-dead-code condition is resolved. Confirmed live by `spec/http_retry_spec.lua:204-221` (`server_error × 3 → 599`), `:223-232` (`service_unavailable → 503 → 599`), `:234-242` (5xx recovery on attempt 2).
+- **WR-02 — CLOSED via `43ebc46`** (renamed `spec/http_retry_spec.lua:72` to `"5xx-equivalent empty-body storm: 3 attempts then (nil,nil,raw) → error.network (D-62 / ERR-05)"` — title now matches what the assertions actually verify). Genuine 599-sentinel coverage is the new test at `:204-221`.
+- **WR-03 — CLOSED via `bdb78cd`** (file:line evidence: `src/http.lua:37` declares `_WALL_CLOCK_CAP = 60`; `:210` captures `_start_time = os.time()`; `:215-217` defines `_budget_would_breach`; the guard fires before all three sleep call-sites: `:229-236` (empty-body), `:258-264` (429 Retry-After), `:275-281` (5xx body)). Regression test at `spec/http_retry_spec.lua:255-302` asserts the adversarial `[429 Retry-After=60, empty, empty]` sequence produces exactly 1 sleep (60 s for the 429), exactly 2 HTTP attempts, and total sleep ≤ 60 s. Budget-non-interference companion at `:373-396` proves a normal 5xx storm still emits the 599 sentinel.
+
+### Deferred findings (per FIX-SUMMARY Tier 3 — confirmed still open, not regressed)
+
+- **WR-04** — Inferred-400 post-mint LoginFailed surface — DEFERRED-DOCUMENTED. No source change. Note: the **same class of issue** now exists for any new Zettle 5xx-shape that is NOT in the whitelist (`server_error`/`internal_error`/`backend_error`/`service_unavailable`/`temporarily_unavailable`/`server_busy`): an unknown 5xx-shaped error name falls into the `return 400` conservative branch at `src/http.lua:175` and still surfaces as LoginFailed. Same shipped-contract argument applies; flagged here for ADR-0005 footnote in the cleanup PR.
+- **IN-01 / IN-02 / IN-04** — Cosmetic, still open per FIX-SUMMARY Tier 3.
+- **IN-03** — **CLOSED** by S-06 (`spec/http_retry_spec.lua:334-371` covers the degraded MM.sleep pcall path; the prior INFO finding is now structurally gated).
+
+### New-finding scan on the +93 LoC + 6 new test cases
+
+Audited the fix-batch surface for regressions and edge cases the prompt asked about:
+
+1. **`_infer_status` 5xx body detection misfiring on legitimate 200 responses with `"error"` keys** — `src/http.lua:155` (`if parsed.error then`) treats ANY truthy `error` field as an error response. **Pre-existing behaviour** (Phase-5 base; not introduced by the fix-batch). The fix-batch *widens the surface*: where a stray `error="server_error"` field on an otherwise-200 response would previously have been mis-classified as 400, it is now mis-classified as 500 and triggers a 3-attempt retry storm + 599 sentinel + `error.server_busy`. **Real-world likelihood is low** — Zettle's Purchase/Finance API success bodies use `purchases[]` / `data[]` / scalar fields, not a top-level `error` key (per `05-RESEARCH.md` §"Purchase JSON top-level fields"). **Severity: INFO** — pre-existing structural sharp-edge; documenting as carryover, not introduced by the fix-batch.
+2. **`os.time()` mocked to return 0** — `_start_time = os.time()` captures the mock value (0); `_budget_would_breach(s)` becomes `(0 - 0) + s > 60` → fires only when `s > 60`. With normal sleeps {1,2,4} and `Retry-After ≤ _RETRY_AFTER_CAP (60)`, no spurious abort. **No bug.** The 05-06 wall-clock test stubs `os.time` deterministically (`spec/http_retry_spec.lua:267, 383`) and the assertions hold.
+3. **`sleep_seconds == 0`** — `_parse_retry_after` rejects `n < 0` only (not `n == 0`). A response of `Retry-After: 0` produces `MM.sleep(0)` and a `_sleep_with_log` line with `after_ms=0`. RFC 7231 §7.1.3 allows this; behaviour is harmless but logs a degenerate retry. **Pre-existing**, not introduced by the fix-batch. **Severity: TRIVIAL** — left noted, no source change recommended.
+4. **`_WALL_CLOCK_CAP` boundary edge case** — `_budget_would_breach` uses strict `>` so `elapsed + next_sleep == cap` (exactly 60 s total) is *allowed*. Worst case: 60 s sleep + 1 s sleep = 61 s ≯ 60 → guard fires on the second sleep. Correct boundary semantics for "≤ cap" guarantee. **No bug.**
+5. **SEC-03 redaction regression scan** — Gate D and Gate D extended (`spec/refresh_log_redaction_spec.lua:444-495` and `:497-584`) confirm: the new `_sleep_with_log` lines never carry Bearer, eyJ, or raw CR/LF. The new `"HTTP retry: MM.sleep error"` log line at `src/http.lua:125` builds from `tostring(err)`, which is the pcall error string from `MM.sleep`, not from headers — explicitly asserted by S-06 (`spec/http_retry_spec.lua:362-370`). The new `"HTTP retry: wall-clock cap reached"` log lines at `src/http.lua:233, 261, 278` interpolate only the integer cap + URL (URL is already MM.urlencode-shielded by `M_purchases.fetch` per S-03 gate). **No regression.**
+6. **Phase-4 surface preservation regression scan** — Plan 05-05 surface-preservation tests at `spec/phase3_surface_preservation_spec.lua` cover the new 401 chokepoint, fee/payout emitter prefixes, and balance dual-GET. The fix-batch added nothing that touches `RefreshAccount`'s response shape — only the internal retry-loop semantics changed. Suite passes 373/0/0/0; no surface-shape spec broke.
+
+### Pay/Compliance status (per `feedback-pay-compliance-explicit-status`)
+
+- **D-49** (Phase 4 inherited — Finance balance dual-GET): STILL-OK. Untouched by fix-batch; surface-preservation specs green.
+- **D-55** (Phase 4 inherited — fee/payout emitter contract): STILL-OK. Untouched by fix-batch; D-38 5-prefix closed-set gate green.
+- **D-64 collapse** (`error.token_revoked` vs `LoginFailed` per Plan 05-04): STILL-OK. The 401-direct-check at `src/pagination.lua:65` and `src/finance.lua:152` is the only path; the fix-batch's new 500/503/599 statuses cleanly fall through to `M_errors.from_http_status` and route to `error.server_busy` (NOT `LoginFailed`). Verified by reading the pagination flow — no path collision.
+- **D-67 sleep mechanism**: NOW TIMING-BUDGET-BOUNDED. The sleep primitive is unchanged (`MM.sleep` via `_sleep_with_log` pcall guard), but the bounded-time invariant promised by ADR-0005 is finally enforced via `_WALL_CLOCK_CAP`. ADR-0005 §Implementation Pin documents the contract; the ADR's "Worst-case timing budget" table is updated to mark `_WALL_CLOCK_CAP` as ✅ Applied.
+
+### Round-2 INFO finding (new)
+
+#### IN-05: `_parse_retry_after` accepts `Retry-After: 0`; produces a no-op `MM.sleep(0)` + degenerate INFO log line
+
+**File:** `src/http.lua:100`
+**Issue:** The S-04 tightening rejects non-integer / hex / whitespace / negative values but allows `n == 0` (the existing `n < 0` guard is strictly less-than). A `Retry-After: 0` from Zettle produces `_sleep_with_log(0, url, attempt, 429)` → `MM.sleep(0)` + an INFO log line with `after_ms=0`. RFC 7231 §7.1.3 permits this value (meaning "retry now"), so behaviour is technically correct, but the degenerate log line is noisy and the no-op sleep on a 429 is semantically suspect (the server explicitly asked us to retry — we did, instantly).
+**Severity:** INFO (TRIVIAL). Pre-existing; not introduced by the fix-batch. No exploit, no data corruption.
+**Fix (optional):** Tighten the guard to `n <= 0` to fall through to the documented 30 s default per Carve-out 2 — matches the developer's mental model "a bounded honoring window, not instant retry". Single-character change. Defer to the IN-cleanup PR.
+
+### Round-2 Verdict
+
+**FINDINGS_PRESENT** — 1 new INFO (IN-05); all 4 WARNING items from round 1 are confirmed closed (WR-01 + WR-02 + WR-03 via the fix-batch; WR-04 documented-deferred per round-1's own recommendation). Of the 4 round-1 INFO items, IN-03 is closed by S-06; IN-01, IN-02, IN-04, and the new IN-05 remain for the cleanup PR.
+
+No blocker, no warning, no regression — phase is ship-ready pending the cosmetic cleanup PR.
+
+_Re-reviewed: 2026-06-22_
+_Reviewer: Claude (gsd-code-reviewer round 2)_
 _Depth: deep_
