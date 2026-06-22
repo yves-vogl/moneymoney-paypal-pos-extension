@@ -51,6 +51,19 @@ M_pagination.iterate = function(fetch_page_fn, initial_params)
     -- Call the injected page-fetcher (D-43: transport owned by fetch_page_fn).
     local page, status, raw = fetch_page_fn(params)
 
+    -- Plan 05-04 / ERR-04 / ADR-0005 Invariant 4 / RESEARCH §Pattern-2:
+    -- post-mint 401 from a resource endpoint means the bearer was VALID at
+    -- mint time but invalidated mid-session (revoked / scope changed /
+    -- merchant regenerated key in another tab). Surface immediately as
+    -- error.token_revoked so the user re-enters the API key in MoneyMoney's
+    -- account dialog. Justified exception to D-43 routing (intercept BEFORE
+    -- M_errors.from_http_status would map 401 -> LoginFailed via D-24 case 3):
+    -- the 401 -> token-revoked mapping is semantic (we know the mint succeeded
+    -- because cached_token returned a bearer), not status-code-class generic.
+    -- The exception applies ONLY to resource-endpoint iterators; token-mint
+    -- (M_auth.exchange_assertion) never paginates and so never hits this path.
+    if status == 401 then return nil, M_i18n.t("error.token_revoked") end
+
     -- Route HTTP errors through Phase-2's error mapper (D-43 / RESEARCH §1 Status table).
     local err = M_errors.from_http_status(status, raw)
     if err then return nil, err end
@@ -130,6 +143,13 @@ M_pagination.offset_iterate = function(fetch_page_fn, initial_params)
     end
 
     local page, status, raw = fetch_page_fn(params)
+
+    -- Plan 05-04 / ERR-04 / ADR-0005 Invariant 4 / RESEARCH §Pattern-2:
+    -- mirror of the post-mint 401-direct-check from M_pagination.iterate.
+    -- Both M_finance.fetch and M_finance.fetch_all flow through this
+    -- offset iterator, so the single check covers both call sites. See
+    -- M_pagination.iterate above for the full justified-exception rationale.
+    if status == 401 then return nil, M_i18n.t("error.token_revoked") end
 
     local err = M_errors.from_http_status(status, raw)
     if err then return nil, err end

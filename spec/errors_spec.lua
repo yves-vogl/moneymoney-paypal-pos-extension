@@ -90,17 +90,34 @@ describe("M_errors.from_http_status", function()
   end)
 
   -- -------------------------------------------------------------------------
-  -- D-24: 5xx → network string with status code
+  -- D-24 case 5 + Phase-5 Invariant 2: 5xx range split (599 = retry-exhausted)
   -- -------------------------------------------------------------------------
 
-  it("500 returns network string with status", function()
+  it("500 returns network string with status (D-24 case 5 preserved)", function()
     local result = M_errors.from_http_status(500, "")
     assert.equals(M_i18n.t("error.network", "500"), result)
   end)
 
-  it("599 returns network string with status", function()
+  it("500/501/502/503/598 still return network string with status (D-24 case 5 backward compat)", function()
+    for _, code in ipairs({ 500, 501, 502, 503, 598 }) do
+      local result = M_errors.from_http_status(code, "")
+      assert.equals(M_i18n.t("error.network", tostring(code)), result,
+        "code " .. tostring(code) .. " should map to error.network with status")
+    end
+  end)
+
+  it("599 returns server_busy string (Phase 5 / D-62 retry-exhausted sentinel; ADR-0005 Invariant 2)", function()
     local result = M_errors.from_http_status(599, "")
-    assert.equals(M_i18n.t("error.network", "599"), result)
+    assert.equals(M_i18n.t("error.server_busy"), result)
+  end)
+
+  it("599 sentinel SEC-03: body never echoed into server_busy result", function()
+    local secret_body = '{"error":"server_error","detail":"SECRET_MARKER_599"}'
+    local result = M_errors.from_http_status(599, secret_body)
+    if type(result) == "string" then
+      assert.is_falsy(result:find("SECRET_MARKER_599", 1, true),
+        "SEC-03: body must never echo into result string")
+    end
   end)
 
   -- -------------------------------------------------------------------------

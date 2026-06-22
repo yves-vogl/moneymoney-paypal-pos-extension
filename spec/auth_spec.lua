@@ -10,6 +10,8 @@
 -- test starts with a clean module-local state (including _conn, token cache).
 -- This matches the before_each pattern from spec/log_redaction_spec.lua L41-48.
 
+-- luacheck: ignore 631
+
 local Mocks    = require("spec.helpers.mm_mocks")
 local Fixtures = require("spec.helpers.fixtures")
 
@@ -96,6 +98,24 @@ describe("M_auth", function()
     Mocks.push_response({ content = raw })
     M_auth.exchange_assertion("hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig", "client-x")
     assert.equals("application/x-www-form-urlencoded", Mocks._last_request.contentType)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- ERR-01 / D-61 / ADR-0005 Invariant 1: token-mint invalid_grant → LoginFailed
+  -- Regression test using existing Phase-2 fixture; no source change required.
+  -- The Phase-2 _infer_status branch maps {"error":"invalid_grant"} → 400,
+  -- which M_errors.from_http_status then routes to LoginFailed (D-24 case 3).
+  -- This test asserts the full round-trip so any future refactor to either
+  -- M_http._infer_status OR M_errors.from_http_status surfaces here.
+  -- -------------------------------------------------------------------------
+
+  it("ERR-01 / D-61: exchange_assertion 400 invalid_grant maps to LoginFailed via M_errors", function()
+    local raw = Fixtures.load("auth/token_invalid_grant")
+    Mocks.push_response({ content = raw })
+    local _, status, raw_body = M_auth.exchange_assertion("hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig", "client-x")
+    assert.equals(400, status, "expected _infer_status to map invalid_grant body to 400")
+    assert.equals(LoginFailed, M_errors.from_http_status(status, raw_body),
+      "ERR-01: invalid_grant must surface LoginFailed constant per D-61")
   end)
 
   -- -------------------------------------------------------------------------
@@ -316,6 +336,73 @@ describe("M_auth", function()
   -- -------------------------------------------------------------------------
   -- SEC-03 / AUTH-05: API key never written to LocalStorage
   -- -------------------------------------------------------------------------
+
+  -- -------------------------------------------------------------------------
+  -- Plan 05-04 / ERR-01: explicit regression gate using the round-trip path
+  -- through InitializeSession2 (the actual MoneyMoney entry boundary).
+  -- The Phase-2 test above (line 110) verifies the M_errors.from_http_status
+  -- mapping in isolation; this test exercises the full round-trip so any
+  -- future refactor to either InitializeSession2's error routing OR
+  -- exchange_assertion's transport surfaces here as a Phase-2 regression.
+  -- Regression-only: if this fails, do NOT silently rewrite Phase-2 behavior
+  -- in Plan 05-04 — root-cause + fix in a separate `fix(02):` commit.
+  -- -------------------------------------------------------------------------
+  describe("ERR-01 (Phase-5 regression) LoginFailed on invalid_grant", function()
+    it("InitializeSession2 returns the LoginFailed constant on invalid_grant (ERR-01)", function()
+      local raw = Fixtures.load("auth/token_invalid_grant")
+      Mocks.push_response({ content = raw })
+      -- Mint-time invalid_grant: _infer_status maps {"error":"invalid_grant"} → 400,
+      -- M_errors.from_http_status routes 400 → LoginFailed, InitializeSession2
+      -- returns it verbatim (no i18n wrapping — MoneyMoney handles the special UI).
+      local api_key = "hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig"
+      local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", nil, api_key, true)
+      assert.equals(LoginFailed, result,
+        "ERR-01: InitializeSession2 must return the LoginFailed constant verbatim "
+        .. "(NOT a German string) so MoneyMoney shows its credential re-prompt UI.")
+    end)
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 05-04 / ERR-04: post-mint 401 → error.token_revoked German string.
+  -- Justified exception to D-43 documented in src/purchases.lua and src/finance.lua.
+  -- _infer_status maps {"error":"invalid_client"} → 401 (per src/http.lua:128-129).
+  -- The 401-direct-check intercepts at the iterator boundary (Plan-deviation per
+  -- Rule 1; see SUMMARY) and returns the German string from M_i18n.
+  -- -------------------------------------------------------------------------
+  describe("ERR-04 token-revoked on post-mint 401", function()
+    it("RefreshAccount returns error.token_revoked German string when purchase fetch 401s after successful mint (ERR-04)", function()
+      -- Seed a fresh cached token so RefreshAccount skips re-auth (D-41).
+      LocalStorage["zettle:org-err04"] = JSON():set({
+        access_token = "AT-WAS-VALID",
+        expires_at   = os.time() + 7200,
+        obtained_at  = os.time(),
+        client_id    = "client-x",
+        uuid         = "u-1",
+        publicName   = "Beispiel Caf\195\169",
+      }):json()
+
+      -- Queue an invalid_client body for the FIRST resource call (purchases page 1).
+      -- _infer_status maps {"error":"invalid_client"} → 401.
+      Mocks.push_response({ content = '{"error":"invalid_client"}' })
+
+      local account = { accountNumber = "org-err04", currency = "EUR", balance = 0 }
+      local result = RefreshAccount(account, 0)
+
+      -- ERR-04 contract: returns a STRING (not a table), containing the German
+      -- token_revoked text. The exact i18n value lives in Plan 05-02; we assert
+      -- on the unambiguous prefix "Anmeldung verloren" so future locale changes
+      -- to the tail (e.g. punctuation) don't break the test.
+      assert.is_string(result,
+        "RefreshAccount must return a STRING on ERR-04, got: " .. type(result))
+      assert.is_not_nil(result:find("Anmeldung verloren", 1, true),
+        "ERR-04: result must contain the German token_revoked prefix "
+        .. "'Anmeldung verloren', got: " .. tostring(result))
+      -- Exact i18n value match (locked at Plan 05-02 i18n).
+      assert.equals(M_i18n.t("error.token_revoked"), result,
+        "ERR-04: result must equal the M_i18n.t('error.token_revoked') value verbatim "
+        .. "(no rewrapping by error.network or other layers).")
+    end)
+  end)
 
   it("persist_session never writes the api_key anywhere in LocalStorage", function()
     -- Simulate the full session-init sequence:

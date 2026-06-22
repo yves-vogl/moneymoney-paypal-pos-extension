@@ -182,6 +182,109 @@ describe("RefreshAccount idempotency (TEST-03 / SALE-02 / SALE-05 / D-39)", func
     end
   end)
 
+  -- -------------------------------------------------------------------------
+  -- Plan 05-04 / ERR-04 retry: idempotency across a token-revoked failure.
+  -- Refresh N fails with `error.token_revoked` (no transactions emitted);
+  -- refresh N+1 (after user re-enters API key → fresh cached bearer) succeeds
+  -- and emits the SAME transactionCodes that would have appeared had refresh
+  -- N succeeded. Asserts:
+  --   (a) `since` parameter unchanged across the failed + retry refresh
+  --       (MoneyMoney passes the same value byte-identically until a
+  --       successful refresh advances its high-water mark)
+  --   (b) no orphan transactionCodes from refresh N pollute refresh N+1
+  --   (c) German error string format matches Plan 05-02 i18n value exactly
+  -- -------------------------------------------------------------------------
+  it("ERR-04 + retry: refresh N fails with token_revoked, refresh N+1 with fresh bearer succeeds without orphans (ERR-04 retry)", function()
+    local orgUuid = "org-err04-retry"
+    local since   = 0   -- byte-identical across both refresh calls (point (a))
+    local account = { accountNumber = orgUuid, currency = "EUR", balance = 0 }
+
+    -- ----- Refresh N: cached bearer was revoked mid-session -----
+    seed_token(orgUuid)
+    -- The first resource call (M_purchases.fetch page 1) gets a 401.
+    -- _infer_status maps {"error":"invalid_client"} → 401, which the
+    -- 401-direct-check converts to M_i18n.t("error.token_revoked").
+    Mocks.push_response({ content = '{"error":"invalid_client"}' })
+    local r_fail = RefreshAccount(account, since)
+
+    assert.is_string(r_fail,
+      "ERR-04 retry / refresh N: expected error string, got: " .. type(r_fail))
+    assert.equals(M_i18n.t("error.token_revoked"), r_fail,
+      "ERR-04 retry / refresh N: error string must equal Plan-05-02 i18n value exactly")
+
+    -- Reset the request log so refresh N+1 starts from a clean slate; the
+    -- token_revoked path emitted NO transactions (point (b) precondition).
+    Mocks._captured_requests = {}
+
+    -- ----- Refresh N+1: user re-entered API key → fresh bearer cached -----
+    -- Overwrite the cached token (simulating a successful re-auth via
+    -- InitializeSession2 between refreshes). New bearer NAME ensures the
+    -- mock-recorded Authorization header DIFFERS from the failed refresh's.
+    LocalStorage["zettle:" .. orgUuid] = JSON():set({
+      access_token = "AT-FRESH-AFTER-REAUTH",
+      expires_at   = os.time() + 7200,
+      obtained_at  = os.time(),
+      client_id    = "client-x",
+      uuid         = "u-1",
+      publicName   = "Beispiel Caf\195\169",
+    }):json()
+    -- Queue the full Plan-04-03 four-response set for the successful retry.
+    local purchase_raw    = Fixtures.load("purchases/purchase_simple_sale")
+    local liquid_raw      = Fixtures.load("finance/finance_balance_liquid")
+    local preliminary_raw = Fixtures.load("finance/finance_balance_preliminary")
+    local finance_raw     = Fixtures.load("finance/finance_empty")
+    Mocks.push_response({ content = purchase_raw })
+    Mocks.push_response({ content = liquid_raw })
+    Mocks.push_response({ content = preliminary_raw })
+    Mocks.push_response({ content = finance_raw })
+
+    local r_ok = RefreshAccount(account, since)
+
+    assert.is_table(r_ok,
+      "ERR-04 retry / refresh N+1: expected result table, got: " .. type(r_ok))
+    assert.is_table(r_ok.transactions,
+      "ERR-04 retry / refresh N+1: result.transactions must be a table")
+    assert.is_true(#r_ok.transactions >= 1,
+      "ERR-04 retry / refresh N+1: must return at least one transaction "
+      .. "(purchase_simple_sale fixture contains one sale)")
+
+    -- Point (b): every transactionCode emerged from refresh N+1 only — refresh
+    -- N produced none, so there are no orphans to dedupe against. Assert the
+    -- shape matches the standard sale schema (any future code that emits a
+    -- stale code from refresh N would surface here as an unexpected prefix).
+    for _, t in ipairs(r_ok.transactions) do
+      assert.is_string(t.transactionCode,
+        "transactionCode must be a string, got: " .. tostring(t.transactionCode))
+      assert.is_truthy(t.transactionCode:find("^zettle:sale:", 1, false),
+        "ERR-04 retry: transactionCode must match ^zettle:sale:, got: "
+        .. tostring(t.transactionCode))
+    end
+
+    -- Point (a) reaffirmed via the request log: the `since` value passed into
+    -- RefreshAccount was byte-identical across both calls (the test passes the
+    -- SAME `since` local to both invocations). entry.lua then clamps to
+    -- max(since, now-90d) per D-33, so the wire-level startDate is the
+    -- 90-day-floor (NOT 1970), but the MoneyMoney → extension boundary
+    -- contract (which is what idempotency cares about) is the `since` we
+    -- passed in. Verify the purchases URL exists and carries a startDate
+    -- in the expected 90-day window (anything OLDER than now would violate
+    -- the clamp; anything NEWER would indicate state pollution from refresh N).
+    local found_purchase_url = false
+    local ninety_days_ago_iso = os.date("!%Y-%m-%dT", os.time() - 90 * 86400)
+    for _, req in ipairs(Mocks._captured_requests) do
+      if type(req.url) == "string"
+          and req.url:find("purchase.izettle.com/purchases/v2", 1, true) then
+        found_purchase_url = true
+        assert.is_not_nil(req.url:find("startDate=" .. ninety_days_ago_iso, 1, true),
+          "ERR-04 retry: refresh N+1 must reuse the SAME clamped `since` "
+          .. "(expected startDate prefix " .. ninety_days_ago_iso .. " "
+          .. "from D-33 90-day clamp on since=0), got: " .. req.url)
+      end
+    end
+    assert.is_true(found_purchase_url,
+      "ERR-04 retry / refresh N+1: at least one purchase.izettle.com request expected")
+  end)
+
   it("RefreshAccount returns German error.network string when cached_token is nil (D-41)", function()
     -- Deliberately do NOT call seed_token — LocalStorage has no entry for org-no-token.
     -- Queue a fixture defensively in case the implementation tries a fetch anyway.

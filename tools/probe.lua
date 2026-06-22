@@ -9,6 +9,7 @@
 -- Q7: services-label rendering — maintainer observes "PayPal POS Probe"
 --     appears in the add-account UI
 -- Q8: TLS verification default — Connection:get against expired.badssl.com
+-- Q9: MM.sleep availability + behaviour (Phase 5 / D-67; OPTIONAL per ADR-0005)
 --
 -- Q2, Q3, Q6 are NOT runnable from this probe (require live PayPal POS
 -- credentials or developer.zettle.com lookup). The maintainer fills those
@@ -104,6 +105,26 @@ function RefreshAccount(account, since)
     print("  Q8: error = " .. tostring(err))
   end
   conn:close()
+
+  -- Q9: MM.sleep availability + behaviour (Phase 5 / D-67; OPTIONAL per ADR-0005)
+  print("--- Q9: MM.sleep availability ---")
+  if type(MM) ~= "table" then
+    print("  Q9: RESULT = FAIL (MM is not a table; sandbox surface differs from expectation)")
+  elseif type(MM.sleep) ~= "function" then
+    print("  Q9: RESULT = ABSENT (MM.sleep is not a function — would force busy-wait fallback per ADR-0005)")
+  else
+    local t0 = os.time()
+    local sleep_ok, sleep_err = pcall(function() MM.sleep(1) end)
+    local elapsed = os.time() - t0
+    if not sleep_ok then
+      print("  Q9: RESULT = FAIL (MM.sleep(1) errored: " .. tostring(sleep_err) .. ")")
+    elseif elapsed < 1 then
+      print(string.format("  Q9: RESULT = PRESENT-BUT-NOOP (elapsed=%ds, expected >=1s)", elapsed))
+    else
+      print(string.format("  Q9: RESULT = PASS (MM.sleep blocks; elapsed=%ds)", elapsed))
+    end
+  end
+  print("  Q9: ACTION = record outcome in docs/adr/0003-sandbox-probe-results.md row Q9")
 
   print("=== PAYPAL POS PROBE END ===")
 

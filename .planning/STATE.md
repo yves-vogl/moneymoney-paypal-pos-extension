@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
-status: executing
-last_updated: "2026-06-21T08:00:00.000Z"
+status: implementation-complete
+last_updated: "2026-06-22T08:30:00.000Z"
 progress:
   total_phases: 7
-  completed_phases: 1
-  total_plans: 8
-  completed_plans: 11
-  percent: 14
+  completed_phases: 2
+  total_plans: 28
+  completed_plans: 25
+  percent: 29
 ---
 
 # Project State: MoneyMoney PayPal POS Extension
@@ -33,8 +33,29 @@ progress:
 
 ## Current Position
 
+Phase: 05 (resilience-error-handling) — **IMPLEMENTATION + 05-06 FIX-BATCH COMPLETE; READY-FOR-RE-VERIFICATION 2026-06-22**
+
+**Status:** All 5 plans landed across 4 waves on `phase-5/resilience` branch + Plan 05-06 post-review fix-batch landed (REVIEW.md WR-01/WR-02/WR-03 + SECURITY-REVIEW S-01/S-02/S-03/S-04/S-05/S-06 addressed; Tier-3 WR-04/IN-01..04/S-07 deferred to follow-up PR). ADR-0005 ACCEPTED with 6 invariants pinned + 3 carve-outs (SSL bypass / HTTP-date Retry-After degradation / anchor stub) + Implementation Pin extended with two new contracts (599-sentinel emission live + per-request wall-clock cap) + sleep mechanism (MM.sleep + pcall-defensive) + updated worst-case timing budget. Retry semantics shipped in src/http.lua _request_with_retry (5xx 3-attempts {1,2,4}s; 429 single-retry Retry-After integer-only with 60s cap + 30s default + strict digit-only precheck post-S-04; 599 sentinel emission NOW LIVE for server_error/internal_error/backend_error/service_unavailable/temporarily_unavailable/server_busy 5xx body shapes post-S-02; _WALL_CLOCK_CAP=60s bounds adversarial mixed-error sequences post-S-01). ERR-04 post-mint 401 → German error.token_revoked via iterator-layer 401-direct-check (4 call sites). ERR-06 fail-whole-refresh structurally enforced. SEC-03 invariant preserved + extended (Gate D + Gate D extended for malicious cursor CR/LF percent-encoding post-S-03 + degraded MM.sleep pcall path coverage post-S-06). Phase-4 surface frozen.
+
+**Plan-05 commits** (on `phase-5/resilience`, all GPG-signed):
+- Plan 05-01: ADR-0005 transition Proposed → ACCEPTED + Q9 probe block in tools/probe.lua
+- Plan 05-02: i18n keys (error.server_busy + error.token_revoked) + M_errors 599 sentinel + RED scaffolds (http_retry_spec + refresh_fail_whole_spec)
+- Plan 05-03: M_http retry-with-backoff (5xx + 429 + 599 sentinel + D-68 INFO log) + 8 pending → GREEN flips in http_retry_spec
+- Plan 05-04: ERR-04 401-direct-check (iterator + inline) + ERR-01 round-trip regression + fix-batch (4 commits including 868c241 HI-01 + e8b0bf7 HI-02 + 19be0fb ME-01 + 119ea7c S-04)
+- Plan 05-05: 4 ERR-06 fail-whole cases (1de7caf) + SEC-03 Gate D (9d05f95) + Phase-4 surface preservation (06ac4c7) + ADR-0005 Implementation Pin (ca4df8f)
+- **Plan 05-06 (post-review fix-batch, NEW):** 4 source-changing fixes (43ebc46 S-02/WR-01/WR-02 599-sentinel-live + bdb78cd S-01/WR-03 wall-clock-cap + 301e157 S-04 hex-reject + 714ff3e ADR-0005 update) + 4 RED-first / regression-only test commits (c781acc + cf1f23b + f119f02 + 51e09e1 S-03 Gate-D-extended + 9efab5b S-06 degraded-MM.sleep).
+
+Full suite **373 successes / 0 failures / 0 errors / 0 pending** (was 365; +8 new regression tests). luacheck: local env runs Lua 5.5 where the luacheck 1.2.0-1 module has a runtime regression (`luacheck.standards` const assignment); CI runs Lua 5.4 where it passes (pinned by `leafo/gh-actions-lua@v13`). Reproducible build sha **`5dbcb8ea97ae2fb2b675442439ac93b342893e84b9e7849b29df07e9612b777e`** (was `b151f16…`; changed because of S-02, S-01, S-04 source fixes to src/http.lua).
+
+**Recommended next steps:** re-run gsd-verifier on Phase 5 to confirm 6/6 must-haves still pass after fix-batch; optional parallel re-run of gsd-code-reviewer + loop-security-engineer to confirm only Tier-3 deferred items remain; PR via `gh pr create` + squash merge per `feedback_gpg_signed_pr_merge` (never `--rebase`); Phase 6 unblocked once Phase 5 lands on main.
+
+---
+
+### Previous Phase: 04 — DONE (merged)
+
 Phase: 04 (enrichment-refunds-fees-payouts) — **IMPLEMENTATION + POST-REVIEW FIX BATCH COMPLETE; READY-FOR-RE-VERIFICATION 2026-06-21**
 **Status:** Phase 3 fully merged to main (spine via PR #8 `a11287d`; verifier closure via PR #10 `a201f6c`). Phase 4 planning artifacts complete + Waves 1+2+3+4+5 implementation landed + Plan 04-07 (post-review fix batch) landed:
+
 - Plan 04-02 (Wave-1 pure-logic) shipped 3 GPG-signed commits (`24990d9` test fixtures + RED scaffolds; `a75f6d7` offset_iterate + manifest consolidation; `c4ed80e` M_finance.parse_transaction + 4 mapping mappers + 12 i18n keys).
 - Plan 04-04 (Wave-3 mapping enrichment) shipped 2 GPG-signed commits (`d3d1311` RED scaffolds + new fixtures; `08207a4` per-rate VAT + card-tail in _format_purpose).
 - Plan 04-03 (Wave-2 Finance HTTP + cross-refresh integration) shipped 2 GPG-signed commits (`54e6fd8` M_finance.fetch + fetch_all + fetch_account_state; `84052c3` 16-step RefreshAccount extension with purchases_by_uuid + payments_by_uuid + SALE-03 promotion + D-49 Option B + payout mapping).
@@ -43,19 +64,20 @@ Phase: 04 (enrichment-refunds-fees-payouts) — **IMPLEMENTATION + POST-REVIEW F
 - **Plan 04-07 (post-review fix batch — autonomous-window) shipped 13 GPG-signed commits** addressing REVIEW.md (3 BLOCKER + 4 WARNING) + SECURITY-REVIEW.md (1 HIGH + 4 MEDIUM + 1 LOW). Full per-finding mapping in `04-07-FIX-SUMMARY.md`.
 
 Full suite 328 → **335 successes / 0 failures**; luacheck 0/0 in 38 files; reproducible build sha `6f4f685fd40f2922cb318a786c08b4d7182e0eb167e2c5c90c137fe47308fe54`. Plan 04-01 (Q3 sandbox probe) still pending Yves' live verification. Plan 04-06 Task 4 (loop-lektor pass on CHANGELOG/README/ADR-0004 German wording) deferred to Yves checkpoint after merge per orchestrator standing instruction.
-**Progress:** `[████████████████████░] 3/7 phases shipped; Phase 4 implementation + fix-batch COMPLETE (Plans 04-02..04-07 landed); Plan 04-01 (Yves Q3 probe) + re-verifier + lektor + ship pending`
+**Progress:** [█████████░] 89%
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
 Phase 2: Authenticated Network Layer       [DONE ✅ — merged via PR #6 + Lows PR #7]
 Phase 3: Sale Spine                        [DONE ✅ — merged via PR #8 spine + PR #10 verifier closure]
 Phase 4: Enrichment                        [PLANNED ✅ — 04-CONTEXT/RESEARCH/PATTERNS/6 PLANs/PLAN-REVIEW committed; awaiting Yves unblock]
-Phase 5: Resilience & Error Handling       [BLOCKED on Phase 4]
-Phase 6: Release & Polish                  [BLOCKED on Phase 5]
+Phase 5: Resilience & Error Handling       [IMPLEMENTATION COMPLETE ✅ — READY-FOR-VERIFIER 2026-06-22]
+Phase 6: Release & Polish                  [BLOCKED on Phase 5 ship to main]
 Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
 **Branch state:** On `phase-4/enrichment` (created 2026-06-21 from `origin/main` @ `a201f6c`). 25 local commits (6 planning + 3 Plan-04-02 + 2 Plan-04-04 + 2 Plan-04-03 + 3 Plan-04-05 + 3 Plan-04-06 + 5 docs/state/summary + 1 tools/probe):
+
 - `1578b75` docs(04): capture phase 4 enrichment context (autonomous draft)
 - `211da0b` docs(state): mark Phase 3 fully merged, Phase 4 context drafted
 - `0ac35b7` docs(04): research Phase 4 enrichment domain — Finance API surface, fee linkage, payout matching
