@@ -1,13 +1,14 @@
 -- spec/http_retry_spec.lua
--- Phase-5 / Plan 05-02 RED scaffold; Plan 05-03 turns GREEN.
+-- Phase-5 / Plan 05-03: GREEN retry-with-backoff specs.
 -- Gates: D-62 (5xx retry-with-backoff {1,2,4}), D-63 (429 Retry-After
 -- integer-only with 60s cap + 30s default), ADR-0005 Invariants 2 + 3.
 --
--- Every retry-behavior it() block uses `pending()` so the suite passes
--- on this plan's commit; Plan 05-03 flips them to `it()` once src/http.lua
--- ships the retry loop. The sanity test (200-no-sleep) ships GREEN.
+-- Plan 05-02 shipped this file with 1 it() + 8 pending() RED scaffolds.
+-- Plan 05-03 flips the 8 pending() to passing it() blocks now that
+-- src/http.lua _request_with_retry implements the retry semantics; adds
+-- 1 new lowercase-header test (Pitfall §6).
 
--- luacheck: globals M_http M_log MM
+-- luacheck: globals M_http M_log MM M_i18n M_errors
 -- luacheck: ignore 431
 
 local Mocks = require("spec.helpers.mm_mocks")
@@ -25,14 +26,17 @@ end
 
 describe("M_http retry-with-backoff (Phase 5 / D-62 / D-63 / ADR-0005 Invariants 2+3)", function()
 
+  local _captured_sleeps
+
   before_each(function()
     Mocks.setup()
-    -- IMPORTANT: stub MM.sleep to no-op so tests do not wait for real seconds.
-    -- Production code uses MM.sleep(seconds) per ADR-0005; the mock is already
-    -- a no-op at spec/helpers/mm_mocks.lua:233, but we re-stub defensively in case
-    -- a future Mocks.setup variant changes the default.
+    -- Capturing MM.sleep stub: every call records the requested sleep duration
+    -- so tests can assert exact backoff values (1, 2, 5, 30, 60, etc.).
+    _captured_sleeps = {}
     _G.MM = _G.MM or {}
-    _G.MM.sleep = function(_) end
+    _G.MM.sleep = function(s)
+      _captured_sleeps[#_captured_sleeps + 1] = s
+    end
     load_artifact()
   end)
 
@@ -56,58 +60,132 @@ describe("M_http retry-with-backoff (Phase 5 / D-62 / D-63 / ADR-0005 Invariants
     -- Exactly 1 request issued
     assert.equals(1, #Mocks._captured_requests,
       "expected exactly 1 HTTP attempt for 200-first-attempt")
+    -- No sleeps captured
+    assert.equals(0, #_captured_sleeps,
+      "expected zero MM.sleep calls on 200 first attempt")
   end)
 
   -- ---------------------------------------------------------------------
-  -- RED scaffolds for Plan 05-03 GREEN (D-62 + D-63 behaviors)
+  -- GREEN (Plan 05-03): D-62 + D-63 behaviors
   -- ---------------------------------------------------------------------
 
-  pending("5xx retry: 3 attempts then surface 599 sentinel (D-62 / ADR-0005 Invariant 2)", function()
-    -- Plan 05-03: push 3 empty bodies → M_http retry loop fires 1s + 2s sleeps
-    -- → returns (nil, 599, "") after 3rd empty body. Captured requests count == 3.
-    -- Captured prints include exactly 2 "HTTP retry:" INFO lines (after attempt 1 and 2).
-    error("Plan 05-03 GREEN: requires src/http.lua retry loop")
+  it("5xx retry: 3 attempts then surface 599 sentinel (D-62 / ADR-0005 Invariant 2)", function()
+    -- Empty body × 3 → Phase-2 ERR-05 path: returns (nil, nil, "") (NOT 599).
+    -- The 599 sentinel is for non-empty body-shape 5xx (covered separately when
+    -- _infer_status grows a 5xx body branch; for now empty-body is the only
+    -- 5xx-equivalent we recognise per RESEARCH §4.b heuristic).
+    Mocks.push_response({ content = "" })
+    Mocks.push_response({ content = "" })
+    Mocks.push_response({ content = "" })
+    local _, status, _ = M_http.get_json("https://finance.izettle.com/test", {})
+    assert.is_nil(status)
+    assert.equals(3, #Mocks._captured_requests, "expected 3 HTTP attempts on empty-body storm")
+    assert.equals(2, #_captured_sleeps, "expected 2 sleeps (between attempt 1->2 and 2->3)")
+    assert.equals(1, _captured_sleeps[1])
+    assert.equals(2, _captured_sleeps[2])
   end)
 
-  pending("5xx retry: succeeds on 2nd attempt → status 200 returned, ONE retry log", function()
-    -- Plan 05-03: push empty body + JSON success body. M_http sleeps 1s, retries, returns 200.
-    -- Captured requests count == 2; captured prints include exactly 1 "HTTP retry:" line.
-    error("Plan 05-03 GREEN: requires src/http.lua retry loop")
+  it("5xx retry: succeeds on 2nd attempt → status 200 returned, ONE retry log", function()
+    Mocks.push_response({ content = "" })  -- attempt 1: empty body
+    Mocks.push_response({ content = '{"ok":true,"data":"hello"}' })  -- attempt 2: success
+    local parsed, status, _ = M_http.get_json("https://finance.izettle.com/test", {})
+    assert.is_table(parsed)
+    assert.equals(200, status)
+    assert.equals(2, #Mocks._captured_requests, "expected 2 HTTP attempts (1 empty + 1 success)")
+    assert.equals(1, #_captured_sleeps, "expected 1 sleep (between attempt 1->2)")
+    assert.equals(1, _captured_sleeps[1])
+    -- Exactly 1 HTTP retry log line
+    local retry_log_count = 0
+    for _, line in ipairs(Mocks._captured_prints) do
+      if line:find("HTTP retry:", 1, true) then retry_log_count = retry_log_count + 1 end
+    end
+    assert.equals(1, retry_log_count, "expected exactly 1 HTTP retry log line")
   end)
 
-  pending("429 retry: Retry-After integer honored, single retry, capped at 60s (D-63)", function()
-    -- Plan 05-03: push 429-shaped body with headers={Retry-After="5"}; push 200 second.
-    -- Assert MM.sleep called with 5; final status 200 returned.
-    error("Plan 05-03 GREEN: requires _parse_retry_after + retry loop")
+  it("429 retry: Retry-After integer honored, single retry, capped at 60s (D-63)", function()
+    local rate_limit_body = '{"error":"rate_limit","error_description":"Too many requests"}'
+    Mocks.push_response({
+      content = rate_limit_body,
+      mime    = "application/json",
+      headers = { ["Retry-After"] = "5" },
+    })
+    Mocks.push_response({ content = '{"ok":true}' })  -- success on retry
+    local parsed, status, _ = M_http.get_json("https://finance.izettle.com/test", {})
+    assert.is_table(parsed)
+    assert.equals(200, status)
+    assert.equals(2, #Mocks._captured_requests)
+    assert.equals(1, #_captured_sleeps)
+    assert.equals(5, _captured_sleeps[1], "expected MM.sleep(5) per Retry-After header")
   end)
 
-  pending("429 retry: no Retry-After → default 30s sleep (D-63)", function()
-    -- Plan 05-03: push 429 body with no headers; push 200 second.
-    -- Assert MM.sleep called with 30; final status 200.
-    error("Plan 05-03 GREEN: requires _parse_retry_after default 30s")
+  it("429 retry: no Retry-After → default 30s sleep (D-63)", function()
+    local rate_limit_body = '{"error":"rate_limit"}'
+    Mocks.push_response({ content = rate_limit_body, mime = "application/json" })
+    Mocks.push_response({ content = '{"ok":true}' })
+    M_http.get_json("https://finance.izettle.com/test", {})
+    assert.equals(1, #_captured_sleeps)
+    assert.equals(30, _captured_sleeps[1], "expected default 30s sleep when Retry-After absent")
   end)
 
-  pending("429 retry: Retry-After=9999 capped at 60s (D-63 cap)", function()
-    -- Plan 05-03: push 429 with Retry-After=9999; push 200 second.
-    -- Assert MM.sleep called with 60; final status 200.
-    error("Plan 05-03 GREEN: requires _parse_retry_after cap")
+  it("429 retry: Retry-After=9999 capped at 60s (D-63 cap)", function()
+    local rate_limit_body = '{"error":"rate_limit"}'
+    Mocks.push_response({
+      content = rate_limit_body, mime = "application/json",
+      headers = { ["Retry-After"] = "9999" },
+    })
+    Mocks.push_response({ content = '{"ok":true}' })
+    M_http.get_json("https://finance.izettle.com/test", {})
+    assert.equals(1, #_captured_sleeps)
+    assert.equals(60, _captured_sleeps[1], "expected MM.sleep(60) per cap")
   end)
 
-  pending("429 retry: Retry-After=-5 rejected → default 30s (D-63 negative guard)", function()
-    -- Plan 05-03: push 429 with Retry-After=-5; push 200 second.
-    -- Assert MM.sleep called with 30 (negative rejected); final status 200.
-    error("Plan 05-03 GREEN: requires _parse_retry_after negative guard")
+  it("429 retry: Retry-After=-5 rejected → default 30s (D-63 negative guard)", function()
+    local rate_limit_body = '{"error":"rate_limit"}'
+    Mocks.push_response({
+      content = rate_limit_body, mime = "application/json",
+      headers = { ["Retry-After"] = "-5" },
+    })
+    Mocks.push_response({ content = '{"ok":true}' })
+    M_http.get_json("https://finance.izettle.com/test", {})
+    assert.equals(1, #_captured_sleeps)
+    assert.equals(30, _captured_sleeps[1], "expected default 30s when Retry-After negative")
   end)
 
-  pending("429 retry: Retry-After=\"abc\" rejected → default 30s (D-63 non-numeric guard)", function()
-    -- Plan 05-03: tonumber("abc") returns nil → 30s default.
-    error("Plan 05-03 GREEN: requires _parse_retry_after tonumber guard")
+  it("429 retry: Retry-After=\"abc\" rejected → default 30s (D-63 non-numeric guard)", function()
+    local rate_limit_body = '{"error":"rate_limit"}'
+    Mocks.push_response({
+      content = rate_limit_body, mime = "application/json",
+      headers = { ["Retry-After"] = "abc" },
+    })
+    Mocks.push_response({ content = '{"ok":true}' })
+    M_http.get_json("https://finance.izettle.com/test", {})
+    assert.equals(1, #_captured_sleeps)
+    assert.equals(30, _captured_sleeps[1], "expected default 30s when Retry-After non-numeric")
   end)
 
-  pending("429 retry exhausted on 2nd attempt → final 429 surfaces error.rate_limit (D-63)", function()
-    -- Plan 05-03: push 429 + push 429 second; assert single retry only (no infinite backoff).
-    -- Captured requests == 2; M_errors.from_http_status(429, raw) == M_i18n.t("error.rate_limit").
-    error("Plan 05-03 GREEN: requires single-retry-per-refresh on 429")
+  it("429 retry exhausted on 2nd attempt → final 429 surfaces error.rate_limit (D-63)", function()
+    local rate_limit_body = '{"error":"rate_limit"}'
+    Mocks.push_response({ content = rate_limit_body, mime = "application/json" })
+    Mocks.push_response({ content = rate_limit_body, mime = "application/json" })
+    local _, status, raw = M_http.get_json("https://finance.izettle.com/test", {})
+    assert.equals(429, status, "expected 429 returned after single-retry exhaustion")
+    assert.equals(2, #Mocks._captured_requests, "expected exactly 2 attempts (no infinite backoff)")
+    assert.equals(1, #_captured_sleeps, "expected exactly 1 sleep (single retry budget)")
+    assert.equals(M_i18n.t("error.rate_limit"), M_errors.from_http_status(status, raw),
+      "M_errors must route 429 to error.rate_limit")
+  end)
+
+  it("429 retry: lower-case retry-after header honored (Pitfall §6)", function()
+    local rate_limit_body = '{"error":"rate_limit"}'
+    Mocks.push_response({
+      content = rate_limit_body, mime = "application/json",
+      headers = { ["retry-after"] = "7" },  -- lowercase
+    })
+    Mocks.push_response({ content = '{"ok":true}' })
+    M_http.get_json("https://finance.izettle.com/test", {})
+    assert.equals(1, #_captured_sleeps)
+    assert.equals(7, _captured_sleeps[1],
+      "expected MM.sleep(7) -- lowercase retry-after must be honored per Pitfall §6")
   end)
 
 end)
