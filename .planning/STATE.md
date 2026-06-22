@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
-status: implementation-complete
-last_updated: "2026-06-22T08:30:00.000Z"
+status: All 5 plans landed across 4 waves on `phase-5/resilience` branch + Plan 05-06 post-review fix-batch landed (REVIEW.md WR-01/WR-02/WR-03 + SECURITY-REVIEW S-01/S-02/S-03/S-04/S-05/S-06 addressed; Tier-3 WR-04/IN-01..04/S-07 deferred to follow-up PR). ADR-0005 ACCEPTED with 6 invariants pinned + 3 carve-outs (SSL bypass / HTTP-date Retry-After degradation / anchor stub) + Implementation Pin extended with two new contracts (599-sentinel emission live + per-request wall-clock cap) + sleep mechanism (MM.sleep + pcall-defensive) + updated worst-case timing budget. Retry semantics shipped in src/http.lua _request_with_retry (5xx 3-attempts {1,2,4}s; 429 single-retry Retry-After integer-only with 60s cap + 30s default + strict digit-only precheck post-S-04; 599 sentinel emission NOW LIVE for server_error/internal_error/backend_error/service_unavailable/temporarily_unavailable/server_busy 5xx body shapes post-S-02; _WALL_CLOCK_CAP=60s bounds adversarial mixed-error sequences post-S-01). ERR-04 post-mint 401 → German error.token_revoked via iterator-layer 401-direct-check (4 call sites). ERR-06 fail-whole-refresh structurally enforced. SEC-03 invariant preserved + extended (Gate D + Gate D extended for malicious cursor CR/LF percent-encoding post-S-03 + degraded MM.sleep pcall path coverage post-S-06). Phase-4 surface frozen.
+last_updated: "2026-06-22T09:58:20.441Z"
 progress:
   total_phases: 7
-  completed_phases: 2
-  total_plans: 28
-  completed_plans: 25
-  percent: 29
+  completed_phases: 3
+  total_plans: 31
+  completed_plans: 29
+  percent: 43
 ---
 
 # Project State: MoneyMoney PayPal POS Extension
@@ -24,7 +24,7 @@ progress:
 **Core Value:**
 > A German PayPal POS merchant pastes their API key into MoneyMoney once and from then on sees every card transaction, refund, fee, and payout automatically in MoneyMoney — accurately, on schedule, with VAT and tip transparency suitable for bookkeeping.
 
-**Current Focus:** Phase 02 — authenticated-network-layer
+**Current Focus:** Phase 06 — release-polish (Plan 06-01 SHIPPED 2026-06-22; Plan 06-02 + 06-03 queued)
 
 **Granularity:** standard (6 phases)
 **Mode:** mvp / yolo (per `config.json`)
@@ -33,11 +33,28 @@ progress:
 
 ## Current Position
 
-Phase: 05 (resilience-error-handling) — **IMPLEMENTATION + 05-06 FIX-BATCH COMPLETE; READY-FOR-RE-VERIFICATION 2026-06-22**
+Phase: 06 (release-polish) — **Plan 06-01 (Wave-1 build-pipeline + CI-gates) SHIPPED 2026-06-22; Plans 06-02 + 06-03 queued**
+
+**Plan 06-01 commits** (on `phase-6/release-polish`, all GPG-signed):
+
+- `cc14215` test(06-01): RED scaffold for `__VERSION__` substitution spec (BUILD-03)
+- `0bad03e` feat(06-01): `__VERSION__` substitution from `$GITHUB_REF_NAME` (BUILD-03 / D-73)
+- `3b33b3a` test(06-01): extend META-03 walker to documentation markdown (DOC-04 / Pitfall 6)
+- `1796676` ci(06-01): allowlist fixture-only gitleaks fingerprints (Pitfall 5; 21 audited false-positive fingerprints)
+- `6b14185` ci(06-01): add gitleaks + commit-lint + D-79 raw-print() grep (CI-05 / D-78 / D-79)
+
+Full suite **381 successes / 0 failures / 0 errors / 0 pending** (was 373; +7 BUILD-03 + 1 META-03 doc-extension). luacheck clean (41 files). Reproducible build SHA recomputed: dev `4526a33fceab55122a6e624207c03cf76545939685825c3072c9d9001653304c`, tagged-v1.0.0 `d1afc595edc528db6719b826a084765719a7f249cb3b8a53cf1c6dd2790c8d36` (Phase-5 baseline was `5dbcb8ea…`; delta is by design — header now substitutes `__VERSION__` + optional DEV BUILD banner).
+
+**CI check names for 06-02 setup-branch-protection.sh CHECKS array:** `Lint + tests + reproducible build` (existing), `gitleaks secret scan` (new), `Commit-message lint` (new).
+
+**Closes:** BUILD-03, CI-05 fully; META-03 walker now covers documentation markdown (DOC-04 scaffolding in place for Wave-2 doc authoring).
+
+**Previous: Phase 5** — **IMPLEMENTATION + 05-06 FIX-BATCH COMPLETE; READY-FOR-RE-VERIFICATION 2026-06-22**
 
 **Status:** All 5 plans landed across 4 waves on `phase-5/resilience` branch + Plan 05-06 post-review fix-batch landed (REVIEW.md WR-01/WR-02/WR-03 + SECURITY-REVIEW S-01/S-02/S-03/S-04/S-05/S-06 addressed; Tier-3 WR-04/IN-01..04/S-07 deferred to follow-up PR). ADR-0005 ACCEPTED with 6 invariants pinned + 3 carve-outs (SSL bypass / HTTP-date Retry-After degradation / anchor stub) + Implementation Pin extended with two new contracts (599-sentinel emission live + per-request wall-clock cap) + sleep mechanism (MM.sleep + pcall-defensive) + updated worst-case timing budget. Retry semantics shipped in src/http.lua _request_with_retry (5xx 3-attempts {1,2,4}s; 429 single-retry Retry-After integer-only with 60s cap + 30s default + strict digit-only precheck post-S-04; 599 sentinel emission NOW LIVE for server_error/internal_error/backend_error/service_unavailable/temporarily_unavailable/server_busy 5xx body shapes post-S-02; _WALL_CLOCK_CAP=60s bounds adversarial mixed-error sequences post-S-01). ERR-04 post-mint 401 → German error.token_revoked via iterator-layer 401-direct-check (4 call sites). ERR-06 fail-whole-refresh structurally enforced. SEC-03 invariant preserved + extended (Gate D + Gate D extended for malicious cursor CR/LF percent-encoding post-S-03 + degraded MM.sleep pcall path coverage post-S-06). Phase-4 surface frozen.
 
 **Plan-05 commits** (on `phase-5/resilience`, all GPG-signed):
+
 - Plan 05-01: ADR-0005 transition Proposed → ACCEPTED + Q9 probe block in tools/probe.lua
 - Plan 05-02: i18n keys (error.server_busy + error.token_revoked) + M_errors 599 sentinel + RED scaffolds (http_retry_spec + refresh_fail_whole_spec)
 - Plan 05-03: M_http retry-with-backoff (5xx + 429 + 599 sentinel + D-68 INFO log) + 8 pending → GREEN flips in http_retry_spec
@@ -169,9 +186,9 @@ Resolved live on MoneyMoney 2.4.72 / macOS 26.4.1 ARM (see ADR-0003 ACCEPTED). A
 
 ## Session Continuity
 
-**Last action:** Phase 3 Plan 03-01 (Wave 0) executed. 10 fixtures under `spec/fixtures/purchases/` created. 4 pending spec scaffolds created (`spec/dst_table_spec.lua`, `spec/mapping_spec.lua`, `spec/pagination_spec.lua`, `spec/purchases_spec.lua`). Full busted suite: 119/0/0/36. luacheck: clean. Commits: `2650f0a` (fixtures) + `de82bea` (DST spec) + `e81f513` (mapping/pagination/purchases specs). Branch: `worktree-agent-ab3ac8af8d3e9bf1b`.
+**Last action:** Plan 06-01 (Wave-1 build-pipeline + CI-gates) executed 2026-06-22 on `phase-6/release-polish`. 5 GPG-signed commits (`cc14215` RED → `0bad03e` GREEN → `3b33b3a` META-03 doc-extension → `1796676` .gitleaksignore → `6b14185` gitleaks/commit-lint/D-79). Full busted: 381/0/0/0; luacheck clean; reproducible. Summary at `.planning/phases/06-release-polish/06-01-SUMMARY.md`.
 
-**Next action:** Wave 1 — Plan 03-02 (gating RED specs: `spec/refresh_idempotency_spec.lua` + `spec/mapping_schema_spec.lua`).
+**Next action:** Plan 06-02 (Wave-2 release.yml + setup-branch-protection.sh + README.de.md/EN split + 4 new ADRs). The 3 CI check names for the branch-protection script are documented in 06-01-SUMMARY.md.
 
 **Session resume prompt template** (if context lost):
 

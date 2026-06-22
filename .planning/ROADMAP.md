@@ -219,7 +219,7 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
 **Plans:** 3 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — Wave 1: __VERSION__ substitution (BUILD-03) + META-03 walker extension (DOC-04) + gitleaks + commit-lint + D-79 raw-print() grep (CI-05 / D-78 / D-79 / SEC-02 hardening)
+- [x] 06-01-PLAN.md — Wave 1: __VERSION__ substitution (BUILD-03) + META-03 walker extension (DOC-04) + gitleaks + commit-lint + D-79 raw-print() grep (CI-05 / D-78 / D-79 / SEC-02 hardening) — **SHIPPED 2026-06-22** (5 GPG-signed commits cc14215..6b14185; 381/0/0/0 busted; repro SHA dev 4526a33f / tagged-v1.0.0 d1afc595)
 - [ ] 06-02-PLAN.md — Wave 2: release.yml (BUILD-04/05/06) + branch-protection.sh + repo-metadata.sh (SEC-05/DOC-08/09) + README.de.md/README.md split (DOC-01..04) + CONTRIBUTING.md (DOC-05) + 4 backfilled ADRs (DOC-06) + image placeholders
 - [ ] 06-03-PLAN.md — Wave 3: CHANGELOG [1.0.0] cut (DOC-10) + STATE.md transition to v1.0.0-ready-for-tag + 06-HANDOFF.md post-merge/pre-tag runbook for Yves
 **UI hint:** no

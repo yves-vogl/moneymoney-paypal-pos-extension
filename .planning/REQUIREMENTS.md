@@ -85,7 +85,7 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 
 - [ ] **BUILD-01**: Source is organised under `src/` and `tools/build.lua` amalgamates it deterministically into a single `paypal-pos.lua` artifact
 - [ ] **BUILD-02**: The build is byte-reproducible — building twice on the same input produces identical bytes (LF normalization, deterministic manifest ordering, no timestamps/SHAs embedded)
-- [ ] **BUILD-03**: The `WebBanking{version = X.YY}` field in the shipped artifact is substituted from the Git tag at build time; a test asserts artifact-version == tag
+- [x] **BUILD-03**: The `WebBanking{version = X.YY}` field in the shipped artifact is substituted from the Git tag at build time; a test asserts artifact-version == tag (closed by Plan 06-01: `tools/build.lua` + `spec/build_version_substitution_spec.lua`, 7 it() cases)
 - [ ] **BUILD-04**: Releases are triggered by pushing a GPG-signed Git tag (`git tag -s vX.Y.Z`); CI verifies the tag signature before publishing
 - [ ] **BUILD-05**: Release assets include the `paypal-pos.lua` artifact and a `paypal-pos.lua.sha256` checksum file
 - [ ] **BUILD-06**: CI uses `softprops/action-gh-release@v2` to publish the GitHub Release with the verified tag's annotation as the release notes
@@ -96,7 +96,7 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 - [ ] **CI-02**: Coverage gate is ≥85% line coverage on `src/` (excluding `webbanking_header.lua`); regressions fail the pipeline
 - [ ] **CI-03**: CI runs on `ubuntu-24.04` with Lua 5.4 pinned via `leafo/gh-actions-lua@v13` and `leafo/gh-actions-luarocks@v6.1.0`; `LC_ALL=C` for determinism
 - [ ] **CI-04**: A reproducible-build job builds the artifact twice in two clean checkouts and diffs the outputs — a non-empty diff fails the pipeline
-- [ ] **CI-05**: A gitleaks-or-equivalent scan runs in CI to catch accidentally committed secrets
+- [x] **CI-05**: A gitleaks-or-equivalent scan runs in CI to catch accidentally committed secrets (closed by Plan 06-01: `gitleaks/gitleaks-action@v2` secret-scan job + `.gitleaksignore` per-fingerprint allowlist)
 - [ ] **CI-06**: Dependabot (or equivalent) tracks dev-tooling and GitHub-Actions versions
 
 ### Testing
@@ -211,7 +211,7 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | SEC-05 | Phase 6 | Pending |
 | BUILD-01 | Phase 1 | Pending |
 | BUILD-02 | Phase 1 | Pending |
-| BUILD-03 | Phase 6 | Pending |
+| BUILD-03 | Phase 6 | Closed by Plan 06-01 |
 | BUILD-04 | Phase 6 | Pending |
 | BUILD-05 | Phase 6 | Pending |
 | BUILD-06 | Phase 6 | Pending |
@@ -219,7 +219,7 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | CI-02 | Phase 6 | Pending |
 | CI-03 | Phase 6 | Pending |
 | CI-04 | Phase 6 | Pending |
-| CI-05 | Phase 6 | Pending |
+| CI-05 | Phase 6 | Closed by Plan 06-01 |
 | CI-06 | Phase 6 | Pending |
 | TEST-01 | Phase 1 | Pending |
 | TEST-02 | Phase 4 | Pending |
