@@ -42,7 +42,7 @@ metrics:
   files_created: 1
   files_modified: 6
   files_deleted: 0
-  commits: 2
+  commits: 4
   busted_baseline: "352 successes / 0 failures / 3 pending"
   busted_final: "356 successes / 0 failures / 3 pending"
   busted_delta: "+4 successes (ERR-01 round-trip + ERR-04 token-revoked auth_spec + ERR-04 retry refresh_idempotency + liquid-401-abort finance_account_state)"
@@ -140,7 +140,7 @@ The plan referenced `spec/fixtures/auth/auth_invalid_grant.json` but the file sh
 | reproducible build SHA  | `b151f16569f7f3fa855d59403c8bafc26a07557a515f9d8b9cef88635fe85e63`     |
 | reproducible verified   | two consecutive `lua tools/build.lua --verify` runs returned identical SHA |
 | GPG-signed commits      | 100% — `test(05-04):` + `feat(05-04):` both verified `G` via `git log --format='%G?'` |
-| commits added           | 2 (RED + GREEN) — docs commit follows below                            |
+| commits added           | 4 (RED + GREEN + docs + chore lint) — all GPG-signed                   |
 | coverage delta          | src/pagination.lua + src/finance.lua + src/purchases.lua: new 401 branches gated by tests; src/auth.lua unchanged (no Phase-5 source change; regression-only) |
 
 ## Hand-off to Plan 05-05
