@@ -81,11 +81,21 @@ end
 --   Negative values rejected (Pitfall §1 — "Retry-After: -5" must not become MM.sleep(-5)).
 --   Capped at _RETRY_AFTER_CAP (60s) to stay within MM per-call timeout.
 --   Checks BOTH "Retry-After" and "retry-after" casing (server middleware varies).
+-- 05-06 fix-batch (S-04): strict digit-only precheck. Lua's bare tonumber()
+-- accepts hex literals (`0x10` -> 16) and leading/trailing whitespace, which
+-- bypass the developer's mental model "RFC 7231 delta-seconds only". The
+-- precheck rejects anything that does not match `^[0-9]+$` after we have
+-- coerced the header to a string. HTTP-date values still fall through to the
+-- default per Carve-out 2.
 local function _parse_retry_after(resp_headers)
   if type(resp_headers) ~= "table" then return nil end
   local raw = resp_headers["Retry-After"] or resp_headers["retry-after"]
   if raw == nil then return nil end
-  local n = tonumber(raw)
+  -- Strict digit-only precheck (S-04). tostring() handles numeric headers
+  -- that some MoneyMoney versions or proxies may pass through.
+  local s = tostring(raw)
+  if not s:match("^[0-9]+$") then return nil end
+  local n = tonumber(s)
   -- NaN guard (n ~= n is true only for NaN); negative guard; non-numeric guard
   if type(n) ~= "number" or n ~= n or n < 0 then return nil end
   if n > _RETRY_AFTER_CAP then n = _RETRY_AFTER_CAP end
