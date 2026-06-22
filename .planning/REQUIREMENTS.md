@@ -66,7 +66,7 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 
 ### Error Handling & Resilience
 
-- [ ] **ERR-01**: A token-mint `invalid_grant` response returns the `LoginFailed` constant (per MoneyMoney spec) so the user is prompted to re-enter credentials
+- [x] **ERR-01**: A token-mint `invalid_grant` response returns the `LoginFailed` constant (per MoneyMoney spec) so the user is prompted to re-enter credentials
 - [ ] **ERR-02**: A transient 5xx response triggers retry-with-backoff (max 3 attempts) before the refresh fails
 - [ ] **ERR-03**: A 429 response honours the `Retry-After` header (with a sane cap)
 - [ ] **ERR-04**: A post-token-mint 401 response triggers a single silent token re-mint, not a `LoginFailed`
@@ -198,7 +198,7 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | I18N-01 | Phase 3 | Pending |
 | I18N-02 | Phase 1 | Pending |
 | I18N-03 | Phase 1 | Pending |
-| ERR-01 | Phase 5 | Pending |
+| ERR-01 | Phase 5 | Complete |
 | ERR-02 | Phase 5 | Pending |
 | ERR-03 | Phase 5 | Pending |
 | ERR-04 | Phase 5 | Pending |
@@ -237,6 +237,7 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | DOC-10 | Phase 6 | Pending |
 
 **Coverage:**
+
 - v1 requirements: **70** total.
 - Mapped to phases: **70 / 70** (Phase 1: 7, Phase 2: 10, Phase 3: 10, Phase 4: 15, Phase 5: 6, Phase 6: 22).
 - Unmapped: **0** — coverage complete.

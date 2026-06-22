@@ -196,7 +196,7 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
   5. A network failure (DNS / TLS / connect timeout) produces a German error string returned from `RefreshAccount`, never a Lua error or partial result; an `InitializeSession2` profile-ping at add-account time exercises the same path (`ERR-05`).
   6. Any failure inside `RefreshAccount` aborts the entire refresh — a fixture-driven test confirms that when Step-3 (payouts) fails after Step-2 (purchases) succeeded, the extension returns an error string and the next refresh re-runs both steps from the same `since` (`ERR-06`).
 
-**Plans:** TBD
+**Plans:** 2/5 plans executed
 **UI hint:** no
 **AI integration hint:** no
 
@@ -252,7 +252,7 @@ These are acknowledged from `REQUIREMENTS.md ## v2 Requirements` but are deliber
 | 2. Authenticated Network Layer | 7/7 | Complete   | 2026-06-19 |
 | 3. Sale Spine | 0/0 | Not started | - |
 | 4. Enrichment | 0/6 | Planning complete; ready to execute | - |
-| 5. Resilience & Error Handling | 0/0 | Not started | - |
+| 5. Resilience & Error Handling | 2/5 | In Progress|  |
 | 6. Release & Polish | 0/0 | Not started | - |
 
 ---

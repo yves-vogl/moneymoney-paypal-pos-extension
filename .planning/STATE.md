@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
-status: executing
-last_updated: "2026-06-21T08:00:00.000Z"
+status: planning
+last_updated: "2026-06-22T07:44:19.305Z"
 progress:
   total_phases: 7
-  completed_phases: 1
-  total_plans: 8
-  completed_plans: 11
-  percent: 14
+  completed_phases: 2
+  total_plans: 28
+  completed_plans: 24
+  percent: 29
 ---
 
 # Project State: MoneyMoney PayPal POS Extension
@@ -35,6 +35,7 @@ progress:
 
 Phase: 04 (enrichment-refunds-fees-payouts) — **IMPLEMENTATION + POST-REVIEW FIX BATCH COMPLETE; READY-FOR-RE-VERIFICATION 2026-06-21**
 **Status:** Phase 3 fully merged to main (spine via PR #8 `a11287d`; verifier closure via PR #10 `a201f6c`). Phase 4 planning artifacts complete + Waves 1+2+3+4+5 implementation landed + Plan 04-07 (post-review fix batch) landed:
+
 - Plan 04-02 (Wave-1 pure-logic) shipped 3 GPG-signed commits (`24990d9` test fixtures + RED scaffolds; `a75f6d7` offset_iterate + manifest consolidation; `c4ed80e` M_finance.parse_transaction + 4 mapping mappers + 12 i18n keys).
 - Plan 04-04 (Wave-3 mapping enrichment) shipped 2 GPG-signed commits (`d3d1311` RED scaffolds + new fixtures; `08207a4` per-rate VAT + card-tail in _format_purpose).
 - Plan 04-03 (Wave-2 Finance HTTP + cross-refresh integration) shipped 2 GPG-signed commits (`54e6fd8` M_finance.fetch + fetch_all + fetch_account_state; `84052c3` 16-step RefreshAccount extension with purchases_by_uuid + payments_by_uuid + SALE-03 promotion + D-49 Option B + payout mapping).
@@ -43,7 +44,7 @@ Phase: 04 (enrichment-refunds-fees-payouts) — **IMPLEMENTATION + POST-REVIEW F
 - **Plan 04-07 (post-review fix batch — autonomous-window) shipped 13 GPG-signed commits** addressing REVIEW.md (3 BLOCKER + 4 WARNING) + SECURITY-REVIEW.md (1 HIGH + 4 MEDIUM + 1 LOW). Full per-finding mapping in `04-07-FIX-SUMMARY.md`.
 
 Full suite 328 → **335 successes / 0 failures**; luacheck 0/0 in 38 files; reproducible build sha `6f4f685fd40f2922cb318a786c08b4d7182e0eb167e2c5c90c137fe47308fe54`. Plan 04-01 (Q3 sandbox probe) still pending Yves' live verification. Plan 04-06 Task 4 (loop-lektor pass on CHANGELOG/README/ADR-0004 German wording) deferred to Yves checkpoint after merge per orchestrator standing instruction.
-**Progress:** `[████████████████████░] 3/7 phases shipped; Phase 4 implementation + fix-batch COMPLETE (Plans 04-02..04-07 landed); Plan 04-01 (Yves Q3 probe) + re-verifier + lektor + ship pending`
+**Progress:** [█████████░] 86%
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
@@ -56,6 +57,7 @@ Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
 **Branch state:** On `phase-4/enrichment` (created 2026-06-21 from `origin/main` @ `a201f6c`). 25 local commits (6 planning + 3 Plan-04-02 + 2 Plan-04-04 + 2 Plan-04-03 + 3 Plan-04-05 + 3 Plan-04-06 + 5 docs/state/summary + 1 tools/probe):
+
 - `1578b75` docs(04): capture phase 4 enrichment context (autonomous draft)
 - `211da0b` docs(state): mark Phase 3 fully merged, Phase 4 context drafted
 - `0ac35b7` docs(04): research Phase 4 enrichment domain — Finance API surface, fee linkage, payout matching
