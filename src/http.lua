@@ -6,10 +6,26 @@
 -- The M_http table is predeclared in src/webbanking_header.lua.
 -- NO require() of sibling modules (D-02: amalgamator resolves cross-module
 -- refs at build time via the shared module-table globals).
+--
+-- Phase 5 (Plan 05-03): retry-with-backoff for 5xx (3 attempts, {1,2,4}s);
+--   single-retry on 429 honoring Retry-After (integer-only, 60s cap, 30s default);
+--   599 sentinel on 5xx exhaustion → M_errors maps to error.server_busy (Plan 05-02);
+--   empty-body / nil-status preserved as Phase-2 ERR-05 path (error.network).
+--   See ADR-0005 Invariants 2 + 3 + Carve-out 2.
 
 -- Module-local Connection, reused across requests (D-25).
 -- Created lazily on first call; released by shutdown() in EndSession.
 local _conn = nil
+
+-- Phase 5 (Plan 05-03) retry-with-backoff constants per ADR-0005 Invariants 2+3.
+-- D-62: 5xx retry-with-backoff (3 attempts: 1 original + 2 retries; exponential base 2)
+-- D-63: 429 single-retry honoring Retry-After (60s cap, 30s default)
+local _MAX_ATTEMPTS           = 3
+-- Sleep BEFORE attempt 2 (=1s), BEFORE attempt 3 (=2s); index 3 unused but kept for symmetry/audit.
+local _BACKOFF_SECONDS        = { 1, 2, 4 }
+local _RETRY_AFTER_CAP        = 60           -- D-63 upper bound on Retry-After honoring
+local _RATE_LIMIT_DEFAULT     = 30           -- D-63 default when Retry-After absent / unparseable
+local _SENTINEL_5XX_EXHAUSTED = 599          -- Phase-5-internal: M_errors maps to error.server_busy per Plan 05-02
 
 -- _get_connection() -> Connection
 -- Returns the cached connection or creates one.
@@ -50,6 +66,47 @@ local function _merge_headers(user_headers)
   return h
 end
 
+-- _parse_retry_after(resp_headers) -> integer|nil
+-- ADR-0005 Carve-out 2 + RESEARCH §2 + Pitfall §6:
+--   Integer seconds only (HTTP-date silently degrades to default).
+--   Negative values rejected (Pitfall §1 — "Retry-After: -5" must not become MM.sleep(-5)).
+--   Capped at _RETRY_AFTER_CAP (60s) to stay within MM per-call timeout.
+--   Checks BOTH "Retry-After" and "retry-after" casing (server middleware varies).
+local function _parse_retry_after(resp_headers)
+  if type(resp_headers) ~= "table" then return nil end
+  local raw = resp_headers["Retry-After"] or resp_headers["retry-after"]
+  if raw == nil then return nil end
+  local n = tonumber(raw)
+  -- NaN guard (n ~= n is true only for NaN); negative guard; non-numeric guard
+  if type(n) ~= "number" or n ~= n or n < 0 then return nil end
+  if n > _RETRY_AFTER_CAP then n = _RETRY_AFTER_CAP end
+  return math.floor(n)
+end
+
+-- _sleep_with_log(seconds, url, attempt, status)
+-- D-68: ONE INFO log line per retry attempt (Bearer-safe format — headers NEVER
+-- concatenated; only url, attempt, status, after_ms appear).
+-- Pitfall §10 defensive: pcall-wrap MM.sleep so a runtime error on a future
+-- MoneyMoney version falls through to no-backoff continuation rather than
+-- aborting RefreshAccount with a Lua error.
+local function _sleep_with_log(seconds, url, attempt, status)
+  M_log.info("HTTP retry: attempt=" .. attempt .. "/" .. _MAX_ATTEMPTS ..
+             " status=" .. tostring(status) ..
+             " url=" .. url ..
+             " after_ms=" .. (seconds * 1000))
+  -- pcall guard: MM.sleep is the documented primitive; if it ever errors,
+  -- skip the sleep and continue to the next attempt (degraded behavior is
+  -- better than aborting RefreshAccount per Pitfall §10).
+  local ok, err = pcall(function()
+    if type(MM) == "table" and type(MM.sleep) == "function" then
+      MM.sleep(seconds)
+    end
+  end)
+  if not ok then
+    M_log.info("HTTP retry: MM.sleep error (degraded; continuing): " .. tostring(err))
+  end
+end
+
 -- M_http._infer_status(parsed) -> integer
 --
 -- Risk R-1: MoneyMoney's Connection():request returns five values
@@ -79,38 +136,108 @@ function M_http._infer_status(parsed)
   return 200
 end
 
+-- _request_with_retry(method, url, body, contentType, h)
+--   -> (parsed_table|nil, status:integer|nil, raw_body:string)
+--
+-- Shared retry loop body for get_json + post_form. Centralises the 5xx-retry
+-- (D-62, ADR-0005 Invariant 2), 429-honoring (D-63, Invariant 3), and
+-- empty-body / nil-status branch (ERR-05, Invariant 5) so both transport
+-- verbs share the SAME contract.
+--
+-- Retry decision matrix (per attempt):
+--   empty body          → retry up to MAX (treat as 5xx-equivalent per RESEARCH §4.b);
+--                         exhausted → return (nil, nil, raw) so M_errors maps to error.network
+--   429 (from _infer_status)  → single retry honoring Retry-After, then return (parsed, 429, raw)
+--                         caller maps 429 → error.rate_limit
+--   5xx (from _infer_status)  → retry up to MAX; exhausted → return (parsed, 599, raw)
+--                         caller maps 599 → error.server_busy via Plan 05-02 dispatch
+--   200 or other        → return immediately; no sleep, no log
+--
+-- Invariants:
+--   * NO pcall around conn:request (Pitfall §10 / ADR-0003 Q8 — pcall does NOT
+--     catch SSL handshake errors; MM aborts the chunk regardless).
+--   * pcall ONLY around JSON parse (Phase-2 invariant).
+--   * Iterative loop (Pitfall §2 — recursive retry blows 200-frame stack).
+local function _request_with_retry(method, url, body, contentType, h)
+  local conn = _get_connection()
+  local raw, parsed, status, resp_headers
+  local last_attempt_was_5xx = false
+  for attempt = 1, _MAX_ATTEMPTS do
+    -- 5-tuple capture per Risk R-1 / ADR-0003 Q8 (NO pcall around conn:request).
+    local _charset, _mime, _filename -- luacheck: ignore 211 _charset _mime _filename
+    raw, _charset, _mime, _filename, resp_headers = conn:request(method, url, body, contentType, h)
+    raw = raw or ""
+
+    if #raw == 0 then
+      -- Empty body: 5xx-without-body OR DNS/connect/timeout (RESEARCH §4.b).
+      last_attempt_was_5xx = false  -- nil-status path, not 599 sentinel
+      if attempt < _MAX_ATTEMPTS then
+        _sleep_with_log(_BACKOFF_SECONDS[attempt], url, attempt, "nil")
+      else
+        -- Final attempt: surface (nil, nil, raw) — ERR-05 inheritance from Phase 2.
+        return nil, nil, raw
+      end
+    else
+      -- Parse JSON inside pcall (Phase-2 invariant: pcall ONLY around JSON).
+      local ok, p = pcall(function()
+        return JSON(raw):dictionary()
+      end)
+      if not ok or type(p) ~= "table" then
+        -- Malformed JSON: surface as nil-status (treats as ERR-05); no retry.
+        return nil, nil, raw
+      end
+      parsed = p
+      status = M_http._infer_status(parsed)
+
+      if status == 429 then
+        if attempt == 1 then
+          -- D-63: single retry honoring Retry-After.
+          local wait = _parse_retry_after(resp_headers) or _RATE_LIMIT_DEFAULT
+          _sleep_with_log(wait, url, attempt, status)
+          -- continue loop (attempt becomes 2)
+        else
+          -- D-63: single-retry budget exhausted; return 429 so caller maps to error.rate_limit.
+          return parsed, status, raw
+        end
+      elseif status >= 500 and status <= 599 then
+        last_attempt_was_5xx = true
+        if attempt < _MAX_ATTEMPTS then
+          _sleep_with_log(_BACKOFF_SECONDS[attempt], url, attempt, status)
+          -- continue loop
+        else
+          -- D-62: 3-attempt budget exhausted; emit the 599 sentinel.
+          return parsed, _SENTINEL_5XX_EXHAUSTED, raw
+        end
+      else
+        -- 200 or other non-retry-able status → return immediately.
+        return parsed, status, raw
+      end
+    end
+  end
+  -- Loop exhausted without returning (defensive — shouldn't reach here).
+  if last_attempt_was_5xx then
+    return parsed, _SENTINEL_5XX_EXHAUSTED, raw or ""
+  end
+  return parsed, status, raw or ""
+end
+
 -- M_http.post_form(url, body_table, headers)
 --   -> (decoded_table|nil, status:integer|nil, raw_body:string)
 --
 -- Sends an x-www-form-urlencoded POST. Accept: application/json is always set
 -- (see _merge_headers). Request and response bodies are passed through
 -- M_log.redact before any DEBUG log (D-25 / T-02-04-01).
--- NO pcall around conn:request (Pitfall 3: pcall does NOT catch SSL errors).
--- pcall is ONLY used around JSON parse.
+-- Phase 5 (Plan 05-03): wraps request in retry-with-backoff per _request_with_retry.
+-- POST is idempotent for OAuth assertion-grant (RESEARCH §10.b: same JWT
+-- assertion within TTL yields the same access_token per RFC 7521 §4.1).
 function M_http.post_form(url, body_table, headers)
-  local conn = _get_connection()
   local body = _form_encode(body_table)
   local h = _merge_headers(headers)
   M_log.debug("POST " .. url .. " body=" .. M_log.redact(body))
-  -- 5-tuple destructure per Risk R-1 / Connection() contract.
-  -- charset, mime, filename, resp_headers are not used here but named to
-  -- document the contract explicitly.
-  local raw, charset, mime, filename, resp_headers = -- luacheck: ignore 211
-    conn:request("POST", url, body, "application/x-www-form-urlencoded", h)
-  raw = raw or ""
+  local parsed, status, raw =
+    _request_with_retry("POST", url, body, "application/x-www-form-urlencoded", h)
   M_log.debug("POST " .. url .. " response=" .. M_log.redact(raw))
-  if #raw == 0 then
-    -- Empty body: network-level anomaly (D-24). Return nil status so
-    -- M_errors.from_http_status(nil, ...) routes to the network-error branch.
-    return nil, nil, raw
-  end
-  local ok, parsed = pcall(function()
-    return JSON(raw):dictionary()
-  end)
-  if not ok or type(parsed) ~= "table" then
-    return nil, nil, raw
-  end
-  return parsed, M_http._infer_status(parsed), raw
+  return parsed, status, raw
 end
 
 -- M_http.get_json(url, headers)
@@ -119,24 +246,13 @@ end
 -- Sends a GET request. Accept: application/json always set.
 -- The DEBUG request log is JUST "GET " .. url -- headers are NEVER concatenated
 -- into any log line (T-02-04-02: defense-in-depth against Bearer leakage).
+-- Phase 5 (Plan 05-03): wraps request in retry-with-backoff per _request_with_retry.
 function M_http.get_json(url, headers)
-  local conn = _get_connection()
   local h = _merge_headers(headers)
   M_log.debug("GET " .. url)  -- headers intentionally absent from log (Bearer safety)
-  local raw, charset, mime, filename, resp_headers = -- luacheck: ignore 211
-    conn:request("GET", url, nil, nil, h)
-  raw = raw or ""
+  local parsed, status, raw = _request_with_retry("GET", url, nil, nil, h)
   M_log.debug("GET " .. url .. " response=" .. M_log.redact(raw))
-  if #raw == 0 then
-    return nil, nil, raw
-  end
-  local ok, parsed = pcall(function()
-    return JSON(raw):dictionary()
-  end)
-  if not ok or type(parsed) ~= "table" then
-    return nil, nil, raw
-  end
-  return parsed, M_http._infer_status(parsed), raw
+  return parsed, status, raw
 end
 
 -- M_http.shutdown()
