@@ -54,6 +54,13 @@ end
 -- M_http.get_json logs only the URL (T-02-04-02 / T-03-W3b-01). Returns the
 -- 3-tuple from M_http.get_json verbatim so callers can route via
 -- M_errors.from_http_status (D-43).
+--
+-- Plan 05-04 / ERR-04: the post-mint 401-direct-check (justified exception to
+-- D-43 per ADR-0005 Invariant 4 + RESEARCH §Pattern-2) lives in
+-- M_pagination.iterate — NOT here. Keeping fetch's return contract as the raw
+-- (parsed, status, raw) 3-tuple lets the iterator route both ERR-04 (401 ->
+-- error.token_revoked) and the generic D-43 path (every other status) without
+-- a special sentinel return shape from this function.
 function M_purchases.fetch(clamped_since, bearer, cursor)
   -- ME-01: belt-and-suspenders guard. RefreshAccount already guards nil bearer (D-41),
   -- but an explicit assertion here surfaces any future regression loudly rather than

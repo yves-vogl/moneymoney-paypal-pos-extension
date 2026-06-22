@@ -115,6 +115,11 @@ local _INCLUDE_TYPES_SUFFIX =
 -- offset, and the three appended includeTransactionType= suffix parameters
 -- (PAYMENT, PAYMENT_FEE, PAYOUT). Returns the 3-tuple from M_http.get_json
 -- verbatim so the caller can route errors via M_errors.from_http_status.
+--
+-- Plan 05-04 / ERR-04: the post-mint 401-direct-check (justified exception to
+-- D-43 per ADR-0005 Invariant 4 + RESEARCH §Pattern-2) lives in
+-- M_pagination.offset_iterate — NOT here. fetch_account_state (below) carries
+-- its own inline 401 checks because it is NOT paginated (two sequential GETs).
 function M_finance.fetch(clamped_since, bearer, offset, end_posix)
   -- ME-01 belt-and-suspenders: RefreshAccount already guards nil bearer (D-41),
   -- but an explicit assertion here surfaces any future regression loudly rather
@@ -181,6 +186,15 @@ function M_finance.fetch_account_state(bearer)
   -- 1) Liquid (settled) balance — ACCT-03 `balance`
   local liquid, l_status, l_raw = M_http.get_json(
     "https://finance.izettle.com/v2/accounts/liquid/balance", headers)
+  -- Plan 05-04 / ERR-04 / ADR-0005 Invariant 4 / RESEARCH §Pattern-2:
+  -- post-mint 401 from a resource endpoint means the bearer was revoked
+  -- mid-session; surface as error.token_revoked so the user re-enters the
+  -- API key. Justified exception to D-43 (intercept before
+  -- M_errors.from_http_status would map 401 -> LoginFailed). On 401 from
+  -- the liquid endpoint, ABORT the dual-fetch sequence and DO NOT issue
+  -- the preliminary call — saves one needless API call and matches the
+  -- D-66 fail-whole invariant.
+  if l_status == 401 then return nil, M_i18n.t("error.token_revoked") end
   local l_err = M_errors.from_http_status(l_status, l_raw)
   if l_err then return nil, l_err end
   if type(liquid) ~= "table" or type(liquid.data) ~= "table" then
@@ -204,6 +218,10 @@ function M_finance.fetch_account_state(bearer)
   -- 2) Preliminary (in-flight) balance — ACCT-03 `pendingBalance`
   local prelim, p_status, p_raw = M_http.get_json(
     "https://finance.izettle.com/v2/accounts/preliminary/balance", headers)
+  -- Plan 05-04 / ERR-04: mirror of the liquid 401-direct-check above.
+  -- A 401 here (after a 2xx on the liquid call) typically means the
+  -- token was revoked between the two sequential GETs.
+  if p_status == 401 then return nil, M_i18n.t("error.token_revoked") end
   local p_err = M_errors.from_http_status(p_status, p_raw)
   if p_err then return nil, p_err end
   if type(prelim) ~= "table" or type(prelim.data) ~= "table" then

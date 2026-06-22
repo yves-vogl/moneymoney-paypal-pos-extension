@@ -110,18 +110,46 @@ describe("M_finance.fetch_account_state", function()
       Mocks._captured_requests[1].url)
   end)
 
-  it("fetch_account_state returns (nil, err = LoginFailed) when preliminary 401s", function()
-    -- Liquid OK, preliminary returns invalid_client body -> _infer_status -> 401 -> LoginFailed
+  it("fetch_account_state returns (nil, err = error.token_revoked) when preliminary 401s (Plan 05-04 / ERR-04)", function()
+    -- Liquid OK, preliminary returns invalid_client body -> _infer_status -> 401.
+    -- Plan 05-04 / ADR-0005 Invariant 4 / RESEARCH §Pattern-2: the post-mint
+    -- 401-direct-check (justified exception to D-43) intercepts before
+    -- M_errors.from_http_status would route to LoginFailed (D-24 case 3) and
+    -- returns the German error.token_revoked surface so MoneyMoney shows the
+    -- "Anmeldung verloren" prompt for the user to re-enter the API key.
+    -- This test REPLACES the Phase-4 LoginFailed contract per the Phase-5
+    -- ERR-04 collapse documented in 05-RESEARCH §Pattern-2.
     local liquid_raw, _ = Fixtures.load("finance/finance_balance_liquid")
     Mocks.push_response({ content = liquid_raw })
     Mocks.push_response({ content = '{"error":"invalid_client"}' })
 
     local state, err = M_finance.fetch_account_state("AT-VALID")
     assert.is_nil(state, "fetch_account_state must return nil on preliminary error")
-    assert.equals(LoginFailed, err,
-      "invalid_client on preliminary call must route to LoginFailed")
-    -- Both calls must have been issued
+    assert.equals(M_i18n.t("error.token_revoked"), err,
+      "Plan 05-04 / ERR-04: invalid_client on preliminary call must route to "
+      .. "the error.token_revoked German string (NOT LoginFailed) per the "
+      .. "justified exception to D-43 documented in ADR-0005 Invariant 4.")
+    -- Both calls must have been issued (the 401 is on the SECOND call;
+    -- abort-on-first-401 only fires for a 401 on the liquid leg).
     assert.equals(2, #Mocks._captured_requests)
+  end)
+
+  it("fetch_account_state aborts preliminary GET on 401 from liquid call (Plan 05-04 / ERR-04)", function()
+    -- 401 on the FIRST (liquid) call must abort the dual-fetch sequence: the
+    -- preliminary GET is NOT issued (saves one needless API call and matches
+    -- the D-66 fail-whole invariant). Returns error.token_revoked.
+    Mocks.push_response({ content = '{"error":"invalid_client"}' })
+
+    local state, err = M_finance.fetch_account_state("AT-VALID")
+    assert.is_nil(state, "fetch_account_state must return nil on liquid 401")
+    assert.equals(M_i18n.t("error.token_revoked"), err,
+      "Plan 05-04 / ERR-04: 401 on liquid leg must route to error.token_revoked")
+    assert.equals(1, #Mocks._captured_requests,
+      "ERR-04: preliminary GET must NOT be issued after liquid 401 (saves "
+      .. "one API call + matches D-66 fail-whole invariant)")
+    assert.is_not_nil(Mocks._captured_requests[1].url:find("/liquid/balance", 1, true),
+      "the single captured request must be the liquid call, got: "
+      .. Mocks._captured_requests[1].url)
   end)
 
   it("fetch_account_state asserts on nil bearer", function()

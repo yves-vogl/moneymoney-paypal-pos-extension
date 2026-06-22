@@ -260,18 +260,25 @@ describe("RefreshAccount idempotency (TEST-03 / SALE-02 / SALE-05 / D-39)", func
         .. tostring(t.transactionCode))
     end
 
-    -- Point (a) reaffirmed via the request log — both calls used the same
-    -- `since` value (encoded as startDate in the purchase URL). Find the
-    -- purchases URL from refresh N+1 and assert it contains startDate=
-    -- (since=0 → startDate=1970-01-01T00:00:00Z).
+    -- Point (a) reaffirmed via the request log: the `since` value passed into
+    -- RefreshAccount was byte-identical across both calls (the test passes the
+    -- SAME `since` local to both invocations). entry.lua then clamps to
+    -- max(since, now-90d) per D-33, so the wire-level startDate is the
+    -- 90-day-floor (NOT 1970), but the MoneyMoney → extension boundary
+    -- contract (which is what idempotency cares about) is the `since` we
+    -- passed in. Verify the purchases URL exists and carries a startDate
+    -- in the expected 90-day window (anything OLDER than now would violate
+    -- the clamp; anything NEWER would indicate state pollution from refresh N).
     local found_purchase_url = false
+    local ninety_days_ago_iso = os.date("!%Y-%m-%dT", os.time() - 90 * 86400)
     for _, req in ipairs(Mocks._captured_requests) do
       if type(req.url) == "string"
           and req.url:find("purchase.izettle.com/purchases/v2", 1, true) then
         found_purchase_url = true
-        assert.is_not_nil(req.url:find("startDate=1970%-01%-01T00%%3A00%%3A00Z"),
-          "ERR-04 retry: refresh N+1 must reuse the same `since` parameter "
-          .. "byte-identically (startDate=1970-01-01T00:00:00Z), got: " .. req.url)
+        assert.is_not_nil(req.url:find("startDate=" .. ninety_days_ago_iso, 1, true),
+          "ERR-04 retry: refresh N+1 must reuse the SAME clamped `since` "
+          .. "(expected startDate prefix " .. ninety_days_ago_iso .. " "
+          .. "from D-33 90-day clamp on since=0), got: " .. req.url)
       end
     end
     assert.is_true(found_purchase_url,
