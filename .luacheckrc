@@ -34,6 +34,12 @@ globals[#globals+1] = "M_purchases"
 globals[#globals+1] = "M_finance"
 globals[#globals+1] = "M_mapping"
 globals[#globals+1] = "DEBUG"
+-- __VERSION__ is the BUILD-03 placeholder token in src/webbanking_header.lua;
+-- tools/build.lua gsubs it to a numeric literal before shipping. The raw
+-- src/ file is therefore Lua-syntax-INVALID until built — that's intentional,
+-- the file is never loaded directly. Registering as a global keeps luacheck
+-- from flagging the unresolved-at-source token.
+globals[#globals+1] = "__VERSION__"
 
 ignore = { "212" }  -- 212: variable set but not accessed (acceptable for stubs)
 

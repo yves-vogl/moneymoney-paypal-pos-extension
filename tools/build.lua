@@ -80,6 +80,81 @@ local function ensure_trailing_newline(content)
   return content
 end
 
+-- ---------------------------------------------------------------------------
+-- Version resolution (BUILD-03 / D-73)
+-- ---------------------------------------------------------------------------
+-- Resolve the build's version string in three tiers:
+--   1. $GITHUB_REF_NAME (CI / release.yml provides the tag name verbatim)
+--   2. `git describe --tags --exact-match` (local build at a tagged commit)
+--   3. `dev-<short-sha>` fallback (local build at an untagged commit)
+-- The returned string is then mapped to a Lua-numeric literal by
+-- version_to_number_string(). Only values matching `^v%d+%.%d+` map to a
+-- non-zero numeric; everything else (dev-... / unknown / empty) maps to 0.00
+-- so a release.yml build that forgets to pass the tag never ships a fake
+-- numeric. BUILD-04's GPG-signed-tag gate at release.yml job 1 is the
+-- complementary guard against shipping a 0.00 artifact.
+local function resolve_version_string()
+  -- Tier 1: CI env (release.yml sets this implicitly when triggered by tag push)
+  local env = os.getenv("GITHUB_REF_NAME")
+  if env and env:match("^v%d") then
+    return env
+  end
+
+  -- Tier 2: local exact-match tag
+  local handle = io.popen("git describe --tags --exact-match 2>/dev/null")
+  if handle then
+    local tag = handle:read("*l")
+    handle:close()
+    if tag and tag:match("^v%d") then
+      return tag
+    end
+  end
+
+  -- Tier 3: dev-<short-sha> fallback
+  local sha_handle = io.popen("git rev-parse --short HEAD 2>/dev/null")
+  if sha_handle then
+    local sha = sha_handle:read("*l")
+    sha_handle:close()
+    if sha and #sha > 0 then
+      return "dev-" .. sha
+    end
+  end
+
+  return "dev-unknown"
+end
+
+-- Map a resolved version string to a `<major>.<two-digit-minor>` Lua-numeric
+-- literal per the MoneyMoney community convention. The minor is treated as
+-- a decimal-fraction: `2` becomes `20`, `10` stays `10`. Non-matching inputs
+-- (dev-..., empty, malformed) return "0.00".
+--   v1.0.0      -> "1.00"   (minor "0"  -> "00")
+--   v1.2.3      -> "1.20"   (minor "2"  -> "20", patch dropped)
+--   v0.10.0     -> "0.10"   (minor "10" -> "10")
+--   v1.0.0-rc.1 -> "1.00"   (rc dropped — `^v(%d+)%.(%d+)` capture)
+--   dev-abc     -> "0.00"
+local function version_to_number_string(s)
+  local major, minor = s:match("^v(%d+)%.(%d+)")
+  if major and minor then
+    -- Render minor as a two-character decimal-fraction-style string:
+    -- one digit -> trailing zero ("2" -> "20"); two-or-more digits ->
+    -- truncate to first two ("10" -> "10", "123" -> "12" — defensive
+    -- handling for an unsupported future shape).
+    local minor_str
+    if #minor == 1 then
+      minor_str = minor .. "0"
+    else
+      minor_str = minor:sub(1, 2)
+    end
+    return string.format("%d.%s", tonumber(major), minor_str)
+  end
+  return "0.00"
+end
+
+-- Module-scope cache: resolved once per build invocation. The build process
+-- is short-lived and the resolution involves io.popen calls; computing once
+-- here avoids repeated subshell spawns inside build().
+local VERSION_NUMBER = version_to_number_string(resolve_version_string())
+
 -- Parse manifest; return ordered list of module base-names.
 -- Skips blank lines and lines whose first non-whitespace char is '#'.
 local function parse_manifest(path)
@@ -142,6 +217,15 @@ local function build(modules)
 
   parts[#parts + 1] = BANNER
 
+  -- BUILD-03 / Pitfall 3 — emit an explicit DEV BUILD banner when the resolved
+  -- version is the dev fallback (0.00). The release.yml workflow only ships
+  -- artifacts built from a signed `v*.*.*` tag (BUILD-04), so a 0.00 value in
+  -- production indicates an out-of-band hand-built distribution; the banner
+  -- makes that visible to anyone inspecting the file.
+  if VERSION_NUMBER == "0.00" then
+    parts[#parts + 1] = "-- paypal-pos amalgamated DEV BUILD (no tag) — not for release\n"
+  end
+
   for _, mod in ipairs(modules) do
     local path = "src/" .. mod .. ".lua"
     local content, err = read_file(path)
@@ -153,6 +237,12 @@ local function build(modules)
     check_source(mod, content)
 
     if mod == HEADER_MOD then
+      -- BUILD-03: substitute the `__VERSION__` placeholder declared in
+      -- src/webbanking_header.lua's `WebBanking{...}` block with the
+      -- resolved numeric literal. The gsub is anchored to a literal token
+      -- (no pattern characters in `__VERSION__`); idempotent because the
+      -- substituted result never re-contains the token.
+      content = content:gsub("__VERSION__", VERSION_NUMBER)
       -- Emit verbatim at top; ensure trailing newline
       parts[#parts + 1] = ensure_trailing_newline(content)
     elseif mod == ENTRY_MOD then
