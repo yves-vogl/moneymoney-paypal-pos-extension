@@ -216,7 +216,12 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
   5. `CONTRIBUTING.md` (English) documents the dev loop, testing, amalgamator, release process, and GPG-signed-tag requirement; MADR-format ADRs cover amalgamator choice, LocalStorage token cache, JWT-bearer-only auth, fee modeling, no-TLS-pinning, string-return error pattern, and sandbox probe results; `LICENSE` carries the MIT text with copyright "Yves Vogl" (`DOC-05`, `DOC-06`, `DOC-07`).
   6. The GitHub repo metadata is set via `gh repo edit`: the German description ("MoneyMoney-Extension für PayPal POS — Karten-Umsätze, Refunds, Gebühren und Auszahlungen direkt in MoneyMoney. Open Source, MIT, GPG-signiert."), the seven topics (`moneymoney`, `moneymoney-extension`, `paypal-pos`, `zettle`, `lua`, `germany`, `accounting`), and a `CHANGELOG.md` in Keep-a-Changelog format maintained per SemVer release (`DOC-08`, `DOC-09`, `DOC-10`).
 
-**Plans:** TBD
+**Plans:** 3 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — Wave 1: __VERSION__ substitution (BUILD-03) + META-03 walker extension (DOC-04) + gitleaks + commit-lint + D-79 raw-print() grep (CI-05 / D-78 / D-79 / SEC-02 hardening)
+- [ ] 06-02-PLAN.md — Wave 2: release.yml (BUILD-04/05/06) + branch-protection.sh + repo-metadata.sh (SEC-05/DOC-08/09) + README.de.md/README.md split (DOC-01..04) + CONTRIBUTING.md (DOC-05) + 4 backfilled ADRs (DOC-06) + image placeholders
+- [ ] 06-03-PLAN.md — Wave 3: CHANGELOG [1.0.0] cut (DOC-10) + STATE.md transition to v1.0.0-ready-for-tag + 06-HANDOFF.md post-merge/pre-tag runbook for Yves
 **UI hint:** no
 **AI integration hint:** no
 
