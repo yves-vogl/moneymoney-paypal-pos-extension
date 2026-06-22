@@ -114,10 +114,10 @@ function RefreshAccount(account, since)
     print("  Q9: RESULT = ABSENT (MM.sleep is not a function — would force busy-wait fallback per ADR-0005)")
   else
     local t0 = os.time()
-    local ok, err = pcall(function() MM.sleep(1) end)
+    local sleep_ok, sleep_err = pcall(function() MM.sleep(1) end)
     local elapsed = os.time() - t0
-    if not ok then
-      print("  Q9: RESULT = FAIL (MM.sleep(1) errored: " .. tostring(err) .. ")")
+    if not sleep_ok then
+      print("  Q9: RESULT = FAIL (MM.sleep(1) errored: " .. tostring(sleep_err) .. ")")
     elseif elapsed < 1 then
       print(string.format("  Q9: RESULT = PRESENT-BUT-NOOP (elapsed=%ds, expected >=1s)", elapsed))
     else
