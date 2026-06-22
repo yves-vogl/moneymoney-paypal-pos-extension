@@ -88,9 +88,12 @@ Before pushing, verify each of the following:
 - [ ] Commit message follows [Conventional Commits](https://www.conventionalcommits.org).
 - [ ] Commit is GPG-signed: `git commit -S -m "..."` (or globally enabled via
       `git config commit.gpgsign true`).
-- [ ] No AI attribution in commit message or staged files — explicitly: no
-      `Co-Authored-By: Claude`, no `Generated with Claude`, no robot-emoji.
-      A CI gate scans for these patterns and fails the workflow.
+- [ ] No AI authorship attribution in commit messages or staged files.
+      Specifically: do not include `Co-Authored-By` trailers naming AI
+      assistants, do not include "Generated with" attributions, and do not
+      include robot emojis as authorship markers. A CI gate scans the
+      working tree for these patterns (see `.github/workflows/ci.yml` →
+      "No-AI-attribution gate") and fails the workflow on any match.
 
 ---
 
