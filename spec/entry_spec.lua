@@ -33,6 +33,9 @@ describe("entry.lua callbacks", function()
 
   before_each(function()
     Mocks.setup()
+    -- Plan 05-03: MM.sleep no-op stub so retry-bearing tests do not block.
+    _G.MM = _G.MM or {}
+    _G.MM.sleep = function(_) end
     load_artifact()
   end)
 
@@ -212,8 +215,11 @@ describe("entry.lua callbacks", function()
     -- Load the recorded rate-limit fixture ({"error":"rate_limit",...}).
     -- Without the H-01 fix, _infer_status returns 400 -> from_http_status(400)
     -- -> LoginFailed. With the fix it returns 429 -> error.rate_limit.
+    -- Plan 05-03 D-63: 429 triggers single retry; queue twice so retry also
+    -- returns 429 → final status surfaces error.rate_limit.
     local rl_raw = Fixtures.load("auth/token_rate_limited")
-    Mocks.push_response({ content = rl_raw, mime = "application/json" })
+    Mocks.push_response({ content = rl_raw, mime = "application/json" })  -- attempt 1
+    Mocks.push_response({ content = rl_raw, mime = "application/json" })  -- attempt 2 (single retry)
 
     local result = InitializeSession2(ProtocolWebBanking, "PayPal POS", 2,
                                       { { value = VALID_JWT } }, false)
@@ -426,6 +432,9 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
 
   before_each(function()
     Mocks.setup()
+    -- Plan 05-03: MM.sleep no-op stub so retry-bearing tests do not block.
+    _G.MM = _G.MM or {}
+    _G.MM.sleep = function(_) end
     load_artifact()
   end)
 
@@ -598,7 +607,10 @@ describe("RefreshAccount Phase-3 pipeline (SALE-01..06+08 / D-31 / D-33 / D-37 /
     -- Use a rate_limit body so M_http._infer_status -> 429 -> German rate_limit
     -- string. The purchase fetch errors first; the Finance API tail GETs are
     -- never issued so no further responses need to be queued.
-    Mocks.push_response({ content = '{"error":"rate_limit"}' })
+    -- Plan 05-03 D-63: 429 triggers single retry; queue twice so retry also
+    -- returns 429 → final status surfaces error.rate_limit / German envelope.
+    Mocks.push_response({ content = '{"error":"rate_limit"}' })  -- attempt 1
+    Mocks.push_response({ content = '{"error":"rate_limit"}' })  -- attempt 2 (single retry)
     local result = RefreshAccount({ accountNumber = "org-8", currency = "EUR", balance = 0 }, 0)
     -- The result must be an error string (not a table) — ERR-06 fail-whole-refresh.
     assert.is_string(result, "RefreshAccount must return an error string on HTTP failure (ERR-06)")
@@ -673,6 +685,9 @@ describe("RefreshAccount Phase-4 pipeline (ACCT-03 / REF-02 / FEE-01-03 / PAYOUT
 
   before_each(function()
     Mocks.setup()
+    -- Plan 05-03: MM.sleep no-op stub so retry-bearing tests do not block.
+    _G.MM = _G.MM or {}
+    _G.MM.sleep = function(_) end
     load_artifact()
   end)
 

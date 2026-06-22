@@ -32,6 +32,9 @@ describe("M_finance.fetch", function()
 
   before_each(function()
     Mocks.setup()
+    -- Plan 05-03: MM.sleep no-op stub so retry-bearing tests do not block.
+    _G.MM = _G.MM or {}
+    _G.MM.sleep = function(_) end
     load_artifact()
   end)
 
@@ -186,7 +189,10 @@ describe("M_finance.fetch", function()
   end)
 
   it("fetch surfaces rate_limit body as status 429 -> German error.rate_limit string", function()
-    Mocks.push_response({ content = '{"error":"rate_limit"}' })
+    -- Plan 05-03 D-63: 429 triggers single retry; queue rate_limit body TWICE
+    -- so the retry also returns 429 → caller sees status==429.
+    Mocks.push_response({ content = '{"error":"rate_limit"}' })  -- attempt 1
+    Mocks.push_response({ content = '{"error":"rate_limit"}' })  -- attempt 2 (single retry)
     local _, status, raw = M_finance.fetch(1714521600, "AT-VALID", 0)
     assert.equals(429, status)
     local err = M_errors.from_http_status(status, raw)
@@ -195,6 +201,11 @@ describe("M_finance.fetch", function()
   end)
 
   it("fetch surfaces empty body as nil status -> German error.network string", function()
+    -- Plan 05-03 D-62: empty body triggers 3 retry attempts; queue empty body
+    -- 3× so all attempts exhaust and the function returns (nil, nil, '')
+    -- (Phase-2 ERR-05 path preserved).
+    Mocks.push_response({ content = "" })
+    Mocks.push_response({ content = "" })
     Mocks.push_response({ content = "" })
     local parsed, status, _ = M_finance.fetch(1714521600, "AT-VALID", 0)
     assert.is_nil(parsed)

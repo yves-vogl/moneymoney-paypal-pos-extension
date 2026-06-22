@@ -36,6 +36,11 @@ describe("M_http", function()
 
   before_each(function()
     Mocks.setup()
+    -- Plan 05-03: stub MM.sleep as no-op so retry-bearing tests do not block.
+    -- The retry loop in _request_with_retry calls MM.sleep on 5xx/429/empty
+    -- bodies; tests that exercise those paths queue additional responses.
+    _G.MM = _G.MM or {}
+    _G.MM.sleep = function(_) end
     load_artifact()
   end)
 
@@ -135,12 +140,19 @@ describe("M_http", function()
   -- D-24: network failure / empty body handling
   -- -------------------------------------------------------------------------
 
-  it("post_form returns nil status for empty body", function()
+  it("post_form returns nil status for empty body (Plan 05-03: retry-exhausted = nil status)", function()
+    -- Plan 05-03 retry semantics: empty body triggers 3 retry attempts (D-62
+    -- backoff). After all 3 attempts return empty, the function preserves
+    -- Phase-2 ERR-05 path: returns (nil, nil, "") which M_errors.from_http_status
+    -- (nil, ...) maps to error.network.
+    Mocks.push_response({ content = "" })
+    Mocks.push_response({ content = "" })
     Mocks.push_response({ content = "" })
     local decoded, status, raw = M_http.post_form("https://oauth.zettle.com/token", { grant_type = "x" }, {})
     assert.is_nil(decoded)
     assert.is_nil(status)
     assert.equals("", raw)
+    assert.equals(3, #Mocks._captured_requests, "expected 3 retry attempts on empty body")
   end)
 
   -- -------------------------------------------------------------------------
@@ -174,18 +186,47 @@ describe("M_http", function()
     assert.equals(429, M_http._infer_status({ error = "rate_limit" }))
   end)
 
-  it("post_form with rate_limited fixture returns 429 status (M-02)", function()
+  it("post_form rate_limited fixture returns 429 (M-02; Plan 05-03 single-retry consumes 2)", function()
     -- Load the recorded token_rate_limited fixture and push it as the
     -- Connection response. post_form must infer status=429 so that the caller
     -- (InitializeSession2 in entry.lua) can surface the German rate-limit
     -- message rather than LoginFailed.
+    -- Plan 05-03 single-retry-on-429 (D-63) consumes the queued response THEN
+    -- retries once. To preserve the assertion that 429 surfaces, queue the
+    -- 429 body TWICE so the retry also returns 429 → caller sees status==429.
     local Fixtures = require("spec.helpers.fixtures")
     local raw = Fixtures.load("auth/token_rate_limited")
-    Mocks.push_response({ content = raw, mime = "application/json" })
+    Mocks.push_response({ content = raw, mime = "application/json" })  -- attempt 1
+    Mocks.push_response({ content = raw, mime = "application/json" })  -- attempt 2 (single retry)
     local decoded, status, _ = M_http.post_form("https://oauth.zettle.com/token", { grant_type = "x" }, {})
     assert.is_table(decoded)
     assert.equals("rate_limit", decoded.error)
-    assert.equals(429, status)
+    assert.equals(429, status, "expected 429 returned after single-retry exhaustion")
+    assert.equals(2, #Mocks._captured_requests, "expected 2 attempts (1 initial + 1 single retry)")
+  end)
+
+  -- -------------------------------------------------------------------------
+  -- Plan 05-03: post_form retry symmetry with get_json (ADR-0005 Invariants 2+3)
+  -- -------------------------------------------------------------------------
+
+  it("post_form: 5xx-equivalent empty body exhausts after 3 attempts (Phase-2 ERR-05 path preserved)", function()
+    -- Empty body × 3 → nil status (Phase-2 ERR-05 inheritance), 3 captured requests
+    Mocks.push_response({ content = "" })
+    Mocks.push_response({ content = "" })
+    Mocks.push_response({ content = "" })
+    local _, status, _ = M_http.post_form("https://oauth.zettle.com/token", { grant_type = "x" }, {})
+    assert.is_nil(status, "expected nil status on empty-body 3-attempt exhaustion (ERR-05 path)")
+    assert.equals(3, #Mocks._captured_requests, "expected 3 retry attempts on empty body")
+  end)
+
+  it("post_form: succeeds on 2nd attempt after one empty-body retry", function()
+    Mocks.push_response({ content = "" })  -- attempt 1
+    Mocks.push_response({ content = '{"access_token":"AT","token_type":"bearer","expires_in":7200}' })  -- attempt 2
+    local parsed, status, _ = M_http.post_form("https://oauth.zettle.com/token", { grant_type = "x" }, {})
+    assert.is_table(parsed)
+    assert.equals(200, status)
+    assert.equals("AT", parsed.access_token)
+    assert.equals(2, #Mocks._captured_requests, "expected 2 attempts (1 empty retry + 1 success)")
   end)
 
   -- -------------------------------------------------------------------------
