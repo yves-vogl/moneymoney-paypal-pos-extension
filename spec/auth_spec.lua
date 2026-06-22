@@ -99,6 +99,24 @@ describe("M_auth", function()
   end)
 
   -- -------------------------------------------------------------------------
+  -- ERR-01 / D-61 / ADR-0005 Invariant 1: token-mint invalid_grant → LoginFailed
+  -- Regression test using existing Phase-2 fixture; no source change required.
+  -- The Phase-2 _infer_status branch maps {"error":"invalid_grant"} → 400,
+  -- which M_errors.from_http_status then routes to LoginFailed (D-24 case 3).
+  -- This test asserts the full round-trip so any future refactor to either
+  -- M_http._infer_status OR M_errors.from_http_status surfaces here.
+  -- -------------------------------------------------------------------------
+
+  it("ERR-01 / D-61: exchange_assertion 400 invalid_grant maps to LoginFailed via M_errors", function()
+    local raw = Fixtures.load("auth/token_invalid_grant")
+    Mocks.push_response({ content = raw })
+    local _, status, raw_body = M_auth.exchange_assertion("hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig", "client-x")
+    assert.equals(400, status, "expected _infer_status to map invalid_grant body to 400")
+    assert.equals(LoginFailed, M_errors.from_http_status(status, raw_body),
+      "ERR-01: invalid_grant must surface LoginFailed constant per D-61")
+  end)
+
+  -- -------------------------------------------------------------------------
   -- D-21 leg 2: fetch_profile sends Bearer header
   -- -------------------------------------------------------------------------
 
