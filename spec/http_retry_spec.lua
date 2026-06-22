@@ -320,6 +320,56 @@ describe("M_http retry-with-backoff (Phase 5 / D-62 / D-63 / ADR-0005 Invariants
       "expected default 30s when Retry-After is hex literal (rejected per S-04)")
   end)
 
+  -- -------------------------------------------------------------------------
+  -- 05-06 fix-batch (S-06): degraded MM.sleep pcall path coverage
+  -- -------------------------------------------------------------------------
+  -- Pitfall §10 defence pcall-wraps MM.sleep so a future MoneyMoney runtime
+  -- error during sleep degrades to "no-backoff continuation" rather than
+  -- aborting RefreshAccount. The degraded path was previously uncovered
+  -- (the default mm_mocks MM.sleep stub never errors). This test stubs
+  -- MM.sleep to raise and asserts:
+  --   (a) the loop continues (no Lua error escapes; we still consume 3 attempts)
+  --   (b) the degraded INFO log line appears
+  --   (c) no sensitive content (Bearer / eyJ) leaks via the error log
+  it("degraded MM.sleep error → continues, logs degraded line, no Bearer leak (S-06)", function()
+    -- Stub MM.sleep to raise a string error.
+    _G.MM.sleep = function(_) error("simulated MM.sleep failure") end
+    -- 3 empty responses force the retry path; we want both sleep attempts to
+    -- trigger the pcall failure log line.
+    Mocks.push_response({ content = "" })
+    Mocks.push_response({ content = "" })
+    Mocks.push_response({ content = "" })
+
+    local parsed, status, raw = M_http.get_json("https://finance.izettle.com/test", {})
+    assert.is_nil(parsed)
+    assert.is_nil(status)
+    assert.equals("", raw)
+
+    -- (a) All 3 attempts ran (no Lua error escaped from the pcall guard).
+    assert.equals(3, #Mocks._captured_requests,
+      "expected 3 HTTP attempts; pcall around MM.sleep must not abort the loop")
+
+    -- (b) Exactly 2 degraded log lines (one per attempted sleep).
+    local degraded_lines = {}
+    for _, line in ipairs(Mocks._captured_prints) do
+      if line:find("HTTP retry: MM.sleep error", 1, true) then
+        degraded_lines[#degraded_lines + 1] = line
+      end
+    end
+    assert.equals(2, #degraded_lines,
+      "expected exactly 2 degraded-MM.sleep log lines (one per attempted sleep), got "
+      .. tostring(#degraded_lines))
+
+    -- (c) Defense-in-depth: no Bearer or JWT-shape fragment in any captured
+    --     line (the error log builds from tostring(err), not from headers).
+    for _, line in ipairs(Mocks._captured_prints) do
+      assert.is_falsy(line:find("Bearer", 1, true),
+        "S-06: degraded path must not leak Bearer literal: " .. line)
+      assert.is_falsy(line:find("eyJ", 1, true),
+        "S-06: degraded path must not leak JWT-shape fragment: " .. line)
+    end
+  end)
+
   it("wall-clock budget: 5xx body × 3 still completes within cap (budget non-interference)", function()
     -- Sanity check: a normal 5xx storm where each sleep is small (1s + 2s = 3s
     -- elapsed) must NOT trip the cap — the loop should still emit 599 after
