@@ -408,3 +408,107 @@ describe("SEC-03 / D-45 extended: Bearer redaction covers Finance API responses 
   end
 
 end)
+
+-- ---------------------------------------------------------------------------
+-- Plan 05-05: SEC-03 Gate D — D-68 retry log line Bearer redaction
+--
+-- Plan 05-03 added INFO log lines emitted by src/http.lua _sleep_with_log
+-- with the documented format:
+--
+--   HTTP retry: attempt=N/3 status=NNN url=URL after_ms=NNNN
+--
+-- The format string is structurally Bearer-safe (the headers table is NEVER
+-- concatenated into the log line — only attempt/status/url/after_ms appear).
+-- Gate D is the regression gate proving the invariant holds for these new
+-- log lines: a 503-storm on the finance liquid GET emits exactly 2 retry log
+-- lines (one before attempt 2, one before attempt 3); each line contains
+-- finance.izettle.com (URL field populated) but NO Bearer / eyJ fragment.
+-- ---------------------------------------------------------------------------
+describe("Gate D: SEC-03 retry log Bearer redaction (D-68)", function()
+
+  before_each(function()
+    Mocks.setup()
+    -- No-op MM.sleep so the retry storm in this test does not consume real seconds.
+    _G.MM = _G.MM or {}
+    _G.MM.sleep = function(_) end
+    load_artifact()
+  end)
+
+  after_each(function()
+    Mocks.teardown()
+  end)
+
+  it("Gate D: 503-storm retry log lines contain no Bearer fragment", function()
+    seed_token("org-gate-d")
+    -- Queue: purchase OK + 3 empty bodies on finance liquid GET so
+    -- _request_with_retry exhausts (3 attempts -> 2 retry sleeps -> 2 INFO
+    -- log lines via _sleep_with_log).
+    Mocks.push_response({ content = Fixtures.load("purchases/purchase_simple_sale") })
+    Mocks.push_response({ content = "" })  -- liquid GET attempt 1 (no retry log yet)
+    Mocks.push_response({ content = "" })  -- liquid GET attempt 2 (logged BEFORE: attempt=1/3)
+    Mocks.push_response({ content = "" })  -- liquid GET attempt 3 (logged BEFORE: attempt=2/3)
+    local r = RefreshAccount(
+      { accountNumber = "org-gate-d", currency = "EUR", balance = 0 }, 0)
+    -- Sanity: fail-whole returned an error string (not a table).
+    assert.is_string(r, "Gate D: RefreshAccount must return error string on finance retry exhaust")
+
+    -- (1) SEC-03 invariant: no `Bearer eyJ` substring appears in ANY captured
+    -- print line (the SEC-03 hard invariant Phase-3 / Plan-04-05 gated for the
+    -- purchase + finance happy paths; Gate D extends to the new retry log lines).
+    -- Also check for the broader JWT-shape pattern (defense-in-depth).
+    for _, line in ipairs(Mocks._captured_prints) do
+      assert.is_falsy(line:find("Bearer eyJ", 1, true),
+        "Gate D: retry log line contains 'Bearer eyJ' (SEC-03 violation): " .. line)
+      assert.is_falsy(line:find("eyJ[A-Za-z0-9_%-]+", 1, false),
+        "Gate D: retry log line contains JWT-shape pattern (defense-in-depth): " .. line)
+    end
+
+    -- (2) Exactly TWO `HTTP retry: attempt=` lines appear in the captured stream.
+    -- _sleep_with_log is called for attempt=1 (sleep before attempt 2) and
+    -- attempt=2 (sleep before attempt 3). The third attempt (which fails as the
+    -- final retry) does NOT fire _sleep_with_log — the loop returns
+    -- (nil, nil, raw) instead. So the count is exactly 2.
+    local retry_log_lines = {}
+    for _, line in ipairs(Mocks._captured_prints) do
+      if line:find("HTTP retry: attempt=", 1, true) then
+        retry_log_lines[#retry_log_lines + 1] = line
+      end
+    end
+    assert.equals(2, #retry_log_lines,
+      "Gate D: expected exactly 2 'HTTP retry: attempt=' lines (one before attempt 2, one before attempt 3); "
+      .. "got " .. tostring(#retry_log_lines))
+
+    -- (3) Format string matches the Plan-05-03 documented format
+    -- (HTTP retry: attempt=N/3 status=NNN url=URL after_ms=NNNN).
+    -- Lua patterns: %d+ for digits; %S+ for the URL (non-whitespace run).
+    -- The line is prefixed by M_log's "[paypal-pos][INFO] " envelope; the
+    -- pattern matches the suffix anywhere in the line (no ^ anchor).
+    local fmt_pattern =
+      "HTTP retry: attempt=%d+/%d+ status=%S+ url=%S+ after_ms=%d+"
+    for i, line in ipairs(retry_log_lines) do
+      assert.is_truthy(line:find(fmt_pattern),
+        "Gate D: retry log line " .. i .. " does not match D-68 format pattern, got: " .. line)
+    end
+
+    -- (4) URL field in each retry log line contains the failing host
+    -- (finance.izettle.com) but NO bearer / eyJ fragment in any position.
+    -- The first retry log corresponds to the first failed liquid GET attempt,
+    -- whose URL is /v2/accounts/liquid/balance.
+    for i, line in ipairs(retry_log_lines) do
+      assert.is_truthy(line:find("finance.izettle.com", 1, true),
+        "Gate D: retry log line " .. i .. " must reference finance.izettle.com "
+        .. "(URL field populated), got: " .. line)
+      -- Belt-and-suspenders: a Bearer token would arrive as part of the
+      -- Authorization header value — the format string never concatenates
+      -- the headers table, so structurally absent. Verify by absence of the
+      -- literal substring `Bearer` AND any `eyJ` fragment in any position.
+      assert.is_falsy(line:find("Bearer", 1, true),
+        "Gate D: retry log line " .. i .. " must not contain literal 'Bearer' "
+        .. "(headers must never concat into log lines), got: " .. line)
+      assert.is_falsy(line:find("eyJ", 1, true),
+        "Gate D: retry log line " .. i .. " must not contain 'eyJ' fragment "
+        .. "(SEC-03 / D-68 invariant), got: " .. line)
+    end
+  end)
+
+end)
