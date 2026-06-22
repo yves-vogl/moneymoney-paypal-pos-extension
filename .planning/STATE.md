@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
 status: All 5 plans landed across 4 waves on `phase-5/resilience` branch + Plan 05-06 post-review fix-batch landed (REVIEW.md WR-01/WR-02/WR-03 + SECURITY-REVIEW S-01/S-02/S-03/S-04/S-05/S-06 addressed; Tier-3 WR-04/IN-01..04/S-07 deferred to follow-up PR). ADR-0005 ACCEPTED with 6 invariants pinned + 3 carve-outs (SSL bypass / HTTP-date Retry-After degradation / anchor stub) + Implementation Pin extended with two new contracts (599-sentinel emission live + per-request wall-clock cap) + sleep mechanism (MM.sleep + pcall-defensive) + updated worst-case timing budget. Retry semantics shipped in src/http.lua _request_with_retry (5xx 3-attempts {1,2,4}s; 429 single-retry Retry-After integer-only with 60s cap + 30s default + strict digit-only precheck post-S-04; 599 sentinel emission NOW LIVE for server_error/internal_error/backend_error/service_unavailable/temporarily_unavailable/server_busy 5xx body shapes post-S-02; _WALL_CLOCK_CAP=60s bounds adversarial mixed-error sequences post-S-01). ERR-04 post-mint 401 → German error.token_revoked via iterator-layer 401-direct-check (4 call sites). ERR-06 fail-whole-refresh structurally enforced. SEC-03 invariant preserved + extended (Gate D + Gate D extended for malicious cursor CR/LF percent-encoding post-S-03 + degraded MM.sleep pcall path coverage post-S-06). Phase-4 surface frozen.
-last_updated: "2026-06-22T09:58:20.441Z"
+last_updated: "2026-06-22T10:19:34.128Z"
 progress:
   total_phases: 7
   completed_phases: 3
   total_plans: 31
-  completed_plans: 29
+  completed_plans: 30
   percent: 43
 ---
 
@@ -81,7 +81,7 @@ Phase: 04 (enrichment-refunds-fees-payouts) — **IMPLEMENTATION + POST-REVIEW F
 - **Plan 04-07 (post-review fix batch — autonomous-window) shipped 13 GPG-signed commits** addressing REVIEW.md (3 BLOCKER + 4 WARNING) + SECURITY-REVIEW.md (1 HIGH + 4 MEDIUM + 1 LOW). Full per-finding mapping in `04-07-FIX-SUMMARY.md`.
 
 Full suite 328 → **335 successes / 0 failures**; luacheck 0/0 in 38 files; reproducible build sha `6f4f685fd40f2922cb318a786c08b4d7182e0eb167e2c5c90c137fe47308fe54`. Plan 04-01 (Q3 sandbox probe) still pending Yves' live verification. Plan 04-06 Task 4 (loop-lektor pass on CHANGELOG/README/ADR-0004 German wording) deferred to Yves checkpoint after merge per orchestrator standing instruction.
-**Progress:** [█████████░] 89%
+**Progress:** [██████████] 97%
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
@@ -141,6 +141,7 @@ See `.planning/phases/04-enrichment-refunds-fees-payouts/04-CONTEXT.md` for full
 | 6 | - | - | - | - | - |
 
 ---
+| Phase 06 P02 | ~12 minutes | - tasks | - files |
 
 ## Accumulated Context
 
@@ -197,3 +198,12 @@ Resolved live on MoneyMoney 2.4.72 / macOS 26.4.1 ARM (see ADR-0003 ACCEPTED). A
 ---
 
 *State initialized: 2026-06-16 via `/gsd-roadmap`. Will be updated on every plan execution, phase transition, and milestone.*
+
+## Decisions
+
+- [Phase ?]: Workflow-level contents:read with job-level contents:write escalation (Pitfall 7 least-privilege)
+- [Phase ?]: VALIDSIG fingerprint grep is the load-bearing GPG-tag verify check (Pitfall 8)
+- [Phase ?]: PUT /repos/.../topics replaces topics atomically (exact-set vs additive drift)
+- [Phase ?]: Branch-protection helper degrades gracefully on 403/insufficient-scope (CP-2 may be deferred)
+- [Phase ?]: 1×1 transparent PNG (68 bytes) as screenshot placeholder keeps markdown refs valid pre-CP-5
+- [Phase ?]: MADR retro-documentation ACCEPTED 2026-06-22 — decisions locked in Phases 2..5; ADRs are artifact-of-record

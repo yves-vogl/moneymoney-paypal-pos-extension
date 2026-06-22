@@ -79,16 +79,16 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 - [ ] **SEC-02**: CI greps the shipped artifact to assert there are no calls to hosts outside the egress allowlist (`oauth.zettle.com`, `purchase.izettle.com`, `finance.izettle.com`)
 - [ ] **SEC-03**: An authentication-failure test asserts no API-key fragment, JWT, or `Bearer` token appears in the resulting error string
 - [ ] **SEC-04**: `DEBUG = false` is hard-coded in the shipped artifact (CI rejects builds where `DEBUG = true`)
-- [ ] **SEC-05**: Branch protection on `main` requires GPG-signed commits and CI green
+- [x] **SEC-05**: Branch protection on `main` requires GPG-signed commits and CI green
 
 ### Build & Release Engineering
 
 - [ ] **BUILD-01**: Source is organised under `src/` and `tools/build.lua` amalgamates it deterministically into a single `paypal-pos.lua` artifact
 - [ ] **BUILD-02**: The build is byte-reproducible — building twice on the same input produces identical bytes (LF normalization, deterministic manifest ordering, no timestamps/SHAs embedded)
 - [x] **BUILD-03**: The `WebBanking{version = X.YY}` field in the shipped artifact is substituted from the Git tag at build time; a test asserts artifact-version == tag (closed by Plan 06-01: `tools/build.lua` + `spec/build_version_substitution_spec.lua`, 7 it() cases)
-- [ ] **BUILD-04**: Releases are triggered by pushing a GPG-signed Git tag (`git tag -s vX.Y.Z`); CI verifies the tag signature before publishing
-- [ ] **BUILD-05**: Release assets include the `paypal-pos.lua` artifact and a `paypal-pos.lua.sha256` checksum file
-- [ ] **BUILD-06**: CI uses `softprops/action-gh-release@v2` to publish the GitHub Release with the verified tag's annotation as the release notes
+- [x] **BUILD-04**: Releases are triggered by pushing a GPG-signed Git tag (`git tag -s vX.Y.Z`); CI verifies the tag signature before publishing
+- [x] **BUILD-05**: Release assets include the `paypal-pos.lua` artifact and a `paypal-pos.lua.sha256` checksum file
+- [x] **BUILD-06**: CI uses `softprops/action-gh-release@v2` to publish the GitHub Release with the verified tag's annotation as the release notes
 
 ### CI/CD
 
@@ -108,15 +108,15 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 
 ### Distribution & Documentation
 
-- [ ] **DOC-01**: `README.de.md` is the primary README (German), linked from the GitHub repo `README.md` which itself is German with an English-summary section for international contributors
-- [ ] **DOC-02**: README's first section is a screenshot-illustrated guide to enabling "Inoffizielle Extensions erlauben" in MoneyMoney settings
-- [ ] **DOC-03**: README documents both install paths (sandboxed App-Store build and non-sandboxed direct-download build) and points users to `Hilfe → Erweiterungen im Finder zeigen`
+- [x] **DOC-01**: `README.de.md` is the primary README (German), linked from the GitHub repo `README.md` which itself is German with an English-summary section for international contributors
+- [x] **DOC-02**: README's first section is a screenshot-illustrated guide to enabling "Inoffizielle Extensions erlauben" in MoneyMoney settings
+- [x] **DOC-03**: README documents both install paths (sandboxed App-Store build and non-sandboxed direct-download build) and points users to `Hilfe → Erweiterungen im Finder zeigen`
 - [ ] **DOC-04**: README includes a German "GoBD-Hinweis" section that explicitly does NOT claim conformance and points users to their Steuerberater
-- [ ] **DOC-05**: `CONTRIBUTING.md` (English) documents the dev loop, testing, amalgamator, release process, and the GPG-signed-tag requirement
-- [ ] **DOC-06**: ADRs (MADR format) under `docs/adr/` cover at minimum: amalgamator choice, LocalStorage token cache, JWT-bearer-only auth, fee modeling, no-TLS-pinning, string-return error pattern, sandbox probe results
-- [ ] **DOC-07**: `LICENSE` file at repo root contains MIT License with copyright "Yves Vogl"
-- [ ] **DOC-08**: GitHub repo description (set via `gh repo edit`) reads (German): "MoneyMoney-Extension für PayPal POS — Karten-Umsätze, Refunds, Gebühren und Auszahlungen direkt in MoneyMoney. Open Source, MIT, GPG-signiert."
-- [ ] **DOC-09**: GitHub repo topics: `moneymoney`, `moneymoney-extension`, `paypal-pos`, `zettle`, `lua`, `germany`, `accounting`
+- [x] **DOC-05**: `CONTRIBUTING.md` (English) documents the dev loop, testing, amalgamator, release process, and the GPG-signed-tag requirement
+- [x] **DOC-06**: ADRs (MADR format) under `docs/adr/` cover at minimum: amalgamator choice, LocalStorage token cache, JWT-bearer-only auth, fee modeling, no-TLS-pinning, string-return error pattern, sandbox probe results
+- [x] **DOC-07**: `LICENSE` file at repo root contains MIT License with copyright "Yves Vogl"
+- [x] **DOC-08**: GitHub repo description (set via `gh repo edit`) reads (German): "MoneyMoney-Extension für PayPal POS — Karten-Umsätze, Refunds, Gebühren und Auszahlungen direkt in MoneyMoney. Open Source, MIT, GPG-signiert."
+- [x] **DOC-09**: GitHub repo topics: `moneymoney`, `moneymoney-extension`, `paypal-pos`, `zettle`, `lua`, `germany`, `accounting`
 - [ ] **DOC-10**: A `CHANGELOG.md` (Keep a Changelog format) is maintained per SemVer release
 
 ## v2 Requirements
@@ -208,13 +208,13 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | SEC-02 | Phase 6 | Pending |
 | SEC-03 | Phase 2 | Pending |
 | SEC-04 | Phase 1 | Pending |
-| SEC-05 | Phase 6 | Pending |
+| SEC-05 | Phase 6 | Complete |
 | BUILD-01 | Phase 1 | Pending |
 | BUILD-02 | Phase 1 | Pending |
 | BUILD-03 | Phase 6 | Closed by Plan 06-01 |
-| BUILD-04 | Phase 6 | Pending |
-| BUILD-05 | Phase 6 | Pending |
-| BUILD-06 | Phase 6 | Pending |
+| BUILD-04 | Phase 6 | Complete |
+| BUILD-05 | Phase 6 | Complete |
+| BUILD-06 | Phase 6 | Complete |
 | CI-01 | Phase 6 | Pending |
 | CI-02 | Phase 6 | Pending |
 | CI-03 | Phase 6 | Pending |
@@ -225,15 +225,15 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | TEST-02 | Phase 4 | Pending |
 | TEST-03 | Phase 3 | Pending |
 | TEST-04 | Phase 3 | Pending |
-| DOC-01 | Phase 6 | Pending |
-| DOC-02 | Phase 6 | Pending |
-| DOC-03 | Phase 6 | Pending |
+| DOC-01 | Phase 6 | Complete |
+| DOC-02 | Phase 6 | Complete |
+| DOC-03 | Phase 6 | Complete |
 | DOC-04 | Phase 6 | Pending |
-| DOC-05 | Phase 6 | Pending |
-| DOC-06 | Phase 6 | Pending |
-| DOC-07 | Phase 6 | Pending |
-| DOC-08 | Phase 6 | Pending |
-| DOC-09 | Phase 6 | Pending |
+| DOC-05 | Phase 6 | Complete |
+| DOC-06 | Phase 6 | Complete |
+| DOC-07 | Phase 6 | Complete |
+| DOC-08 | Phase 6 | Complete |
+| DOC-09 | Phase 6 | Complete |
 | DOC-10 | Phase 6 | Pending |
 
 **Coverage:**
