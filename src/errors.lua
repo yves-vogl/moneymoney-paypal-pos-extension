@@ -3,6 +3,15 @@
 -- Implements the six-case HTTP-status-to-error mapping defined in D-24.
 -- Phase 5 will extend this module additively (new status codes / retry hints)
 -- without changing the public signature: from_http_status(status, body) -> string|nil.
+--
+-- Phase 5 (Plan 05-02): added 599 sentinel branch for retry-exhausted 5xx
+-- per ADR-0005 Invariant 2. The 401-after-mint translation to the
+-- session-lost surface lives at the resource-endpoint caller layer
+-- (src/purchases.lua + src/finance.lua, Plan 05-04) — NOT in this dispatch —
+-- because from_http_status cannot distinguish "401 from token mint"
+-- (LoginFailed) vs "401 from resource call after successful mint"
+-- without additional context per ADR-0005 Invariant 4 + RESEARCH §Pattern-2
+-- collapse. The corresponding i18n key is intentionally NOT referenced here.
 
 -- M_errors.from_http_status(status, body)
 --   status : integer|nil  — HTTP status code returned by Connection:request, or nil on timeout/network error
@@ -33,8 +42,17 @@ M_errors.from_http_status = function(status, body) -- luacheck: ignore body
     return M_i18n.t("error.rate_limit")
   end
 
-  -- D-24 case 5: 5xx — server error with status code in message
-  if status >= 500 and status <= 599 then
+  -- D-24 case 5 + Phase-5 D-62 / ADR-0005 Invariant 2: 5xx server errors.
+  -- The integer 599 is a Phase-5-internal SENTINEL set by M_http.get_json /
+  -- post_form when 5xx retry attempts exhaust (Plan 05-03). Callers route
+  -- to M_i18n.t("error.server_busy") so users see a distinct "server unavailable"
+  -- message vs. a generic "network error <status>". Real 500-598 codes from
+  -- body-shape inference (e.g. {"error":"server_error"} → 500) still route
+  -- through the generic D-24 case 5 message preserving backward compat.
+  if status == 599 then
+    return M_i18n.t("error.server_busy")
+  end
+  if status >= 500 and status <= 598 then
     return M_i18n.t("error.network", tostring(status))
   end
 

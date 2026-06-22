@@ -40,6 +40,11 @@ local STRINGS = {
     ["error.invalid_grant"]       = "Anmeldung fehlgeschlagen: API-Key wurde abgelehnt.",
     ["error.network"]             = "Netzwerkfehler: %s",
     ["error.rate_limit"]          = "Anfragelimit erreicht — bitte später erneut versuchen.",
+    -- Plan 05-02: Phase-5 resilience error strings (D-69 shrunk per RESEARCH §6 — only 2 new keys)
+    ["error.server_busy"]         =
+      "PayPal-POS-Server zurzeit nicht erreichbar \xe2\x80\x94 bitte sp\xc3\xa4ter erneut versuchen.",
+    ["error.token_revoked"]       =
+      "Anmeldung verloren \xe2\x80\x94 bitte API-Key in MoneyMoney neu eintragen.",
     ["credential.api_key.label"]  = "API-Key",
   },
   en = {
@@ -78,6 +83,11 @@ local STRINGS = {
     ["error.invalid_grant"]       = "Login failed: API key was rejected.",
     ["error.network"]             = "Network error: %s",
     ["error.rate_limit"]          = "Rate limit reached — please retry later.",
+    -- Plan 05-02: Phase-5 resilience error strings (English fallback parity, I18N-02)
+    ["error.server_busy"]         =
+      "PayPal POS server unavailable \xe2\x80\x94 please retry later.",
+    ["error.token_revoked"]       =
+      "Session lost \xe2\x80\x94 please re-enter the API key in MoneyMoney.",
     ["credential.api_key.label"]  = "API key",
   },
 }
