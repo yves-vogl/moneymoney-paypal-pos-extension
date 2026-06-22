@@ -188,4 +188,55 @@ describe("M_http retry-with-backoff (Phase 5 / D-62 / D-63 / ADR-0005 Invariants
       "expected MM.sleep(7) -- lowercase retry-after must be honored per Pitfall §6")
   end)
 
+  -- -------------------------------------------------------------------------
+  -- 05-06 fix-batch (S-02 / WR-01 / S-05): 599 sentinel emission contract
+  -- -------------------------------------------------------------------------
+  -- REVIEW WR-01 / SECURITY S-02 found the 5xx retry branch unreachable
+  -- because _infer_status never returned a status in [500, 598]. This block
+  -- gates the now-live 5xx-body classification: server_error / internal_error
+  -- → 500; service_unavailable / temporarily_unavailable → 503; server_busy
+  -- → 599 directly. After _MAX_ATTEMPTS the loop emits the 599 sentinel which
+  -- M_errors.from_http_status maps to error.server_busy. S-05 (sentinel
+  -- collision) is mitigated by routing both inferred 599 and exhausted-5xx
+  -- 599 to the same error.server_busy string — no semantic ambiguity.
+  it("5xx body: server_error × 3 → 599 sentinel surfaces error.server_busy (S-02 / WR-01)", function()
+    local body = '{"error":"server_error","error_description":"upstream failure"}'
+    Mocks.push_response({ content = body, mime = "application/json" })
+    Mocks.push_response({ content = body, mime = "application/json" })
+    Mocks.push_response({ content = body, mime = "application/json" })
+    local parsed, status, raw = M_http.get_json("https://finance.izettle.com/test", {})
+    assert.is_table(parsed)
+    assert.equals(599, status,
+      "expected 599 sentinel after 3-attempt 5xx body-shape exhaust")
+    assert.equals(3, #Mocks._captured_requests,
+      "expected 3 HTTP attempts (1 original + 2 retries)")
+    assert.equals(2, #_captured_sleeps,
+      "expected 2 sleeps (between attempts 1->2 and 2->3)")
+    assert.equals(1, _captured_sleeps[1])
+    assert.equals(2, _captured_sleeps[2])
+    assert.equals(M_i18n.t("error.server_busy"), M_errors.from_http_status(status, raw),
+      "M_errors must route 599 sentinel to error.server_busy")
+  end)
+
+  it("5xx body: service_unavailable inferred as 503 → retried then 599 surfaces (S-02)", function()
+    local body = '{"error":"service_unavailable"}'
+    Mocks.push_response({ content = body, mime = "application/json" })
+    Mocks.push_response({ content = body, mime = "application/json" })
+    Mocks.push_response({ content = body, mime = "application/json" })
+    local _, status, raw = M_http.get_json("https://finance.izettle.com/test", {})
+    assert.equals(599, status,
+      "expected 599 sentinel after 3-attempt service_unavailable storm")
+    assert.equals(M_i18n.t("error.server_busy"), M_errors.from_http_status(status, raw))
+  end)
+
+  it("5xx body: server_error → recovers on 2nd attempt → status 200 (S-02)", function()
+    Mocks.push_response({ content = '{"error":"server_error"}', mime = "application/json" })
+    Mocks.push_response({ content = '{"ok":true}', mime = "application/json" })
+    local parsed, status, _ = M_http.get_json("https://finance.izettle.com/test", {})
+    assert.is_table(parsed)
+    assert.equals(200, status, "expected recovery to surface 200")
+    assert.equals(1, #_captured_sleeps, "expected one sleep between attempt 1 and 2")
+    assert.equals(1, _captured_sleeps[1], "expected backoff[1] = 1s")
+  end)
+
 end)
