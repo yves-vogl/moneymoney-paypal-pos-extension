@@ -67,8 +67,8 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 ### Error Handling & Resilience
 
 - [x] **ERR-01**: A token-mint `invalid_grant` response returns the `LoginFailed` constant (per MoneyMoney spec) so the user is prompted to re-enter credentials
-- [ ] **ERR-02**: A transient 5xx response triggers retry-with-backoff (max 3 attempts) before the refresh fails
-- [ ] **ERR-03**: A 429 response honours the `Retry-After` header (with a sane cap)
+- [x] **ERR-02**: A transient 5xx response triggers retry-with-backoff (max 3 attempts) before the refresh fails
+- [x] **ERR-03**: A 429 response honours the `Retry-After` header (with a sane cap)
 - [ ] **ERR-04**: A post-token-mint 401 response triggers a single silent token re-mint, not a `LoginFailed`
 - [ ] **ERR-05**: A network failure produces a German error string returned from `RefreshAccount` — never a Lua error, never a partial result
 - [ ] **ERR-06**: Any failure inside `RefreshAccount` aborts the whole refresh — the extension never returns partial transactions that would advance MoneyMoney's `since` watermark past undelivered data
@@ -199,8 +199,8 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | I18N-02 | Phase 1 | Pending |
 | I18N-03 | Phase 1 | Pending |
 | ERR-01 | Phase 5 | Complete |
-| ERR-02 | Phase 5 | Pending |
-| ERR-03 | Phase 5 | Pending |
+| ERR-02 | Phase 5 | Complete |
+| ERR-03 | Phase 5 | Complete |
 | ERR-04 | Phase 5 | Pending |
 | ERR-05 | Phase 5 | Pending |
 | ERR-06 | Phase 5 | Pending |

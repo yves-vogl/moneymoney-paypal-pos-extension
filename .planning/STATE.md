@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
 status: planning
-last_updated: "2026-06-22T07:44:19.305Z"
+last_updated: "2026-06-22T07:56:50.090Z"
 progress:
   total_phases: 7
   completed_phases: 2
   total_plans: 28
-  completed_plans: 24
+  completed_plans: 25
   percent: 29
 ---
 
@@ -44,7 +44,7 @@ Phase: 04 (enrichment-refunds-fees-payouts) — **IMPLEMENTATION + POST-REVIEW F
 - **Plan 04-07 (post-review fix batch — autonomous-window) shipped 13 GPG-signed commits** addressing REVIEW.md (3 BLOCKER + 4 WARNING) + SECURITY-REVIEW.md (1 HIGH + 4 MEDIUM + 1 LOW). Full per-finding mapping in `04-07-FIX-SUMMARY.md`.
 
 Full suite 328 → **335 successes / 0 failures**; luacheck 0/0 in 38 files; reproducible build sha `6f4f685fd40f2922cb318a786c08b4d7182e0eb167e2c5c90c137fe47308fe54`. Plan 04-01 (Q3 sandbox probe) still pending Yves' live verification. Plan 04-06 Task 4 (loop-lektor pass on CHANGELOG/README/ADR-0004 German wording) deferred to Yves checkpoint after merge per orchestrator standing instruction.
-**Progress:** [█████████░] 86%
+**Progress:** [█████████░] 89%
 
 ```
 Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
