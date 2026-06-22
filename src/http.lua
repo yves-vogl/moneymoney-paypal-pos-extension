@@ -26,6 +26,15 @@ local _BACKOFF_SECONDS        = { 1, 2, 4 }
 local _RETRY_AFTER_CAP        = 60           -- D-63 upper bound on Retry-After honoring
 local _RATE_LIMIT_DEFAULT     = 30           -- D-63 default when Retry-After absent / unparseable
 local _SENTINEL_5XX_EXHAUSTED = 599          -- Phase-5-internal: M_errors maps to error.server_busy per Plan 05-02
+-- 05-06 fix-batch (S-01 / WR-03): per-request wall-clock cap (seconds).
+-- The shared attempt counter alone does not bound total wait time on a mixed
+-- [429 Retry-After=60, empty, empty] sequence, which would otherwise consume
+-- ~62s on a single endpoint and ~248s across the 4-endpoint RefreshAccount
+-- pipeline — breaching MoneyMoney's per-call timeout (~30-60s per ADR-0003).
+-- Before each _sleep_with_log we check that (elapsed + next_sleep) does not
+-- exceed _WALL_CLOCK_CAP; if it would, we abort the loop and return the most
+-- recent attempt's tuple so the caller sees a deterministic outcome.
+local _WALL_CLOCK_CAP         = 60           -- Hard upper bound per _request_with_retry call
 
 -- _get_connection() -> Connection
 -- Returns the cached connection or creates one.
@@ -184,6 +193,18 @@ local function _request_with_retry(method, url, body, contentType, h)
   local conn = _get_connection()
   local raw, parsed, status, resp_headers
   local last_attempt_was_5xx = false
+  -- 05-06 fix-batch (S-01 / WR-03): track elapsed wall-clock time across the
+  -- loop so the next sleep can be skipped (and the loop aborted with the most
+  -- recent tuple) when the cap would be breached. os.time() is sufficient
+  -- here: all sleeps are documented integer-seconds (ADR-0005 §Sleep mech).
+  local _start_time = os.time()
+  -- _budget_would_breach(seconds) -> bool
+  -- True iff adding `seconds` of sleep would push total elapsed wall-clock
+  -- beyond _WALL_CLOCK_CAP. Uses a captured start_time so retries spread
+  -- across mixed 429+5xx+empty sequences share the same bound.
+  local function _budget_would_breach(seconds)
+    return (os.time() - _start_time) + seconds > _WALL_CLOCK_CAP
+  end
   for attempt = 1, _MAX_ATTEMPTS do
     -- 5-tuple capture per Risk R-1 / ADR-0003 Q8 (NO pcall around conn:request).
     local _charset, _mime, _filename -- luacheck: ignore 211 _charset _mime _filename
@@ -194,7 +215,16 @@ local function _request_with_retry(method, url, body, contentType, h)
       -- Empty body: 5xx-without-body OR DNS/connect/timeout (RESEARCH §4.b).
       last_attempt_was_5xx = false  -- nil-status path, not 599 sentinel
       if attempt < _MAX_ATTEMPTS then
-        _sleep_with_log(_BACKOFF_SECONDS[attempt], url, attempt, "nil")
+        local next_sleep = _BACKOFF_SECONDS[attempt]
+        if _budget_would_breach(next_sleep) then
+          -- S-01 / WR-03: wall-clock abort. Return the most recent tuple
+          -- (empty body → ERR-05) so the caller sees a deterministic outcome
+          -- rather than silently retrying past MM's per-call timeout.
+          M_log.info("HTTP retry: wall-clock cap reached (" .. _WALL_CLOCK_CAP ..
+                     "s); aborting before next sleep url=" .. url)
+          return nil, nil, raw
+        end
+        _sleep_with_log(next_sleep, url, attempt, "nil")
       else
         -- Final attempt: surface (nil, nil, raw) — ERR-05 inheritance from Phase 2.
         return nil, nil, raw
@@ -215,6 +245,13 @@ local function _request_with_retry(method, url, body, contentType, h)
         if attempt == 1 then
           -- D-63: single retry honoring Retry-After.
           local wait = _parse_retry_after(resp_headers) or _RATE_LIMIT_DEFAULT
+          if _budget_would_breach(wait) then
+            -- S-01 / WR-03: cap aborts the 429 retry; surface the 429 now so
+            -- the caller maps to error.rate_limit instead of stalling.
+            M_log.info("HTTP retry: wall-clock cap reached (" .. _WALL_CLOCK_CAP ..
+                       "s); skipping 429 Retry-After sleep url=" .. url)
+            return parsed, status, raw
+          end
           _sleep_with_log(wait, url, attempt, status)
           -- continue loop (attempt becomes 2)
         else
@@ -224,7 +261,15 @@ local function _request_with_retry(method, url, body, contentType, h)
       elseif status >= 500 and status <= 599 then
         last_attempt_was_5xx = true
         if attempt < _MAX_ATTEMPTS then
-          _sleep_with_log(_BACKOFF_SECONDS[attempt], url, attempt, status)
+          local next_sleep = _BACKOFF_SECONDS[attempt]
+          if _budget_would_breach(next_sleep) then
+            -- S-01 / WR-03: cap aborts the 5xx retry; surface the 599 sentinel
+            -- now (5xx-classified tuple) so the caller maps to error.server_busy.
+            M_log.info("HTTP retry: wall-clock cap reached (" .. _WALL_CLOCK_CAP ..
+                       "s); emitting 599 sentinel early url=" .. url)
+            return parsed, _SENTINEL_5XX_EXHAUSTED, raw
+          end
+          _sleep_with_log(next_sleep, url, attempt, status)
           -- continue loop
         else
           -- D-62: 3-attempt budget exhausted; emit the 599 sentinel.
