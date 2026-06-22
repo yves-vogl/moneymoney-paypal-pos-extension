@@ -241,4 +241,89 @@ describe("M_http retry-with-backoff (Phase 5 / D-62 / D-63 / ADR-0005 Invariants
     assert.equals(1, _captured_sleeps[1], "expected backoff[1] = 1s")
   end)
 
+  -- -------------------------------------------------------------------------
+  -- 05-06 fix-batch (S-01 / WR-03): wall-clock budget abort
+  -- -------------------------------------------------------------------------
+  -- REVIEW WR-03 / SECURITY S-01 noticed that the shared attempt counter does
+  -- not bound total wait time. Adversarial sequence [429 Retry-After=60,
+  -- empty, empty] sleeps ~62s on a single endpoint; across 4 endpoints
+  -- worst-case ~248s, exceeding MoneyMoney's per-call timeout (~30-60s per
+  -- ADR-0003). The fix introduces _WALL_CLOCK_CAP (60s): before each
+  -- _sleep_with_log call we check `(elapsed + sleep_seconds) > cap` and abort,
+  -- returning whatever the most-recent attempt's tuple was so the caller sees
+  -- a deterministic outcome (not silently retried).
+  it("wall-clock budget: [429 Retry-After=60, empty, empty] aborts after first sleep (S-01/WR-03)", function()
+    -- Stub os.time so the elapsed-budget check is deterministic.
+    -- Sequence: attempt=1 takes 0s elapsed -> sleep(60); after sleep elapsed=60s;
+    -- attempt=2 empty body; trying to sleep(_BACKOFF_SECONDS[2]=2) would push
+    -- elapsed to 62 > _WALL_CLOCK_CAP=60 -> abort and return (nil, nil, "").
+    local _saved_os_time = os.time
+    local _t = 0
+    -- Each MM.sleep call advances the simulated clock by the requested seconds.
+    _G.MM.sleep = function(s)
+      _captured_sleeps[#_captured_sleeps + 1] = s
+      _t = _t + s
+    end
+    os.time = function() return _t end -- luacheck: ignore
+
+    local rate_limit_body = '{"error":"rate_limit"}'
+    Mocks.push_response({
+      content = rate_limit_body, mime = "application/json",
+      headers = { ["Retry-After"] = "60" },
+    })
+    Mocks.push_response({ content = "" })  -- attempt 2: empty body (5xx-equivalent)
+    Mocks.push_response({ content = "" })  -- attempt 3: would-be, but cap aborts before this
+
+    local parsed, status, raw = M_http.get_json("https://finance.izettle.com/test", {})
+
+    os.time = _saved_os_time -- luacheck: ignore
+
+    -- After the wall-clock abort, we should return whatever the last attempt
+    -- produced (attempt 2's empty body → (nil, nil, "")).
+    assert.is_nil(parsed, "expected nil parsed after wall-clock abort on empty body")
+    assert.is_nil(status, "expected nil status after wall-clock abort (ERR-05 path)")
+    assert.equals("", raw, "expected empty raw body after wall-clock abort")
+
+    -- At most TWO MM.sleep calls (one for the 429 + zero or one for the
+    -- empty-body retry that the cap aborts). With Retry-After=60 already at
+    -- cap, the second sleep MUST NOT fire -> exactly 1 sleep.
+    assert.equals(1, #_captured_sleeps,
+      "expected exactly 1 MM.sleep call (60s for 429); the wall-clock cap "
+      .. "must abort before the second sleep")
+    local total = 0
+    for _, s in ipairs(_captured_sleeps) do total = total + s end
+    assert.is_true(total <= 60,
+      "expected total sleep <= 60s wall-clock cap, got " .. tostring(total))
+
+    -- Only 2 attempts issued (the 3rd request must not happen — the cap aborts
+    -- after attempt 2's empty body, before sleeping for attempt 3).
+    assert.equals(2, #Mocks._captured_requests,
+      "expected exactly 2 HTTP attempts (cap aborts before attempt 3)")
+  end)
+
+  it("wall-clock budget: 5xx body × 3 still completes within cap (budget non-interference)", function()
+    -- Sanity check: a normal 5xx storm where each sleep is small (1s + 2s = 3s
+    -- elapsed) must NOT trip the cap — the loop should still emit 599 after
+    -- the documented 3 attempts.
+    local _saved_os_time = os.time
+    local _t = 0
+    _G.MM.sleep = function(s)
+      _captured_sleeps[#_captured_sleeps + 1] = s
+      _t = _t + s
+    end
+    os.time = function() return _t end -- luacheck: ignore
+
+    local body = '{"error":"server_error"}'
+    Mocks.push_response({ content = body, mime = "application/json" })
+    Mocks.push_response({ content = body, mime = "application/json" })
+    Mocks.push_response({ content = body, mime = "application/json" })
+
+    local _, status, _ = M_http.get_json("https://finance.izettle.com/test", {})
+
+    os.time = _saved_os_time -- luacheck: ignore
+
+    assert.equals(599, status, "expected 599 sentinel; cap should not trigger on small sleeps")
+    assert.equals(2, #_captured_sleeps, "expected 2 sleeps (1s + 2s) under cap")
+  end)
+
 end)
