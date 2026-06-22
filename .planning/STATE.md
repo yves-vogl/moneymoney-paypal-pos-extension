@@ -2,8 +2,8 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
-status: planning
-last_updated: "2026-06-22T07:56:50.090Z"
+status: implementation-complete
+last_updated: "2026-06-22T08:30:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 2
@@ -33,6 +33,25 @@ progress:
 
 ## Current Position
 
+Phase: 05 (resilience-error-handling) — **IMPLEMENTATION COMPLETE; READY-FOR-VERIFIER 2026-06-22**
+
+**Status:** All 5 plans landed across 4 waves on `phase-5/resilience` branch. ADR-0005 ACCEPTED with 6 invariants pinned + 3 carve-outs (SSL bypass / HTTP-date Retry-After degradation / anchor stub) + sleep mechanism (MM.sleep + pcall-defensive) + worst-case timing budget (~27s 3-endpoint 5xx storm fits within MM 30-60s per-call window). Retry semantics shipped in src/http.lua _request_with_retry (5xx 3-attempts {1,2,4}s; 429 single-retry Retry-After integer-only with 60s cap + 30s default; 599 sentinel ready for future _infer_status 5xx branch growth). ERR-04 post-mint 401 → German error.token_revoked via iterator-layer 401-direct-check (4 call sites: 2 in pagination.lua iterate/offset_iterate + 2 in finance.lua fetch_account_state liquid/preliminary inline). ERR-06 fail-whole-refresh structurally enforced via Phase-4 16-step entry.lua + gated by 4 new ERR-06 cases. SEC-03 invariant preserved across all new surfaces (Gate D extends to D-68 retry log lines). Phase-4 surface frozen (M_finance signatures + M_mapping byte-identity + entry.lua 20 step markers + 401 non-interference).
+
+**Plan-05 commits** (on `phase-5/resilience`, all GPG-signed):
+- Plan 05-01: ADR-0005 transition Proposed → ACCEPTED + Q9 probe block in tools/probe.lua
+- Plan 05-02: i18n keys (error.server_busy + error.token_revoked) + M_errors 599 sentinel + RED scaffolds (http_retry_spec + refresh_fail_whole_spec)
+- Plan 05-03: M_http retry-with-backoff (5xx + 429 + 599 sentinel + D-68 INFO log) + 8 pending → GREEN flips in http_retry_spec
+- Plan 05-04: ERR-04 401-direct-check (iterator + inline) + ERR-01 round-trip regression + fix-batch (4 commits including 868c241 HI-01 + e8b0bf7 HI-02 + 19be0fb ME-01 + 119ea7c S-04)
+- Plan 05-05: 4 ERR-06 fail-whole cases (1de7caf) + SEC-03 Gate D (9d05f95) + Phase-4 surface preservation (06ac4c7) + ADR-0005 Implementation Pin (ca4df8f)
+
+Full suite **365 successes / 0 failures / 0 errors / 0 pending**. luacheck 0/0 in 38 files. Reproducible build sha `b151f16569f7f3fa855d59403c8bafc26a07557a515f9d8b9cef88635fe85e63` (identical from Plan 05-04 → Plan 05-05; Plan 05-05 is spec + ADR only).
+
+**Recommended next steps:** gsd-verifier run on Phase 5 + parallel gsd-code-reviewer + loop-security-engineer (mandatory pre-merge); fix-batch if findings surface; PR via `gh pr create` + squash merge per `feedback_gpg_signed_pr_merge` (never `--rebase`); Phase 6 unblocked once Phase 5 lands on main.
+
+---
+
+### Previous Phase: 04 — DONE (merged)
+
 Phase: 04 (enrichment-refunds-fees-payouts) — **IMPLEMENTATION + POST-REVIEW FIX BATCH COMPLETE; READY-FOR-RE-VERIFICATION 2026-06-21**
 **Status:** Phase 3 fully merged to main (spine via PR #8 `a11287d`; verifier closure via PR #10 `a201f6c`). Phase 4 planning artifacts complete + Waves 1+2+3+4+5 implementation landed + Plan 04-07 (post-review fix batch) landed:
 
@@ -51,8 +70,8 @@ Phase 1: Foundations & Sandbox Probes      [DONE ✅ — merged]
 Phase 2: Authenticated Network Layer       [DONE ✅ — merged via PR #6 + Lows PR #7]
 Phase 3: Sale Spine                        [DONE ✅ — merged via PR #8 spine + PR #10 verifier closure]
 Phase 4: Enrichment                        [PLANNED ✅ — 04-CONTEXT/RESEARCH/PATTERNS/6 PLANs/PLAN-REVIEW committed; awaiting Yves unblock]
-Phase 5: Resilience & Error Handling       [BLOCKED on Phase 4]
-Phase 6: Release & Polish                  [BLOCKED on Phase 5]
+Phase 5: Resilience & Error Handling       [IMPLEMENTATION COMPLETE ✅ — READY-FOR-VERIFIER 2026-06-22]
+Phase 6: Release & Polish                  [BLOCKED on Phase 5 ship to main]
 Phase 6.1: OpenSSF Scorecard Hardening     [BLOCKED on Phase 6]
 ```
 
