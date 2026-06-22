@@ -58,7 +58,7 @@ local function _emit(name, ...)
   for i = 1, n do
     parts[i] = _redact(tostring(select(i, ...)))
   end
-  print("[paypal-pos][" .. name .. "] " .. table.concat(parts, " "))
+  print("[paypal-pos][" .. name .. "] " .. table.concat(parts, " ")) -- D-79-allowed: M_log emission point
 end
 
 M_log.debug = function(...) _emit("DEBUG", ...) end
