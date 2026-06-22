@@ -192,6 +192,68 @@ asserts:
 4. A second `RefreshAccount` invocation with the SAME `since` watermark
    re-runs from scratch and succeeds when the Finance API recovers.
 
+## Implementation Pin (Plan 05-02..05-04 landed values)
+
+This section pins the exact values that Plan 05-02, Plan 05-03, and Plan
+05-04 shipped against the invariants above. Future plans MUST update this
+section in lock-step with any change to the values; the gating specs
+(`spec/refresh_fail_whole_spec.lua`, `spec/refresh_log_redaction_spec.lua`
+Gate D, `spec/phase3_surface_preservation_spec.lua` Phase-4 surface block)
+freeze the user-visible behavior.
+
+### i18n keys actually added (Plan 05-02)
+
+Two new keys per `src/i18n.lua` in both `STRINGS.de` and `STRINGS.en`
+(I18N-02 parity preserved):
+
+| Key                   | German (primary)                                                                                       | English (fallback)                                                          |
+|-----------------------|--------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------|
+| `error.server_busy`   | "PayPal-POS-Server zurzeit nicht erreichbar — bitte später erneut versuchen."                          | "PayPal POS server unavailable — please retry later."                       |
+| `error.token_revoked` | "Anmeldung verloren — bitte API-Key in MoneyMoney neu eintragen."                                      | "Session lost — please re-enter the API key in MoneyMoney."                 |
+
+UTF-8 byte-escape style (`\xe2\x80\x94` em-dash; `\xc3\xa4` umlaut) per
+Phase-4 convention. Source: `.planning/phases/05-resilience-error-handling/05-02-SUMMARY.md`.
+
+### M_http retry constants actually used (Plan 05-03)
+
+Five module-private constants in `src/http.lua`:
+
+| Constant                    | Value           | Role                                                                                       |
+|-----------------------------|-----------------|--------------------------------------------------------------------------------------------|
+| `_MAX_ATTEMPTS`             | `3`             | 5xx retry budget (1 original + 2 retries; D-62)                                            |
+| `_BACKOFF_SECONDS`          | `{1, 2, 4}`     | Exponential backoff sleeps between attempts (D-62)                                         |
+| `_RETRY_AFTER_CAP`          | `60`            | 429 Retry-After upper bound (seconds; D-63)                                                |
+| `_RATE_LIMIT_DEFAULT`       | `30`            | 429 fallback when Retry-After absent / unparseable (seconds; D-63)                         |
+| `_SENTINEL_5XX_EXHAUSTED`   | `599`           | Phase-5-internal status sentinel; M_errors maps to `error.server_busy` (Plan 05-02)        |
+
+Source: `.planning/phases/05-resilience-error-handling/05-03-SUMMARY.md`.
+
+### 401-direct-check call sites (Plan 05-04)
+
+Four call sites in total — the iterator-layer chokepoint covers every
+paginated resource endpoint; the inline checks cover the non-paginated
+dual-GET in `fetch_account_state`:
+
+| File                | Function                       | Call sites | Rationale                                                                                                  |
+|---------------------|--------------------------------|-----------:|------------------------------------------------------------------------------------------------------------|
+| `src/pagination.lua`| `iterate` (cursor-pagination)  | 1          | Covers `M_purchases.fetch_all` automatically                                                               |
+| `src/pagination.lua`| `offset_iterate`               | 1          | Covers `M_finance.fetch_all` automatically                                                                 |
+| `src/finance.lua`   | `fetch_account_state` (liquid) | 1          | Inline check; on 401 abort the dual-GET sequence (preliminary NOT issued — D-66 + saves one API call)      |
+| `src/finance.lua`   | `fetch_account_state` (prelim) | 1          | Inline check; 401 here means token was revoked between the two sequential GETs                              |
+| **Total**           |                                | **4**      |                                                                                                            |
+
+Source: `.planning/phases/05-resilience-error-handling/05-04-SUMMARY.md`.
+
+### Gating specs (Plan 05-05)
+
+| Spec                                            | Invariant gated                                                                                                                                                        |
+|-------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `spec/refresh_fail_whole_spec.lua`              | ERR-06 fail-whole-refresh: 4 cases (5xx-on-finance / 401-on-finance / network-on-finance / 5xx-on-purchases) each prove the structural invariant + `since` re-use      |
+| `spec/refresh_log_redaction_spec.lua` Gate D    | SEC-03 covers D-68 retry log lines: no `Bearer eyJ` in any retry log; exactly 2 `HTTP retry: attempt=` lines on 503-storm; format-string match; URL field populated     |
+| `spec/phase3_surface_preservation_spec.lua` Phase-4 block | Phase-4 surface unchanged: M_finance signatures, M_mapping byte-identity, entry.lua step-count = 20, Plan 05-04 non-interference on non-401 paths            |
+
+Source: `.planning/phases/05-resilience-error-handling/05-05-SUMMARY.md`.
+
 ## Carve-outs (known limitations)
 
 ### Carve-out 1 — SSL handshake failures bypass ERR-05
@@ -237,6 +299,17 @@ through to the 30 s default.
 Verify on the first 429 observation in production. If HTTP-date
 appears, either add a one-line `gsub` to extract a sensible delay or
 escalate to a dedicated parser; do not block release on this carve-out.
+
+### Carve-out 3 — re-affirmed: SSL handshake bypass + ERR-05 boundary
+
+Plan 05-05's acceptance criteria list this carve-out as a separate entry
+to provide a stable anchor for Plan-05-05 cross-references. The
+substantive content is documented in **Carve-out 1 above** — the SSL
+handshake bypass is the canonical reference. This stub exists so the
+gating grep (`grep -c 'Carve-out 3'`) in Plan 05-05's acceptance
+criteria has a deterministic target without duplicating the carve-out
+prose. Any future plan that wants to amend the SSL-bypass contract MUST
+edit Carve-out 1 directly; this stub is purely an anchor.
 
 ## Sleep mechanism
 
