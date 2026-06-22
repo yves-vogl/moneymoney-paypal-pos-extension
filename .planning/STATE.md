@@ -2,14 +2,14 @@
 gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
-status: All 5 plans landed across 4 waves on `phase-5/resilience` branch + Plan 05-06 post-review fix-batch landed (REVIEW.md WR-01/WR-02/WR-03 + SECURITY-REVIEW S-01/S-02/S-03/S-04/S-05/S-06 addressed; Tier-3 WR-04/IN-01..04/S-07 deferred to follow-up PR). ADR-0005 ACCEPTED with 6 invariants pinned + 3 carve-outs (SSL bypass / HTTP-date Retry-After degradation / anchor stub) + Implementation Pin extended with two new contracts (599-sentinel emission live + per-request wall-clock cap) + sleep mechanism (MM.sleep + pcall-defensive) + updated worst-case timing budget. Retry semantics shipped in src/http.lua _request_with_retry (5xx 3-attempts {1,2,4}s; 429 single-retry Retry-After integer-only with 60s cap + 30s default + strict digit-only precheck post-S-04; 599 sentinel emission NOW LIVE for server_error/internal_error/backend_error/service_unavailable/temporarily_unavailable/server_busy 5xx body shapes post-S-02; _WALL_CLOCK_CAP=60s bounds adversarial mixed-error sequences post-S-01). ERR-04 post-mint 401 → German error.token_revoked via iterator-layer 401-direct-check (4 call sites). ERR-06 fail-whole-refresh structurally enforced. SEC-03 invariant preserved + extended (Gate D + Gate D extended for malicious cursor CR/LF percent-encoding post-S-03 + degraded MM.sleep pcall path coverage post-S-06). Phase-4 surface frozen.
-last_updated: "2026-06-22T10:19:34.128Z"
+status: v1.0.0-ready-for-tag
+last_updated: "2026-06-22T12:25:00.000Z"
 progress:
   total_phases: 7
-  completed_phases: 3
+  completed_phases: 6
   total_plans: 31
-  completed_plans: 30
-  percent: 43
+  completed_plans: 31
+  percent: 100
 ---
 
 # Project State: MoneyMoney PayPal POS Extension
@@ -24,7 +24,7 @@ progress:
 **Core Value:**
 > A German PayPal POS merchant pastes their API key into MoneyMoney once and from then on sees every card transaction, refund, fee, and payout automatically in MoneyMoney — accurately, on schedule, with VAT and tip transparency suitable for bookkeeping.
 
-**Current Focus:** Phase 06 — release-polish (Plan 06-01 SHIPPED 2026-06-22; Plan 06-02 + 06-03 queued)
+**Current Focus:** Phase 06 — release-polish **IMPLEMENTATION COMPLETE; v1.0.0-READY-FOR-TAG 2026-06-22** (06-01 + 06-02 + 06-03 all landed)
 
 **Granularity:** standard (6 phases)
 **Mode:** mvp / yolo (per `config.json`)
@@ -33,23 +33,41 @@ progress:
 
 ## Current Position
 
-Phase: 06 (release-polish) — **Plan 06-01 (Wave-1 build-pipeline + CI-gates) SHIPPED 2026-06-22; Plans 06-02 + 06-03 queued**
+Phase: 06 (release-polish) — **IMPLEMENTATION COMPLETE; v1.0.0-READY-FOR-TAG 2026-06-22**
 
-**Plan 06-01 commits** (on `phase-6/release-polish`, all GPG-signed):
+**Status:** All 3 plans landed on `phase-6/release-polish` branch (06-01 + 06-02 + 06-03 = ~14 GPG-signed commits). Trust chain artifacts in place: release.yml (GPG-verified-tag triggered, softprops v2 publishes .lua + .sha256 with tag-annotation body), tools/setup-branch-protection.sh + tools/setup-repo-metadata.sh (SEC-05 / DOC-08/09 helpers with graceful degradation), README split (README.de.md German-primary with Inoffizielle-Extensions screenshot guide + GoBD-Hinweis per D-71 + all preserved sections; README.md English pointer ~54 lines), CONTRIBUTING.md (dev loop + TDD + amalgamator + release process + first-time-setup), 4 backfilled MADR ADRs (0002 LocalStorage / 0006 JWT-bearer / 0007 no-TLS-pinning / 0008 string-return-errors), gitleaks secret-scan + commit-lint workflows, __VERSION__ substitution from $GITHUB_REF_NAME with dev-build banner, D-79 raw-print() gate hardening, META-03 walker extended to README/CHANGELOG/CONTRIBUTING/ADRs. CHANGELOG.md cut to [1.0.0] in Keep-a-Changelog format with full Hinzugefügt + Bekannte Grenzen carry-over + Sicherheit sections. Phase-2/3/4/5 surface byte-identically preserved.
 
-- `cc14215` test(06-01): RED scaffold for `__VERSION__` substitution spec (BUILD-03)
-- `0bad03e` feat(06-01): `__VERSION__` substitution from `$GITHUB_REF_NAME` (BUILD-03 / D-73)
-- `3b33b3a` test(06-01): extend META-03 walker to documentation markdown (DOC-04 / Pitfall 6)
-- `1796676` ci(06-01): allowlist fixture-only gitleaks fingerprints (Pitfall 5; 21 audited false-positive fingerprints)
-- `6b14185` ci(06-01): add gitleaks + commit-lint + D-79 raw-print() grep (CI-05 / D-78 / D-79)
+**Plan-06 commits** (on `phase-6/release-polish`, all GPG-signed):
 
-Full suite **381 successes / 0 failures / 0 errors / 0 pending** (was 373; +7 BUILD-03 + 1 META-03 doc-extension). luacheck clean (41 files). Reproducible build SHA recomputed: dev `4526a33fceab55122a6e624207c03cf76545939685825c3072c9d9001653304c`, tagged-v1.0.0 `d1afc595edc528db6719b826a084765719a7f249cb3b8a53cf1c6dd2790c8d36` (Phase-5 baseline was `5dbcb8ea…`; delta is by design — header now substitutes `__VERSION__` + optional DEV BUILD banner).
+- Plan 06-01 (Wave 1 — CI scaffolding, 5 commits): `cc14215` test(06-01) RED `__VERSION__` spec → `0bad03e` feat(06-01) GREEN `__VERSION__` substitution from `$GITHUB_REF_NAME` → `3b33b3a` test(06-01) META-03 walker extension to docs markdown → `1796676` ci(06-01) gitleaks fingerprint allowlist → `6b14185` ci(06-01) gitleaks + commit-lint + D-79 raw-print() grep.
+- Plan 06-02 (Wave 2 — trust chain, 6 commits): `e5926b5` ci(06-02) release.yml → `5455274` chore(06-02) 2 admin scripts → `4f91199` docs(06-02) README split + 2 placeholder PNGs + img/README → `8886e85` docs(06-02) CONTRIBUTING → `b614aea` docs(06-02) 4 ADRs → `87b455d` docs(06-02) CONTRIBUTING no-AI-attribution reword.
+- Plan 06-03 (Wave 3 — release cut, 3 commits): `ef66f57` docs(06-03) CHANGELOG [1.0.0] → docs(state) STATE.md transition (this commit) → docs(06-03) 06-HANDOFF.md runbook.
 
-**CI check names for 06-02 setup-branch-protection.sh CHECKS array:** `Lint + tests + reproducible build` (existing), `gitleaks secret scan` (new), `Commit-message lint` (new).
+Full suite **381 successes / 0 failures / 0 errors / 0 pending** (was 373 in Phase 5; +7 BUILD-03 + 1 META-03 doc-extension landed in 06-01). luacheck clean (41 files). Reproducible build SHA: dev `4526a33fceab55122a6e624207c03cf76545939685825c3072c9d9001653304c` (Phase-5 baseline was `5dbcb8ea…`; delta is by design — header now substitutes `__VERSION__` + optional DEV BUILD banner). The v1.0.0-tagged SHA will be computed by release.yml job 2 at CP-4 (different from dev SHA because `__VERSION__` substitutes to `1.00` instead of `<DEV BUILD>`).
 
-**Closes:** BUILD-03, CI-05 fully; META-03 walker now covers documentation markdown (DOC-04 scaffolding in place for Wave-2 doc authoring).
+**CI check names for setup-branch-protection.sh CHECKS array:** `Lint + tests + reproducible build` (existing), `gitleaks secret scan` (new in 06-01), `Commit-message lint` (new in 06-01).
 
-**Previous: Phase 5** — **IMPLEMENTATION + 05-06 FIX-BATCH COMPLETE; READY-FOR-RE-VERIFICATION 2026-06-22**
+**Closes Phase 6 requirements:** BUILD-03 (06-01), BUILD-04/05/06 (06-02 release.yml), CI-01..06 (existing ci.yml + 06-01), SEC-02 (existing + 06-01 D-79), SEC-05 (06-02 setup-branch-protection.sh — fires at CP-2), DOC-01..04 (06-02 README.de.md), DOC-05 (06-02 CONTRIBUTING), DOC-06 (06-02 4 new ADRs), DOC-07 (pre-existing LICENSE), DOC-08/09 (06-02 setup-repo-metadata.sh — fires at CP-3), DOC-10 (06-03 CHANGELOG [1.0.0]). All 22 phase requirement IDs have a delivering artifact.
+
+**Recommended next steps:** Yves runs the 5 CPs in sequence (CP-1 lektor pass → CP-2/CP-3/CP-5 admin scripts + screenshot → CHANGELOG date fix → CP-4 `git tag -s v1.0.0`); see `.planning/phases/06-release-polish/06-HANDOFF.md` for the runbook. After v1.0.0 ships, Phase 6.1 (OpenSSF Scorecard hardening) becomes unblocked.
+
+### Yves Checkpoints (CP-1..CP-5)
+
+| ID | Item | Trigger | Owner | Status |
+|----|------|---------|-------|--------|
+| CP-1 | loop-lektor pass on README.de.md + CHANGELOG [1.0.0] + 4 new ADRs (German wording, GoBD-Hinweis per D-71) | manual or `loop-lektor` subagent | Yves | pending (pre-tag) |
+| CP-2 | Branch protection: `bash tools/setup-branch-protection.sh` (PAT with `Administration: write`) | post-merge of Phase-6 PR | Yves | pending (post-merge) |
+| CP-3 | Repo metadata: `bash tools/setup-repo-metadata.sh` (PAT with repo-metadata write) | post-merge | Yves | pending (post-merge) |
+| CP-4 | v1.0.0 tag publication: CHANGELOG date fix → `git tag -s v1.0.0 -m "Release v1.0.0"` → `git push origin v1.0.0` (gated on CP-1 lektor done + MAINTAINER_GPG_PUBKEY secret set in CI) | after CP-1 + CP-2 (CP-2 not strictly required but recommended) | Yves | pending (post-CP-1) |
+| CP-5 | Capture real screenshots for docs/img/inoffizielle-extensions-erlauben.png + docs/img/help-menu-extensions-folder.png; commit with `docs(img): capture <filename>` | any time post-merge | Yves | pending (post-merge) |
+
+Dependency chain: CP-1 must complete before CP-4 (lektor reviews the German wording of the v1.0.0 release-notes-source); CP-2 + CP-3 + CP-5 are independent. The MAINTAINER_GPG_PUBKEY one-liner (`gpg --armor --export FDE07046A6178E89ADB57FD3DE300C53D8E18642 | gh secret set MAINTAINER_GPG_PUBKEY`) is a CP-4 prerequisite documented in CONTRIBUTING.md.
+
+---
+
+### Previous Phase: 05 — DONE (merged)
+
+**Status:** All 5 plans landed across 4 waves on `phase-5/resilience` branch + Plan 05-06 post-review fix-batch landed (REVIEW.md WR-01/WR-02/WR-03 + SECURITY-REVIEW S-01/S-02/S-03/S-04/S-05/S-06 addressed; Tier-3 WR-04/IN-01..04/S-07 deferred to follow-up PR). ADR-0005 ACCEPTED with 6 invariants pinned + 3 carve-outs (SSL bypass / HTTP-date Retry-After degradation / anchor stub) + Implementation Pin extended with two new contracts (599-sentinel emission live + per-request wall-clock cap) + sleep mechanism (MM.sleep + pcall-defensive) + updated worst-case timing budget. Retry semantics shipped in src/http.lua _request_with_retry (5xx 3-attempts {1,2,4}s; 429 single-retry Retry-After integer-only with 60s cap + 30s default + strict digit-only precheck post-S-04; 599 sentinel emission NOW LIVE for server_error/internal_error/backend_error/service_unavailable/temporarily_unavailable/server_busy 5xx body shapes post-S-02; _WALL_CLOCK_CAP=60s bounds adversarial mixed-error sequences post-S-01). ERR-04 post-mint 401 → German error.token_revoked via iterator-layer 401-direct-check (4 call sites). ERR-06 fail-whole-refresh structurally enforced. SEC-03 invariant preserved + extended (Gate D + Gate D extended for malicious cursor CR/LF percent-encoding post-S-03 + degraded MM.sleep pcall path coverage post-S-06). Phase-4 surface frozen.
 
 **Status:** All 5 plans landed across 4 waves on `phase-5/resilience` branch + Plan 05-06 post-review fix-batch landed (REVIEW.md WR-01/WR-02/WR-03 + SECURITY-REVIEW S-01/S-02/S-03/S-04/S-05/S-06 addressed; Tier-3 WR-04/IN-01..04/S-07 deferred to follow-up PR). ADR-0005 ACCEPTED with 6 invariants pinned + 3 carve-outs (SSL bypass / HTTP-date Retry-After degradation / anchor stub) + Implementation Pin extended with two new contracts (599-sentinel emission live + per-request wall-clock cap) + sleep mechanism (MM.sleep + pcall-defensive) + updated worst-case timing budget. Retry semantics shipped in src/http.lua _request_with_retry (5xx 3-attempts {1,2,4}s; 429 single-retry Retry-After integer-only with 60s cap + 30s default + strict digit-only precheck post-S-04; 599 sentinel emission NOW LIVE for server_error/internal_error/backend_error/service_unavailable/temporarily_unavailable/server_busy 5xx body shapes post-S-02; _WALL_CLOCK_CAP=60s bounds adversarial mixed-error sequences post-S-01). ERR-04 post-mint 401 → German error.token_revoked via iterator-layer 401-direct-check (4 call sites). ERR-06 fail-whole-refresh structurally enforced. SEC-03 invariant preserved + extended (Gate D + Gate D extended for malicious cursor CR/LF percent-encoding post-S-03 + degraded MM.sleep pcall path coverage post-S-06). Phase-4 surface frozen.
 
