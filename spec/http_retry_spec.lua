@@ -301,6 +301,25 @@ describe("M_http retry-with-backoff (Phase 5 / D-62 / D-63 / ADR-0005 Invariants
       "expected exactly 2 HTTP attempts (cap aborts before attempt 3)")
   end)
 
+  -- -------------------------------------------------------------------------
+  -- 05-06 fix-batch (S-04): _parse_retry_after rejects hex literals + whitespace
+  -- -------------------------------------------------------------------------
+  -- Lua's tonumber("0x10") returns 16 (hex literal); tonumber("  5  ") returns
+  -- 5 (lax whitespace). Both bypass the developer's mental model "integer
+  -- seconds only". Fix tightens with a digit-only precheck before tonumber.
+  it("429 retry: Retry-After=0x10 rejected as non-numeric → default 30s (S-04)", function()
+    local rate_limit_body = '{"error":"rate_limit"}'
+    Mocks.push_response({
+      content = rate_limit_body, mime = "application/json",
+      headers = { ["Retry-After"] = "0x10" },
+    })
+    Mocks.push_response({ content = '{"ok":true}' })
+    M_http.get_json("https://finance.izettle.com/test", {})
+    assert.equals(1, #_captured_sleeps)
+    assert.equals(30, _captured_sleeps[1],
+      "expected default 30s when Retry-After is hex literal (rejected per S-04)")
+  end)
+
   it("wall-clock budget: 5xx body × 3 still completes within cap (budget non-interference)", function()
     -- Sanity check: a normal 5xx storm where each sleep is small (1s + 2s = 3s
     -- elapsed) must NOT trip the cap — the loop should still emit 599 after
