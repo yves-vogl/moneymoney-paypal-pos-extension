@@ -76,27 +76,54 @@ failure that should NOT trigger the dialog is returned as a plain string.
 
 ### Implementation pin
 
-`src/entry.lua`'s callback wrappers each carry a top-level `pcall` of the
-form:
+`src/entry.lua` implements the WebBanking callbacks
+(`SupportsBank`, `InitializeSession2`, `ListAccounts`, `RefreshAccount`,
+`EndSession`) directly at top scope. Each callback's body is structured
+as an ordered sequence of fallible steps; every failing step terminates
+the callback with an early `return` of a localized error string
+(`M_i18n.t("error.<key>")` or one of the MoneyMoney sentinels —
+`LoginFailed`, `PasswordChanged`).
+
+Sketch (excerpted from `src/entry.lua` `RefreshAccount`):
 
 ```lua
 function RefreshAccount(account, since)
-  local ok, result_or_err = pcall(M_refresh.run, account, since)
-  if not ok then
-    -- result_or_err is an internal Lua error message; log + redact then
-    -- return the user-facing localized fallback.
-    M_log.error("internal", { module = "RefreshAccount", err = result_or_err })
-    return M_i18n.t("error.internal_unexpected")
+  local orgUuid = account and account.accountNumber
+  if type(orgUuid) ~= "string" or orgUuid == "" then
+    return M_i18n.t("error.network", "missing_account")
   end
-  return result_or_err
+
+  local bearer = M_auth.cached_token(orgUuid)
+  if not bearer then
+    return M_i18n.t("error.network", "\xe2\x80\x94")
+  end
+
+  local purchases, fetch_err = M_purchases.fetch_all(effective_since, bearer)
+  if fetch_err then return fetch_err end
+
+  -- ...further fallible steps, each returning an error string on failure.
+
+  return { balance = ..., transactions = ... }
 end
 ```
 
-That `pcall` is the firewall. Every internal module (`M_auth`, `M_http`,
-`M_purchases`, `M_payouts`, `M_balance`, `M_mapping`) is expected to
-return success or a string up the call stack without `error()`-ing; the
-top-level pcall is the safety net for the case where a programmer mistake
-slipped through review.
+The discipline that no internal module raises a Lua `error()` across
+the callback boundary is enforced by **code review and the test suite**,
+not by a runtime `pcall` firewall. Every internal module (`M_auth`,
+`M_http`, `M_purchases`, `M_finance`, `M_mapping`, `M_pagination`,
+`M_errors`) returns either a successful value or `(nil, err_string)` /
+an error string up the call stack. Specs assert specific localized
+error strings for every classified failure path
+(see e.g. `spec/refresh_fail_whole_spec.lua`,
+`spec/refresh_idempotency_spec.lua`, `spec/auth_spec.lua`), which surfaces
+any regression that would either leak a raw Lua error or change a
+user-facing string.
+
+A future hardening step (tracked as an explicit TODO if the surface
+grows) could add a top-level `pcall` wrapper per callback as a true
+runtime safety net. As of v1.0.0 the safety net is review +
+test-suite discipline; this ADR documents the actual contract rather
+than an aspirational firewall.
 
 ## Consequences
 
@@ -114,12 +141,14 @@ slipped through review.
 
 **Negative:**
 
-- Stack traces are not visible to the user. A real bug is logged via
-  `M_log.error` (with the SEC-01 redactor stripping any credential
-  fragments from the message) but the user sees only the generic
-  `error.internal_unexpected` fallback. This is the right trade for end
-  users; developers reproduce in `DEBUG = true` builds where stack
-  traces flow through.
+- Stack traces are not visible to the user. If a code path raises an
+  unhandled Lua `error()` it currently escapes to MoneyMoney as a
+  generic "Lua error" — the in-source discipline relies on each module
+  returning `(nil, err_string)` instead of raising. Specs exercise the
+  classified failure paths to keep this discipline honest; a runtime
+  `pcall` firewall is an explicit future-work item if the surface grows.
+  Developers reproduce defects in `DEBUG = true` builds where the
+  `M_log.*` channel emits more context (subject to the SEC-01 redactor).
 - Tests asserting exact strings are sensitive to wording changes — a
   lektor pass that polishes error phrasing requires updating the test
   literals in lockstep. ADR-0005 §IN-04 documented this; the
@@ -144,7 +173,7 @@ slipped through review.
 - MoneyMoney WebBanking API — return-value contract per callback.
 - `src/i18n.lua` — `error.*` table (canonical key list).
 - `src/errors.lua` — `M_errors.classify` HTTP→key mapping.
-- `src/entry.lua` — top-level `pcall` firewall per callback.
+- `src/entry.lua` — WebBanking callback dispatch with explicit early-return error strings per fallible step.
 - Phase-5 ADR-0005 §Invariants 1–6 — ERR-01..ERR-06 built on this pattern.
 - Phase-5 ADR-0005 Carve-out 3 — `MM.sleep` pcall internal-use precedent.
 - Phase-2 Plan 02-03 — `M_errors` / `M_i18n` design provenance.
