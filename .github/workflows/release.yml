@@ -42,6 +42,9 @@ jobs:
         with:
           fetch-depth: 0
           ref: ${{ github.ref }}
+          # G-06 — git verify-tag operates on local objects only and
+          # does not need persisted credentials (RESEARCH §3 A8).
+          persist-credentials: false
 
       - name: Import maintainer public key
         run: |
@@ -109,6 +112,9 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          # G-06 — the build/test/coverage steps in this job do not
+          # push or fetch privately; no persisted credentials needed.
+          persist-credentials: false
 
       - name: Set up Lua 5.4
         uses: leafo/gh-actions-lua@6919171ccf181b826f44b9bca76307b577217377 # v13.0.0
@@ -135,8 +141,19 @@ jobs:
         run: |
           set -e
           luacov
-          TOTAL_LINE=$(grep -E "^Total" luacov.report.out | tail -1)
-          TOTAL_COV=$(echo "$TOTAL_LINE" | awk '{print $NF}' | sed 's/%//' | cut -d. -f1)
+          # G-09 — single-awk extraction avoids the brittle
+          # `awk | sed | cut` pipeline (PATTERNS §3 row 2). Mirrors
+          # ci.yml; both files updated in the same commit so they
+          # cannot drift.
+          TOTAL_COV=$(awk '
+            /^Total/ {
+              raw = $NF
+              gsub("%", "", raw)
+              split(raw, a, ".")
+              print a[1]
+              exit
+            }
+          ' luacov.report.out)
           if [ -z "$TOTAL_COV" ]; then
             echo "FAIL: could not parse coverage percentage from luacov.report.out"
             exit 1
@@ -237,7 +254,13 @@ jobs:
 
   publish:
     name: Publish GitHub Release
-    needs: build-test-coverage-repro
+    # G-10 defense in depth — depend on verify-signed-tag explicitly
+    # so a future refactor that drops the chained needs: from the
+    # build-test-coverage-repro job cannot silently let an unsigned
+    # tag publish.  GitHub Actions runs `needs:` jobs in topological
+    # order; the explicit list adds the second gate, no behaviour
+    # change in the happy path.
+    needs: [verify-signed-tag, build-test-coverage-repro]
     runs-on: ubuntu-24.04
     permissions:
       contents: write   # Pitfall 7 mitigation — job-level least-privilege.
