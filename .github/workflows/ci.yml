@@ -20,7 +20,7 @@ jobs:
       coverage_int: ${{ steps.coverage.outputs.coverage_int }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -241,7 +241,7 @@ jobs:
       contents: read
       pull-requests: write   # required so gitleaks can comment on the PR
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: gitleaks scan
