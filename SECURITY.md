@@ -54,6 +54,38 @@ Folgendes ist **kein** Sicherheitsproblem dieser Extension:
 - Probleme mit lokal generierten API-Keys auf der MoneyMoney-Nutzer-Seite
 - Selbst gewählte Konfigurationsfehler (z. B. ungeschützte Backups der MoneyMoney-Datenbank)
 
+## Lieferketten-Kontrollen
+
+Diese Extension folgt einer formalen Supply-chain-Härtungspolitik, die mit
+Phase 6.1 etabliert wurde. Die aktiven Kontrollen sind:
+
+| Kontrolle | Umsetzung | Referenz |
+|-----------|-----------|----------|
+| GitHub-Actions auf Commit-SHA gepinnt | Jede `uses:`-Referenz in `.github/workflows/*.yml` trägt eine 40-Zeichen-SHA + `# vX.Y.Z`-Kommentar; Dependabot bumpt SHA + Kommentar im Lockstep. | SEC-06 |
+| Workflow-Token least-privilege | Alle Workflows haben Top-Level `permissions: read-all`; Schreibrechte sind Job-lokal und minimal. | SEC-07 |
+| Semgrep SAST blockierend | `p/security-audit` + `p/secrets` laufen auf jedem Push und PR; ERROR-Findings brechen den Workflow; SARIF wird ins Code-Scanning hochgeladen. | SEC-08 |
+| Branch protection auf `main` | PR-Pflicht, signierte Commits, lineare History, force-push + delete blockiert, kein Admin-Bypass; required status checks: 5 (Lint+tests+reproducible build, gitleaks secret scan, Commit-message lint, Scorecard analysis, Semgrep SAST). | SEC-05 |
+| Scorecard nightly + Branch-Protection-Introspection | `ossf/scorecard-action` läuft wöchentlich; `SCORECARD_READ_TOKEN` (Fine-grained PAT, `Administration:read` only, Rotation ≤ 1 Jahr) ermöglicht die Branch-Protection-Lesung. | SEC-05 |
+| Gitleaks secret scan | Läuft auf jedem PR; `.gitleaks.toml` + `.gitleaksignore` definieren die Detection + per-Fingerprint-Allowlist auditierter Falschmeldungen. | CI-05 |
+| Signed releases | GPG-signierter Git-Tag (`v[0-9]+.[0-9]+.[0-9]+`) löst die Release-Pipeline aus; `verify-signed-tag`-Job prüft die Signatur gegen den Maintainer-Fingerprint `FDE07046A6178E89ADB57FD3DE300C53D8E18642`. | BUILD-04 |
+| Reproducible build | `lua tools/build.lua --verify` baut deterministisch byte-identisch; CI failt bei Diff. | BUILD-02 |
+| Redact-before-log | Jede `print()`-Ausgabe läuft durch `M_log.*`-Redaktor, der JWT- und Bearer-Substrings entfernt (D-79-Gate). | SEC-01 |
+| Egress-Allowlist | Im gebauten Artefakt sind nur Hosts `oauth.zettle.com`, `purchase.izettle.com`, `finance.izettle.com` referenzierbar; CI-Grep blockiert sonstige Hostnamen. | SEC-04 |
+
+Diese Posture ist gegenüber der OpenSSF Scorecard messbar; siehe
+[ADR-0009](docs/adr/0009-openssf-scorecard-stance.md) für den bewussten
+Trade-off-Diskurs (akzeptierte Lücken, alternative Optionen, upstream-timed
+Verbesserungen) und das CII Best Practices Badge (Passing-Tier) im README.
+
+### `SCORECARD_READ_TOKEN`-Rotation
+
+Der Fine-grained PAT wird mit 1-Jahres-Ablauf erstellt. Vor Ablauf:
+
+1. Neuer PAT mit identischem Scope erzeugen (`Administration:read` only).
+2. `gh secret set SCORECARD_READ_TOKEN --repo yves-vogl/moneymoney-paypal-pos-extension`.
+3. Alten PAT in den GitHub-Settings revoken.
+4. `gh workflow run "OpenSSF Scorecard"` zur Verifikation triggern.
+
 ---
 
 ## English
@@ -69,3 +101,35 @@ This extension is in a pre-release state. Security fixes are developed against `
 Please include affected files / commit SHA, minimal reproduction, expected vs. observed behaviour, security impact (CIA triad), and — if known — a suggested fix or mitigation. Acknowledgement within 72 hours; first substantive assessment within 7 days; fix-release timeline depends on severity. Responsible disclosures are credited in the fix-release CHANGELOG with the reporter's consent.
 
 Out of scope: MoneyMoney-itself vulnerabilities (please contact MoneyMoney support directly), PayPal/Zettle API vulnerabilities (please use the PayPal bug-bounty program), and user-side configuration mistakes.
+
+## Supply-chain controls
+
+This extension follows a formal supply-chain hardening policy established
+in Phase 6.1. Active controls:
+
+| Control | Implementation | Reference |
+|---------|----------------|-----------|
+| Pinned GitHub Actions | Every `uses:` reference in `.github/workflows/*.yml` carries a 40-char SHA + `# vX.Y.Z` comment; Dependabot bumps SHA + comment in lockstep. | SEC-06 |
+| Least-privilege workflow tokens | All workflows declare top-level `permissions: read-all`; write scopes are job-local and minimal. | SEC-07 |
+| Blocking Semgrep SAST | `p/security-audit` + `p/secrets` run on every push and PR; ERROR findings fail the workflow; SARIF uploaded to code-scanning. | SEC-08 |
+| Branch protection on `main` | PR required, signed commits, linear history, force-push + delete blocked, no admin bypass; 5 required status checks. | SEC-05 |
+| Scorecard nightly + Branch-Protection introspection | `ossf/scorecard-action` runs weekly; `SCORECARD_READ_TOKEN` (fine-grained PAT, `Administration:read` only, rotation ≤ 1 year) enables Branch-Protection reads. | SEC-05 |
+| Gitleaks secret scan | Runs on every PR; `.gitleaks.toml` + `.gitleaksignore` define detection + per-fingerprint allowlist of audited false positives. | CI-05 |
+| Signed releases | GPG-signed git tag (`v[0-9]+.[0-9]+.[0-9]+`) triggers the release pipeline; `verify-signed-tag` asserts the maintainer fingerprint `FDE07046A6178E89ADB57FD3DE300C53D8E18642`. | BUILD-04 |
+| Reproducible build | `lua tools/build.lua --verify` builds byte-identically; CI fails on diff. | BUILD-02 |
+| Redact-before-log | Every `print()` output flows through the `M_log.*` redactor stripping JWT and Bearer substrings (D-79 gate). | SEC-01 |
+| Egress allowlist | The built artifact may reference only the hosts `oauth.zettle.com`, `purchase.izettle.com`, `finance.izettle.com`; a CI grep blocks any other hostname. | SEC-04 |
+
+The posture is measurable against the OpenSSF Scorecard; see
+[ADR-0009](docs/adr/0009-openssf-scorecard-stance.md) for the deliberate
+trade-off discussion (accepted gaps, alternative options, upstream-timed
+improvements) and the CII Best Practices Passing-tier badge in the README.
+
+### `SCORECARD_READ_TOKEN` rotation
+
+The fine-grained PAT is created with a 1-year expiry. Before expiry:
+
+1. Generate new PAT with identical scope (`Administration:read` only).
+2. `gh secret set SCORECARD_READ_TOKEN --repo yves-vogl/moneymoney-paypal-pos-extension`.
+3. Revoke the old PAT in GitHub settings.
+4. Trigger `gh workflow run "OpenSSF Scorecard"` to verify.

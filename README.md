@@ -5,6 +5,7 @@
 [![CI](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/actions/workflows/ci.yml)
 [![Coverage](https://raw.githubusercontent.com/yves-vogl/moneymoney-paypal-pos-extension/coverage-badge/coverage.svg)](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/actions/workflows/ci.yml)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/yves-vogl/moneymoney-paypal-pos-extension/badge)](https://securityscorecards.dev/viewer/?uri=github.com/yves-vogl/moneymoney-paypal-pos-extension)
+[![Documentation](https://img.shields.io/badge/Documentation-online-blue?logo=mkdocs)](https://yves-vogl.github.io/moneymoney-paypal-pos-extension/)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/yves-vogl?logo=githubsponsors&logoColor=white&label=Sponsors&color=ea4aaa)](https://github.com/sponsors/yves-vogl)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Status: Pre-Release](https://img.shields.io/badge/Status-Pre--Release-orange.svg)](README.de.md#status)

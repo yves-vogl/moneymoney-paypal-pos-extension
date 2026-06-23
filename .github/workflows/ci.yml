@@ -9,6 +9,12 @@ on:
 env:
   LC_ALL: C
 
+# SEC-07 — explicit workflow-level default for all jobs. Per-job
+# permissions blocks below stay authoritative for write-scope escalation
+# (the badge job needs `contents: write` to push the coverage-badge
+# branch; the secret-scan job needs `pull-requests: write` to comment).
+permissions: read-all
+
 jobs:
   test:
     name: Lint + tests + reproducible build
@@ -20,17 +26,20 @@ jobs:
       coverage_int: ${{ steps.coverage.outputs.coverage_int }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          # G-06 — no persisted git credentials in .git/config; later
+          # steps in this job have no need to push or fetch privately.
+          persist-credentials: false
 
       - name: Set up Lua 5.4
-        uses: leafo/gh-actions-lua@v13
+        uses: leafo/gh-actions-lua@6919171ccf181b826f44b9bca76307b577217377 # v13.0.0
         with:
           luaVersion: "5.4"
 
       - name: Set up LuaRocks
-        uses: leafo/gh-actions-luarocks@v6.1.0
+        uses: leafo/gh-actions-luarocks@35d062def313a7699a0d513e996bcf4352f05389 # v6.1.0
 
       - name: Install Lua dependencies
         run: |
@@ -51,9 +60,22 @@ jobs:
           set -e
           luacov
           tail -20 luacov.report.out
-          TOTAL_LINE=$(grep -E "^Total" luacov.report.out | tail -1)
-          TOTAL_COV_FULL=$(echo "$TOTAL_LINE" | awk '{print $NF}' | sed 's/%//')
-          TOTAL_COV=$(echo "$TOTAL_COV_FULL" | cut -d. -f1)
+          # G-09 — single-awk extraction avoids the brittle
+          # `awk | sed | cut` pipeline (PATTERNS §3 row 2).  Emits the
+          # full percentage (decimal preserved for the badge label) on
+          # the first line and the integer floor on the second.
+          AWK_OUT=$(awk '
+            /^Total/ {
+              raw = $NF
+              gsub("%", "", raw)
+              split(raw, a, ".")
+              print raw
+              print a[1]
+              exit
+            }
+          ' luacov.report.out)
+          TOTAL_COV_FULL=$(echo "$AWK_OUT" | sed -n '1p')
+          TOTAL_COV=$(echo "$AWK_OUT" | sed -n '2p')
           if [ -z "$TOTAL_COV" ]; then
             echo "FAIL: could not parse coverage percentage from luacov.report.out"
             exit 1
@@ -119,29 +141,42 @@ jobs:
           fi
           echo "OK: only allowlisted hosts in dist/paypal-pos.lua (scheme + scheme-less)"
 
-      - name: D-79 — no raw print() calls in shipped artifact (must use M_log)
+      - name: D-79 — no raw print()/io.write() calls in shipped artifact (must use M_log)
         run: |
           set -e
-          # D-79: every shipped log line must flow through M_log.* (which redacts
-          # credentials before emitting). The single legitimate raw `print(` call
-          # — M_log's emission point in src/log.lua — is marked with the inline
-          # sentinel `-- D-79-allowed: M_log emission point`. Any new raw print()
-          # introduced anywhere else in the artifact fails this gate.
+          # D-79 (G-04 extension): every shipped log line must flow through
+          # M_log.* (which redacts credentials before emitting). The single
+          # legitimate raw `print(` call — M_log's emission point in
+          # src/log.lua — is marked with the inline sentinel
+          # `-- D-79-allowed: M_log emission point`. Any new raw print()
+          # or io.write() introduced anywhere else in the artifact fails
+          # this gate.
           #
-          # The grep walks dist/paypal-pos.lua, matches lines that have a print(
-          # call before any '--' comment marker, excludes lines whose first
-          # non-whitespace chars are a comment, and excludes lines carrying the
-          # D-79-allowed sentinel.
-          BAD=$(grep -nE '^[^-]*print\(' dist/paypal-pos.lua \
+          # BAD_CALLS walks dist/paypal-pos.lua, matches lines that have a
+          # print( or io.write( call before any '--' comment marker, excludes
+          # lines whose first non-whitespace chars are a comment, and excludes
+          # lines carrying the D-79-allowed sentinel.
+          #
+          # BAD_ALIAS catches obvious alias declarations of the form
+          # `local p = print` / `local w = io.write` that would let a future
+          # contributor route around the print( substring check.
+          BAD_CALLS=$(grep -nE '^[^-]*(print|io\.write)\(' dist/paypal-pos.lua \
             | grep -v '^[[:space:]]*--' \
             | grep -v 'D-79-allowed' \
             || true)
+          BAD_ALIAS=$(grep -nE 'local[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*(print|io\.write)[[:space:]]*$' dist/paypal-pos.lua \
+            | grep -v '^[[:space:]]*--' \
+            || true)
+          BAD="${BAD_CALLS}"
+          if [ -n "${BAD_ALIAS}" ]; then
+            BAD="$(printf '%s\n%s' "${BAD}" "${BAD_ALIAS}")"
+          fi
           if [ -n "${BAD}" ]; then
-            echo "FAIL: raw print() calls in dist/paypal-pos.lua (must use M_log):"
+            echo "FAIL: raw print()/io.write()/aliased emitters in dist/paypal-pos.lua (must use M_log):"
             echo "${BAD}"
             exit 1
           fi
-          echo "OK: no raw print() calls in dist/paypal-pos.lua"
+          echo "OK: no raw print()/io.write()/aliased emitters in dist/paypal-pos.lua"
 
       - name: No-AI-attribution gate
         run: |
@@ -161,6 +196,24 @@ jobs:
             exit 1
           fi
           echo "OK: no AI-attribution patterns"
+
+      - name: SEC-06 — every uses reference is SHA-pinned
+        run: |
+          set -e
+          # SEC-06 corollary gate: every `uses:` reference across all
+          # workflows under .github/workflows/ MUST be pinned to a
+          # 40-hex-char commit SHA. Catches future PRs that introduce
+          # a floating tag (`@v4`, `@main`, …) at PR time rather than
+          # waiting for the next OpenSSF Scorecard run.
+          BAD=$(grep -EnR "uses:[[:space:]]*[^#@[:space:]]+@(v[0-9]+(\.[0-9]+)*|main|master|[a-zA-Z]+)" .github/workflows/ \
+            | grep -v "@[a-f0-9]\{40\}" || true)
+          if [ -n "$BAD" ]; then
+            echo "FAIL: unpinned actions detected (must be 40-hex commit SHA):"
+            echo "$BAD"
+            exit 1
+          fi
+          COUNT=$(grep -EhR "uses:[[:space:]]*[^[:space:]]+@[a-f0-9]{40}" .github/workflows/ | wc -l | tr -d ' ')
+          echo "OK: ${COUNT} SHA-pinned uses: refs across .github/workflows/"
 
   badge:
     name: Refresh coverage badge
@@ -241,10 +294,13 @@ jobs:
       contents: read
       pull-requests: write   # required so gitleaks can comment on the PR
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
+          # G-06 — gitleaks-action uses env.GITHUB_TOKEN for PR
+          # comments, not git-stored credentials. Safe to drop.
+          persist-credentials: false
       - name: gitleaks scan
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7 # v2.3.9
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

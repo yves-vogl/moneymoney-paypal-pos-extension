@@ -1,0 +1,23 @@
+# Phase 6.1 / G-14 — gitleaks config extensions.
+#
+# The default gitleaks ruleset already covers every secret shape this
+# repo currently emits. This config makes the active ruleset explicit
+# (auditable) and provides a slot for project-specific [[rules]] blocks
+# if a future Zettle/PayPal API-key shape ever evades the default
+# ruleset. Pair with .gitleaksignore for per-fingerprint allowlist of
+# audited false positives (JWT-shaped test fixtures, planning-doc
+# purchaseUUID1 examples — owned by Phase 6).
+
+[extend]
+useDefault = true
+
+# No [[rules]] blocks at v1 — the default ruleset is sufficient.
+# Add a [[rules]] block ONLY if a real false-negative surfaces during
+# a CI run. Document the rationale in the block's `description`.
+# Example slot (commented out):
+#
+# [[rules]]
+#   id          = "paypal-pos-jwt-fragment"
+#   description = "Catches PayPal/Zettle JWT-fragment shape missed by default ruleset"
+#   regex       = '''eyJ[A-Za-z0-9_-]{20,}\.eyJ[A-Za-z0-9_-]+'''
+#   tags        = ["jwt", "paypal-pos"]

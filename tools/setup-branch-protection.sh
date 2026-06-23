@@ -51,6 +51,8 @@ declare -a CHECKS=(
   "Lint + tests + reproducible build"
   "gitleaks secret scan"
   "Commit-message lint"
+  "Scorecard analysis"      # added by 06.1-04 — matches scorecard.yml line 22 job name byte-exact
+  "Semgrep SAST"             # added by 06.1-04 — matches sast.yml job name byte-exact (Plan 06.1-03)
 )
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -114,6 +116,8 @@ Branch protection NOT applied automatically.  Configure manually:
             - Add: "Lint + tests + reproducible build"
             - Add: "gitleaks secret scan"
             - Add: "Commit-message lint"
+            - Add: "Scorecard analysis"      # NEW 06.1-04
+            - Add: "Semgrep SAST"             # NEW 06.1-04
        [x] Require signed commits
        [x] Require linear history
        [x] Require conversation resolution before merging
@@ -169,7 +173,9 @@ if [ "${RC}" -ne 0 ]; then
 fi
 
 # Field 1: enforce_admins.enabled must be true.
-ENFORCE_ADMINS=$(echo "${PROTECTION_JSON}" | jq -r '.enforce_admins.enabled // false')
+# `if-then-else MISSING` pattern (P6.1-R-04): distinguish "field set to false"
+# from "field absent" so a silently-dropped API response surfaces explicitly.
+ENFORCE_ADMINS=$(echo "${PROTECTION_JSON}" | jq -r 'if .enforce_admins then .enforce_admins.enabled else "MISSING" end')
 if [ "${ENFORCE_ADMINS}" != "true" ]; then
   echo "FAIL: post-condition: enforce_admins.enabled is '${ENFORCE_ADMINS}', expected true" >&2
   exit 1
@@ -188,11 +194,59 @@ for ctx in "${CHECKS[@]}"; do
 done
 
 # Field 3: required_signatures.enabled must be true.
-REQUIRED_SIGS=$(echo "${PROTECTION_JSON}" | jq -r '.required_signatures.enabled // false')
+# `if-then-else MISSING` pattern (P6.1-R-04) — see Field 1 comment.
+REQUIRED_SIGS=$(echo "${PROTECTION_JSON}" | jq -r 'if .required_signatures then .required_signatures.enabled else "MISSING" end')
 if [ "${REQUIRED_SIGS}" != "true" ]; then
   echo "FAIL: post-condition: required_signatures.enabled is '${REQUIRED_SIGS}', expected true" >&2
   exit 1
 fi
 
+# S-R2-L-01 / P6.1-R-04 — assert allow_force_pushes and allow_deletions are
+# explicitly false. The PUT payload at line 79-80 declares both as false, but
+# defense-in-depth verification catches silent partial-apply by the GitHub API.
+# NOTE: `.allow_force_pushes.enabled // false` would silently mask field
+# absence — if the API ever drops the field, the post-condition would
+# spuriously pass. Use the `if-then-else MISSING` pattern so a missing
+# field is flagged as a distinct failure mode (P6.1-R-04).
+ALLOW_FORCE=$(echo "${PROTECTION_JSON}" | jq -r 'if .allow_force_pushes then .allow_force_pushes.enabled else "MISSING" end')
+if [ "${ALLOW_FORCE}" != "false" ]; then
+  echo "FAIL: post-condition: allow_force_pushes.enabled is '${ALLOW_FORCE}', expected false (S-R2-L-01 / P6.1-R-04)" >&2
+  exit 1
+fi
+ALLOW_DEL=$(echo "${PROTECTION_JSON}" | jq -r 'if .allow_deletions then .allow_deletions.enabled else "MISSING" end')
+if [ "${ALLOW_DEL}" != "false" ]; then
+  echo "FAIL: post-condition: allow_deletions.enabled is '${ALLOW_DEL}', expected false (S-R2-L-01 / P6.1-R-04)" >&2
+  exit 1
+fi
+
+# S-03 — re-assert the remaining load-bearing fields that the PUT payload
+# at line 67-84 declares. Without these checks the post-condition silently
+# accepts a state where the GitHub API persisted enforce_admins +
+# required_signatures + force/delete flags but dropped linear-history,
+# dismiss-stale-reviews, or conversation-resolution.
+# Same `if-then-else MISSING` pattern as above — distinguish "field set to
+# false by API" from "field absent in API response" (P6.1-R-04).
+
+# Field 4: required_linear_history.enabled must be true.
+LINEAR_HISTORY=$(echo "${PROTECTION_JSON}" | jq -r 'if .required_linear_history then .required_linear_history.enabled else "MISSING" end')
+if [ "${LINEAR_HISTORY}" != "true" ]; then
+  echo "FAIL: post-condition: required_linear_history.enabled is '${LINEAR_HISTORY}', expected true (S-03)" >&2
+  exit 1
+fi
+
+# Field 5: required_pull_request_reviews.dismiss_stale_reviews must be true.
+DISMISS_STALE=$(echo "${PROTECTION_JSON}" | jq -r 'if .required_pull_request_reviews then .required_pull_request_reviews.dismiss_stale_reviews else "MISSING" end')
+if [ "${DISMISS_STALE}" != "true" ]; then
+  echo "FAIL: post-condition: required_pull_request_reviews.dismiss_stale_reviews is '${DISMISS_STALE}', expected true (S-03)" >&2
+  exit 1
+fi
+
+# Field 6: required_conversation_resolution.enabled must be true.
+CONV_RESOLUTION=$(echo "${PROTECTION_JSON}" | jq -r 'if .required_conversation_resolution then .required_conversation_resolution.enabled else "MISSING" end')
+if [ "${CONV_RESOLUTION}" != "true" ]; then
+  echo "FAIL: post-condition: required_conversation_resolution.enabled is '${CONV_RESOLUTION}', expected true (S-03)" >&2
+  exit 1
+fi
+
 echo "OK: branch protection applied (PR + checks + signatures + linear history)."
-echo "OK: post-condition verified (enforce_admins, ${#CHECKS[@]} contexts, required_signatures)."
+echo "OK: post-condition verified (enforce_admins, ${#CHECKS[@]} contexts, required_signatures, allow_force_pushes=false, allow_deletions=false, required_linear_history=true, dismiss_stale_reviews=true, required_conversation_resolution=true)."

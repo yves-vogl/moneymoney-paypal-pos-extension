@@ -79,7 +79,10 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 - [ ] **SEC-02**: CI greps the shipped artifact to assert there are no calls to hosts outside the egress allowlist (`oauth.zettle.com`, `purchase.izettle.com`, `finance.izettle.com`)
 - [ ] **SEC-03**: An authentication-failure test asserts no API-key fragment, JWT, or `Bearer` token appears in the resulting error string
 - [ ] **SEC-04**: `DEBUG = false` is hard-coded in the shipped artifact (CI rejects builds where `DEBUG = true`)
-- [x] **SEC-05**: Branch protection on `main` requires GPG-signed commits and CI green
+- [x] **SEC-05**: Branch protection on `main` requires GPG-signed commits, linear history, force-push and delete blocked, no admin bypass; a fine-grained PAT `SCORECARD_READ_TOKEN` with `Administration: read` scope is configured so the Scorecard Branch-Protection check can introspect; required status checks include Lint+tests+reproducible build, gitleaks secret scan, Commit-message lint, Scorecard analysis, and Semgrep SAST; Scorecard `Branch-Protection.score >= 3` post-merge (Tier 1; Option A locked per ADR-0009).
+- [ ] **SEC-06**: Every `uses:` reference in `.github/workflows/*.yml` is pinned to a 40-char commit SHA followed by a `# vX.Y.Z` comment; a CI grep gate fails any PR introducing a floating tag; Dependabot bumps SHA + comment in lockstep; Scorecard `Pinned-Dependencies.score == 10` post-merge.
+- [ ] **SEC-07**: Every workflow declares `permissions: read-all` at top level; write scopes (`contents: write`, `id-token: write`, `security-events: write`, `pages: write`) are job-local and minimal; every `actions/checkout` step that does not need git-stored credentials carries `persist-credentials: false`; Scorecard `Token-Permissions.score == 10` post-merge.
+- [ ] **SEC-08**: A Semgrep SAST workflow runs on every push and pull request with `p/security-audit` + `p/secrets`; ERROR-severity findings fail the workflow; SARIF results are uploaded to GitHub code-scanning; the workflow is a required status check on `main`; a backlog issue tracks ossf/scorecard#5103 merge for the Scorecard `SAST.score` to flip from 0 to 10.
 
 ### Build & Release Engineering
 
@@ -89,6 +92,7 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 - [x] **BUILD-04**: Releases are triggered by pushing a GPG-signed Git tag (`git tag -s vX.Y.Z`); CI verifies the tag signature before publishing
 - [x] **BUILD-05**: Release assets include the `paypal-pos.lua` artifact and a `paypal-pos.lua.sha256` checksum file
 - [x] **BUILD-06**: CI uses `softprops/action-gh-release@v2` to publish the GitHub Release with the verified tag's annotation as the release notes
+- [ ] **BUILD-07**: The project has a CII Best Practices badge at "passing" level (≥5/10); the badge URL is rendered in both `README.md` and `README.de.md`; Scorecard `CII-Best-Practices.score >= 5` post-merge.
 
 ### CI/CD
 
@@ -118,6 +122,7 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 - [x] **DOC-08**: GitHub repo description (set via `gh repo edit`) reads (German): "MoneyMoney-Extension für PayPal POS — Karten-Umsätze, Refunds, Gebühren und Auszahlungen direkt in MoneyMoney. Open Source, MIT, GPG-signiert."
 - [x] **DOC-09**: GitHub repo topics: `moneymoney`, `moneymoney-extension`, `paypal-pos`, `zettle`, `lua`, `germany`, `accounting`
 - [ ] **DOC-10**: A `CHANGELOG.md` (Keep a Changelog format) is maintained per SemVer release
+- [ ] **DOC-11**: `docs/adr/0009-openssf-scorecard-stance.md` is ACCEPTED and documents the deliberately accepted gaps (Fuzzing 0/10, Code-Review 0/10, Packaging -1, Contributors structural cap, Maintained heals-itself) with rationale + compensating mitigations; `SECURITY.md` has bilingual "Lieferketten-Kontrollen / Supply-chain controls" sections enumerating active controls; backlog issues opened for CII Silver and ossf/scorecard#5103 tracking.
 
 ## v2 Requirements
 
@@ -208,13 +213,17 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | SEC-02 | Phase 6 | Pending |
 | SEC-03 | Phase 2 | Pending |
 | SEC-04 | Phase 1 | Pending |
-| SEC-05 | Phase 6 | Complete |
+| SEC-05 | Phase 6.1 | Complete by 06.1-04 |
+| SEC-06 | Phase 6.1 | Complete by 06.1-01 |
+| SEC-07 | Phase 6.1 | Complete by 06.1-01 |
+| SEC-08 | Phase 6.1 | Complete by 06.1-03 (security control in place; Scorecard score reporting deferred per ADR-0009) |
 | BUILD-01 | Phase 1 | Pending |
 | BUILD-02 | Phase 1 | Pending |
 | BUILD-03 | Phase 6 | Closed by Plan 06-01 |
 | BUILD-04 | Phase 6 | Complete |
 | BUILD-05 | Phase 6 | Complete |
 | BUILD-06 | Phase 6 | Complete |
+| BUILD-07 | Phase 6.1 | Complete by 06.1-07 |
 | CI-01 | Phase 6 | Pending |
 | CI-02 | Phase 6 | Pending |
 | CI-03 | Phase 6 | Pending |
@@ -235,11 +244,13 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | DOC-08 | Phase 6 | Complete |
 | DOC-09 | Phase 6 | Complete |
 | DOC-10 | Phase 6 | Pending |
+| DOC-11 | Phase 6.1 | Complete by 06.1-08 |
 
 **Coverage:**
 
-- v1 requirements: **70** total.
-- Mapped to phases: **70 / 70** (Phase 1: 7, Phase 2: 10, Phase 3: 10, Phase 4: 15, Phase 5: 6, Phase 6: 22).
+- v1 requirements: **75** total.
+- Mapped to phases: **75 / 75** (Phase 1: 7, Phase 2: 10, Phase 3: 10, Phase 4: 15, Phase 5: 6, Phase 6: 22, Phase 6.1: 5).
+- Phase 6.1: 5 net-new IDs (SEC-06, SEC-07, SEC-08, BUILD-07, DOC-11) plus SEC-05 modified in-place.
 - Unmapped: **0** — coverage complete.
 
 ---

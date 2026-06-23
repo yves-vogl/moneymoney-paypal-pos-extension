@@ -1,0 +1,109 @@
+site_name: MoneyMoney PayPal POS Extension
+site_description: >
+  Community-Extension für MoneyMoney, die PayPal POS (Zettle) als
+  unterstützten Kontotyp ergänzt — Kartenumsätze, Refunds, Gebühren
+  und Auszahlungen direkt in MoneyMoney.
+site_url: https://yves-vogl.github.io/moneymoney-paypal-pos-extension/
+repo_url: https://github.com/yves-vogl/moneymoney-paypal-pos-extension
+repo_name: yves-vogl/moneymoney-paypal-pos-extension
+edit_uri: edit/main/
+
+theme:
+  name: material
+  language: de
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Dunkles Theme aktivieren
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Helles Theme aktivieren
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+plugins:
+  - search
+  - include-markdown
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: de
+          default: true
+          name: Deutsch
+          build: true
+        - locale: en
+          name: English
+          build: true
+          nav_translations:
+            Übersicht: Overview
+            Vollständiges README: Full README
+            Architektur (ADRs): Architecture (ADRs)
+            Amalgamator-Design: Amalgamator design
+            LocalStorage-Token-Cache: LocalStorage token cache
+            Sandbox-Probes: Sandbox probes
+            Finance-API-Scope: Finance API scope
+            Resilience-Invarianten: Resilience invariants
+            JWT-Bearer-Auth: JWT bearer auth
+            Kein TLS-Pinning: No TLS pinning
+            String-Return-Fehlermuster: String-return error pattern
+            OpenSSF-Scorecard-Stance: OpenSSF Scorecard stance
+            Sicherheits-Policy: Security policy
+            Mitwirken: Contributing
+            Änderungsverlauf: Changelog
+
+# `validation` is used to keep `mkdocs build --strict` green while tolerating
+# cross-repo relative links inside included Markdown (README.de.md links to
+# `.planning/` and to `LICENSE` at repo root — those are valid in the repo
+# tree on GitHub but live outside `docs/` and so cannot be resolved by the
+# mkdocs build. Surface as INFO instead of WARN so --strict passes.)
+validation:
+  links:
+    not_found: info
+    absolute_links: info
+    unrecognized_links: info
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - toc:
+      permalink: true
+
+nav:
+  - Übersicht: index.md
+  - Vollständiges README: readme.md
+  - Architektur (ADRs):
+      - Amalgamator-Design: adr/0001-amalgamator-design.md
+      - LocalStorage-Token-Cache: adr/0002-localstorage-token-cache.md
+      - Sandbox-Probes: adr/0003-sandbox-probe-results.md
+      - Finance-API-Scope: adr/0004-finance-api-scope-and-fee-fallback.md
+      - Resilience-Invarianten: adr/0005-resilience-invariants.md
+      - JWT-Bearer-Auth: adr/0006-jwt-bearer-only-auth.md
+      - Kein TLS-Pinning: adr/0007-no-tls-pinning.md
+      - String-Return-Fehlermuster: adr/0008-string-return-error-pattern.md
+      - OpenSSF-Scorecard-Stance: adr/0009-openssf-scorecard-stance.md
+  - Sicherheits-Policy: security.md
+  - Mitwirken: contributing.md
+  - Änderungsverlauf: changelog.md
+
+# Exclude the .planning/ artefacts and other non-doc directories from build scope.
+# mkdocs only serves files inside docs_dir (default: docs/) — the explicit nav
+# above further limits what is built. The .planning/ folder lives at repo root,
+# outside docs/, and is never picked up.
+exclude_docs: |
+  img/README.md

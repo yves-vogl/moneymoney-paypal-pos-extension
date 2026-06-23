@@ -1,15 +1,26 @@
 version: 2
 
 updates:
-  # Keep GitHub Actions pinned to current major versions. Dependabot
-  # opens one PR per outdated action; auto-merge policy is documented
-  # in CONTRIBUTING.md (lands in Phase 6). For now, every PR runs CI
-  # and merges manually after green.
+  # Keep GitHub Actions pinned to commit-SHA (per SEC-06, post Plan 06.1-01).
+  # Dependabot bumps the SHA AND the trailing `# vX.Y.Z` comment in lockstep
+  # since Oct 2022 [https://github.blog/changelog/2022-10-31-dependabot-now-updates-comments-in-github-actions-workflows-referencing-action-versions/];
+  # behaviour extended Oct 2025 to also CORRECT stale comments when the SHA
+  # advances without a tag rename. Maintainers should NOT manually edit the
+  # `# vX.Y.Z` comment — let Dependabot do it; manual edits cause merge
+  # conflicts on the next Dependabot bump.
+  #
+  # Grouping (added by Plan 06.1-05): minor + patch SHA bumps coalesce into
+  # ONE weekly PR. Major-version bumps stay in separate PRs (they need
+  # attention; the breaking-change surface is larger). Without grouping,
+  # the 10+ pinned actions would emit 10+ individual PRs per week — review
+  # fatigue + queue bloat.
   #
   # LuaRocks is not supported by Dependabot. Lua tooling versions are
   # pinned by the rockspec resolution at install time; CI installs the
   # latest published version of each tool, which keeps the toolchain
-  # current without manual bumps.
+  # current without manual bumps. Semgrep CLI (pinned in sast.yml) is
+  # bumped via manual PR for now — track in backlog if a Python ecosystem
+  # entry becomes worth adding.
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -23,4 +34,10 @@ updates:
     labels:
       - dependencies
       - github-actions
+    groups:
+      actions-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
     open-pull-requests-limit: 5

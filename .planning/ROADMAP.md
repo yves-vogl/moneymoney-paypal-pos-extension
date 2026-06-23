@@ -3,7 +3,7 @@
 **Created:** 2026-06-16
 **Granularity:** standard (6 phases)
 **Mode:** mvp (vertical-slice-when-possible; foundation layers 1–3 unavoidable before first user-facing demo at end of Phase 3)
-**Coverage:** 70/70 v1 requirements mapped to phases
+**Coverage:** 75/75 v1 requirements mapped to phases (Phase 6.1 added 5: SEC-05, SEC-06, SEC-07, SEC-08, BUILD-03)
 **Phase count rationale:** Reconciles research synthesis (FEATURES=5, ARCH=6, PITFALLS labeled 1–8) onto the dependency-ordered 6-phase backbone from `research/SUMMARY.md §7` under `granularity=standard`.
 
 ---
@@ -24,7 +24,7 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
 - [x] **Phase 4: Enrichment — Refunds, Fees, Payouts, Balance, VAT, Tips** — Layer the remaining transaction kinds and per-purpose metadata onto the spine; the slice that justifies this extension's existence over CSV export. (merged 2026-06-21)
 - [x] **Phase 5: Resilience & Error Handling** — Branched error handling for all 5 categories (token-mint, post-mint 401, 429, 5xx, network) with the fail-whole-refresh invariant enforced so `since` watermark cannot silently advance past undelivered data. (implementation + 05-06 fix-batch complete 2026-06-22)
 - [x] **Phase 6: Release & Polish — Reproducible Build, CI/CD, German Docs** — Tag-triggered reproducible release, GPG-tag verification, SHA256-attached artifact, bilingual README with "Inoffizielle Extensions erlauben" screenshot, GoBD-Hinweis, MADR ADRs — the things that make a stranger trust the extension. **IMPLEMENTATION COMPLETE 2026-06-22; v1.0.0-ready-for-tag — 06-01/02/03 landed; CP-1..CP-5 queued (see `.planning/phases/06-release-polish/06-HANDOFF.md`).**
-- [ ] **Phase 6.1 (INSERTED): Supply-chain & Scorecard hardening** — Lift OpenSSF Scorecard aggregate from 5.2 to ≥ 8.5 by pinning GitHub Actions to commit-SHAs, scoping workflow tokens to least-privilege, enabling branch-protection introspection, adding Semgrep SAST, and earning the OpenSSF Best Practices passing badge. See `.planning/research/openssf-scorecard-sprint-proposal.md`.
+- [x] **Phase 6.1 (INSERTED): Supply-chain & Scorecard hardening** — Lift OpenSSF Scorecard aggregate from 5.2 to ≥ 7.5 (short-term realistic target per ADR-0009 RESEARCH §10) by pinning GitHub Actions to commit-SHAs, scoping workflow tokens to least-privilege, enabling branch-protection introspection, adding Semgrep SAST, and earning the OpenSSF Best Practices passing badge. Cumulative roadmap to ≥ 8.5 once ossf/scorecard#5103 merges upstream (SAST detection enabled) AND Maintained heals at ~90 days repo age (~2026-09-15). See `.planning/research/openssf-scorecard-sprint-proposal.md`.
 - [ ] **Phase 7 (POST-v1, DEFERRED 2026-06-21): Optional OAuth Authorization-Code flow** — Add an opt-in OAuth2 Authorization-Code path (Zettle "Public/Partner App") next to the existing JWT-Bearer Assertion grant so non-technical merchants can connect via "Mit Zettle anmelden" instead of generating an API key manually. Requires: Zettle Partner-App registration + review, MoneyMoney-sandbox-compatible Out-Of-Band redirect handling (`urn:ietf:wg:oauth:2.0:oob`) verification, MADR ADR-0005 with rationale, dual-path `src/auth.lua` that preserves the Phase-2 JWT-Bearer surface byte-identically. Triggered if/when real users report API-key generation as a UX blocker. Not in v1.0.0 scope.
 
 ---
@@ -245,8 +245,8 @@ These are acknowledged from `REQUIREMENTS.md ## v2 Requirements` but are deliber
 
 ## Coverage Notes
 
-- **Total v1 REQ-IDs in REQUIREMENTS.md:** 70.
-- **Mapped to phases:** 70/70 (Phase 1: 7, Phase 2: 10, Phase 3: 10, Phase 4: 15, Phase 5: 6, Phase 6: 22). Zero orphans, zero duplicates.
+- **Total v1 REQ-IDs in REQUIREMENTS.md:** 75 (70 original + 5 added by Plan 06.1-08).
+- **Mapped to phases:** 75/75 (Phase 1: 7, Phase 2: 10, Phase 3: 10, Phase 4: 15, Phase 5: 6, Phase 6: 22, Phase 6.1: 5). Zero orphans, zero duplicates.
 - **Out-of-scope items confirmed:** MoneyMoney RSA signature (tracked as UP-01 stretch), Apple Developer ID signing, OAuth browser flow, TLS cert pinning, auto-update/telemetry, write operations, multi-merchant in one instance, non-German primary currencies, manual paid versions, live integration tests against production. See `REQUIREMENTS.md ## Out of Scope`.
 
 ---
@@ -261,6 +261,7 @@ These are acknowledged from `REQUIREMENTS.md ## v2 Requirements` but are deliber
 | 4. Enrichment | 0/6 | Planning complete; ready to execute | - |
 | 5. Resilience & Error Handling | 3/5 | In Progress|  |
 | 6. Release & Polish | 2/3 | In Progress|  |
+| 6.1. Supply-chain & Scorecard hardening | 8/8 | Complete | 2026-06-23 |
 
 ---
 
@@ -302,21 +303,22 @@ All phases run sequentially. No parallelization across phase boundaries — each
 
 ### Phase 6.1: Supply-chain & Scorecard hardening (INSERTED)
 
-**Goal:** OpenSSF Scorecard aggregate ≥ 8.5 / 10 on `main` HEAD without compromising the project's solo-maintainer constraints; the supply-chain posture (pinned actions, least-privilege tokens, branch-protection visibility, Semgrep SAST, signed releases scaffolded in Phase 6, OpenSSF Best Practices passing badge) is documented, auditable, and stable enough to be a published prerequisite for any future v1.0.0 release.
+**Goal:** OpenSSF Scorecard aggregate ≥ 7.5 / 10 on `main` HEAD (short-term realistic target per ADR-0009 RESEARCH §10) without compromising the project's solo-maintainer constraints; cumulative roadmap to ≥ 8.5 once ossf/scorecard#5103 merges upstream AND Maintained heals at ~90 days repo age. The supply-chain posture (pinned actions, least-privilege tokens, branch-protection visibility, Semgrep SAST, signed releases scaffolded in Phase 6, OpenSSF Best Practices passing badge) is documented, auditable, and stable enough to be a published prerequisite for any future v1.0.0 release.
 **Mode:** mvp
 **Depends on:** Phase 6 (release pipeline must exist so Signed-Releases hardening can attach)
 **Requirements:** TBD — to be derived from the sprint proposal during `/gsd-discuss-phase 6.1`. Anticipated coverage: a new `SEC-05` (pinned actions), `SEC-06` (workflow token least-privilege), `SEC-07` (branch protection enforced + introspectable), `SEC-08` (SAST on every commit), `BUILD-03` (OpenSSF Best Practices passing badge), and updates to existing `SEC-04` (DEBUG=false gate) and `BUILD-01`/`BUILD-02` (Sigstore/cosign on release artifact, SLSA provenance).
 
 **Success Criteria** (observable behaviors):
 
-  1. `https://api.securityscorecards.dev/projects/github.com/yves-vogl/moneymoney-paypal-pos-extension` returns aggregate `score >= 8.5` for the post-merge commit.
+  1. `https://api.securityscorecards.dev/projects/github.com/yves-vogl/moneymoney-paypal-pos-extension` returns aggregate `score >= 7.5` for the post-merge commit (short-term realistic target per ADR-0009 RESEARCH §10); aggregate `score >= 8.5` is reached once ossf/scorecard#5103 merges upstream (SAST detection enabled) AND Maintained heals at ~90 days repo age (~2026-09-15).
   2. `Pinned-Dependencies` check returns score `10`: every `uses:` in `.github/workflows/*.yml` references a commit SHA followed by a `# vX.Y.Z` comment; Dependabot is configured to bump SHAs and preserve the comment tag.
   3. `Token-Permissions` check returns score `10`: every workflow declares `permissions: read-all` at top level; write-scopes (`contents: write`, `id-token: write`, `security-events: write`) are job-local and minimal.
-  4. `Branch-Protection` check returns score `>= 8`: a fine-grained PAT with `Administration: read` is stored as `SCORECARD_READ_TOKEN`; `main` requires PR + status checks (CI + Scorecard + SAST) + signed commits + linear history; force-push and direct delete are blocked.
-  5. `SAST` check returns score `10`: a Semgrep workflow runs on every push and PR; SARIF output is uploaded to GitHub code-scanning; the ruleset includes `p/security-audit` and `p/secrets` plus any Lua community rules.
-  6. `CII-Best-Practices` check returns score `>= 5` (passing badge); badge URL is rendered in `README.md` and `README.de.md`.
-  7. `docs/adr/0004-openssf-scorecard-stance.md` documents the bewusst akzeptierten Lücken (Fuzzing 0/10, Solo Code-Review 0/10, Packaging -1) with rationale and mitigations.
+  4. `Branch-Protection` check returns `score >= 3` (Tier 1; Option A locked per ADR-0009 — solo single-account constraint): `SCORECARD_READ_TOKEN` (fine-grained PAT, `Administration:read`) is configured; `main` requires PR + 5 status checks (CI + Scorecard analysis + Semgrep SAST + gitleaks + commit-lint) + signed commits + linear history + no admin bypass; force-push and delete blocked.
+  5. A Semgrep workflow runs on every push and PR with `p/security-audit` + `p/secrets`, ERROR-blocking, SARIF in code-scanning, and is a required status check on `main`; Scorecard `SAST.score` is deferred — flips from 0 to 10 once ossf/scorecard#5103 merges (tracked via backlog issue per ADR-0009).
+  6. `CII-Best-Practices` check returns `score >= 5` (Passing tier); the badge URL is rendered in both `README.md` and `README.de.md` (D-40); CII Silver is tracked as a backlog issue post-v1.0.0.
+  7. `docs/adr/0009-openssf-scorecard-stance.md` (ADR file number 0009 — 0001-0008 were already taken per D-39) documents the bewusst akzeptierten Lücken (Fuzzing 0/10, Solo Code-Review 0/10, Packaging -1, Contributors structural cap, Maintained heals-itself) with rationale, compensating mitigations, and Alternatives Considered (Option B 1-reviewer / Option C bot-reviewer / Snyk Code as second SAST tool / SBOM+cosign+SLSA deferred to v1.1.x).
   8. `SECURITY.md` is extended with a "Supply-chain controls" section listing the active mitigations (pinned actions, SAST, signed releases, redact-before-log, egress allowlist) so external observers can audit the posture without parsing CI YAML.
+  9. A MkDocs Material documentation site is deployed to GitHub Pages at `https://yves-vogl.github.io/moneymoney-paypal-pos-extension/` (D-37); bilingual (DE primary, EN secondary); a Documentation/Dokumentation badge in both READMEs links to it.
 
 **Plans:** TBD (run `/gsd-plan-phase 6.1` to break down)
 **UI hint:** no

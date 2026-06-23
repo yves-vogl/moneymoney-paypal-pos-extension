@@ -19,11 +19,19 @@ jobs:
   lint:
     name: Commit-message lint
     runs-on: ubuntu-24.04
+    # SEC-07 — explicit per-job least-privilege block (matches the
+    # workflow-level scope) so the textual posture is unambiguous to
+    # auditors and to OpenSSF Scorecard's Token-Permissions check.
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
+          # G-06 — commit-message lint reads commit subjects from the
+          # local git object database; no persisted token needed.
+          persist-credentials: false
 
       - name: Validate commit messages
         run: |
