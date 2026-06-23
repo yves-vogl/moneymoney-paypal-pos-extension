@@ -59,6 +59,7 @@ plugins:
             JWT-Bearer-Auth: JWT bearer auth
             Kein TLS-Pinning: No TLS pinning
             String-Return-Fehlermuster: String-return error pattern
+            OpenSSF-Scorecard-Stance: OpenSSF Scorecard stance
             Sicherheits-Policy: Security policy
             Mitwirken: Contributing
             Änderungsverlauf: Changelog
@@ -95,8 +96,7 @@ nav:
       - JWT-Bearer-Auth: adr/0006-jwt-bearer-only-auth.md
       - Kein TLS-Pinning: adr/0007-no-tls-pinning.md
       - String-Return-Fehlermuster: adr/0008-string-return-error-pattern.md
-      # OpenSSF-Scorecard-Stance (ADR-0009) is added by Plan 06.1-08.
-      # - OpenSSF-Scorecard-Stance: adr/0009-openssf-scorecard-stance.md
+      - OpenSSF-Scorecard-Stance: adr/0009-openssf-scorecard-stance.md
   - Sicherheits-Policy: security.md
   - Mitwirken: contributing.md
   - Änderungsverlauf: changelog.md
