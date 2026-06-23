@@ -85,10 +85,18 @@ echo "Applying branch protection to ${OWNER}/${REPO}@${BRANCH} ..."
 TMP_ERR=$(mktemp)
 trap 'rm -f "${TMP_ERR}"' EXIT
 
-if ! gh api -X PUT "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
+# Capture the gh exit code WITHOUT wrapping in `if ! cmd; then RC=$?; fi` —
+# that idiom captures `!`'s exit code (always 0/1), not the underlying
+# command's. Standard pattern: temporarily disable set -e, run the
+# command, capture $? immediately, restore set -e.
+set +e
+gh api -X PUT "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
     -H "Accept: application/vnd.github+json" \
-    --input - <<< "${PAYLOAD}" >/dev/null 2>"${TMP_ERR}"; then
-  RC=$?
+    --input - <<< "${PAYLOAD}" >/dev/null 2>"${TMP_ERR}"
+RC=$?
+set -e
+
+if [ "${RC}" -ne 0 ]; then
   if grep -Eq '403|insufficient|Resource not accessible|Must have admin' "${TMP_ERR}"; then
     cat <<'EOF'
 
@@ -124,15 +132,67 @@ EOF
 fi
 
 # required_signatures lives at a separate sub-resource per GitHub's classic
-# branch-protection schema — toggle on independently.
+# branch-protection schema — toggle on independently. Same RC-capture
+# pattern as the main PUT above.
 echo "Enabling required_signatures sub-resource ..."
-if ! gh api -X PUT "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection/required_signatures" \
-    -H "Accept: application/vnd.github+json" >/dev/null 2>"${TMP_ERR}"; then
-  echo "WARNING: required_signatures sub-resource toggle failed:" >&2
+set +e
+gh api -X PUT "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection/required_signatures" \
+    -H "Accept: application/vnd.github+json" >/dev/null 2>"${TMP_ERR}"
+RC=$?
+set -e
+
+if [ "${RC}" -ne 0 ]; then
+  echo "WARNING: required_signatures sub-resource toggle failed (exit ${RC}):" >&2
   cat "${TMP_ERR}" >&2
   echo "Branch protection (PR + checks + linear history) IS applied; signed-commit" >&2
   echo "enforcement must be enabled manually via the UI checkbox 'Require signed commits'." >&2
   exit 0
 fi
 
+# -------------------------------------------------------------------------
+# Idempotent post-condition check — GET the protection state and verify
+# the load-bearing fields are actually set. Guards against silent partial
+# applies (e.g. the GitHub API accepting the PUT but ignoring one of the
+# sub-fields) by reading back and asserting.
+# -------------------------------------------------------------------------
+echo "Post-condition: re-read protection state and verify required fields ..."
+set +e
+PROTECTION_JSON=$(gh api "repos/${OWNER}/${REPO}/branches/${BRANCH}/protection" \
+    -H "Accept: application/vnd.github+json" 2>"${TMP_ERR}")
+RC=$?
+set -e
+
+if [ "${RC}" -ne 0 ]; then
+  echo "FAIL: post-condition GET returned exit ${RC}:" >&2
+  cat "${TMP_ERR}" >&2
+  exit 1
+fi
+
+# Field 1: enforce_admins.enabled must be true.
+ENFORCE_ADMINS=$(echo "${PROTECTION_JSON}" | jq -r '.enforce_admins.enabled // false')
+if [ "${ENFORCE_ADMINS}" != "true" ]; then
+  echo "FAIL: post-condition: enforce_admins.enabled is '${ENFORCE_ADMINS}', expected true" >&2
+  exit 1
+fi
+
+# Field 2: all three required contexts must be present (set-equal — order
+# does not matter; extras are tolerated).
+for ctx in "${CHECKS[@]}"; do
+  if ! echo "${PROTECTION_JSON}" | jq -e \
+      --arg c "${ctx}" '.required_status_checks.contexts | index($c)' >/dev/null; then
+    echo "FAIL: post-condition: required status check missing: '${ctx}'" >&2
+    echo "Observed contexts:" >&2
+    echo "${PROTECTION_JSON}" | jq -r '.required_status_checks.contexts[]' >&2
+    exit 1
+  fi
+done
+
+# Field 3: required_signatures.enabled must be true.
+REQUIRED_SIGS=$(echo "${PROTECTION_JSON}" | jq -r '.required_signatures.enabled // false')
+if [ "${REQUIRED_SIGS}" != "true" ]; then
+  echo "FAIL: post-condition: required_signatures.enabled is '${REQUIRED_SIGS}', expected true" >&2
+  exit 1
+fi
+
 echo "OK: branch protection applied (PR + checks + signatures + linear history)."
+echo "OK: post-condition verified (enforce_admins, ${#CHECKS[@]} contexts, required_signatures)."
