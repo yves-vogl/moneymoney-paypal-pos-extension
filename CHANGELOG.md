@@ -7,11 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-<!-- lektor-review: pending — v0.2.0 sections drafted as engineering placeholder per Plan 04-06 Task 3; a final lektor pass is queued as a Yves checkpoint after merge. -->
-
-## [1.0.0] - 2026-MM-DD
-
-<!-- lektor-review: pending — CP-1; CHANGELOG.md v1.0.0 wording is engineering-grade; Yves or loop-lektor finalises before tag publication. -->
+## [1.0.0] - 2026-06-23
 
 **First stable release.**
 
