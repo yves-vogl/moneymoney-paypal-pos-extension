@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v1.0.0
 milestone_name: has stabilized in production for several weeks.
 status: v1.0.0-shipped-pending-tag
-last_updated: "2026-06-23T01:40:00.000Z"
+last_updated: "2026-06-23T12:40:00.000Z"
 progress:
   total_phases: 7
   completed_phases: 6
@@ -131,9 +131,9 @@ The 37 canonical decisions are pinned in `.planning/research/SUMMARY.md §2`. Ph
 
 ## Session Continuity
 
-**Last action:** Phase 6 merged to main via PR #14 squash-merge 2026-06-23. CP-1 (lektor) + CP-2 (branch protection) + CP-3 (repo metadata) all complete. R1 + R2 reviewer rounds dry. Local main not yet synced (carries 2 stale Phase-3 context commits — Yves decision pending).
+**Last action:** Phase 6.1 Plan 04 executed on `phase-6.1/scorecard-hardening` (commits `184b2f6` ci + `93684aa` chore). Wires `SCORECARD_READ_TOKEN` into scorecard.yml and extends `tools/setup-branch-protection.sh` CHECKS array to 5 entries + adds S-R2-L-01 post-condition assertions. Both Yves-CPs (CP-6.1-A pre-merge secret provisioning + CP-6.1-B post-merge script run) flagged in commit body + SUMMARY.
 
-**Next action:** Phase 6.1 OpenSSF Scorecard hardening — `/gsd-discuss-phase 6.1` → research+patterns → planner → execute → ship.
+**Next action:** Continue Phase 6.1 plan sequence (05/07/08 still pending) OR open PR for the wave-3 batch once dependent plans are in. Yves must provision `SCORECARD_READ_TOKEN` (CP-6.1-A) BEFORE the scorecard.yml change merges to `main`.
 
 **v1.0.0 tag publication path (Yves):**
 
