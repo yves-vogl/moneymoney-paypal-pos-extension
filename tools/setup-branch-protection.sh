@@ -51,6 +51,8 @@ declare -a CHECKS=(
   "Lint + tests + reproducible build"
   "gitleaks secret scan"
   "Commit-message lint"
+  "Scorecard analysis"      # added by 06.1-04 — matches scorecard.yml line 22 job name byte-exact
+  "Semgrep SAST"             # added by 06.1-04 — matches sast.yml job name byte-exact (Plan 06.1-03)
 )
 
 if ! command -v jq >/dev/null 2>&1; then
@@ -114,6 +116,8 @@ Branch protection NOT applied automatically.  Configure manually:
             - Add: "Lint + tests + reproducible build"
             - Add: "gitleaks secret scan"
             - Add: "Commit-message lint"
+            - Add: "Scorecard analysis"      # NEW 06.1-04
+            - Add: "Semgrep SAST"             # NEW 06.1-04
        [x] Require signed commits
        [x] Require linear history
        [x] Require conversation resolution before merging
@@ -194,5 +198,19 @@ if [ "${REQUIRED_SIGS}" != "true" ]; then
   exit 1
 fi
 
+# S-R2-L-01 — assert allow_force_pushes and allow_deletions are explicitly false.
+# The PUT payload at line 79-80 declares both as false, but defense-in-depth
+# verification catches silent partial-apply by the GitHub API.
+ALLOW_FORCE=$(echo "${PROTECTION_JSON}" | jq -r '.allow_force_pushes.enabled // false')
+if [ "${ALLOW_FORCE}" != "false" ]; then
+  echo "FAIL: post-condition: allow_force_pushes.enabled is '${ALLOW_FORCE}', expected false (S-R2-L-01)" >&2
+  exit 1
+fi
+ALLOW_DEL=$(echo "${PROTECTION_JSON}" | jq -r '.allow_deletions.enabled // false')
+if [ "${ALLOW_DEL}" != "false" ]; then
+  echo "FAIL: post-condition: allow_deletions.enabled is '${ALLOW_DEL}', expected false (S-R2-L-01)" >&2
+  exit 1
+fi
+
 echo "OK: branch protection applied (PR + checks + signatures + linear history)."
-echo "OK: post-condition verified (enforce_admins, ${#CHECKS[@]} contexts, required_signatures)."
+echo "OK: post-condition verified (enforce_admins, ${#CHECKS[@]} contexts, required_signatures, allow_force_pushes=false, allow_deletions=false)."
