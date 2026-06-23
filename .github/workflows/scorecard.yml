@@ -37,6 +37,15 @@ jobs:
       - name: Run OpenSSF Scorecard analysis
         uses: ossf/scorecard-action@99c09fe975337306107572b4fdf4db224cf8e2f2 # v2.4.3
         with:
+          # Fine-grained PAT with Administration:read on this repo only.
+          # Required so the Branch-Protection Scorecard check can
+          # introspect main's protection state. Yves provisions and
+          # rotates per the SECURITY.md "Lieferketten-Kontrollen"
+          # section (rotation cadence: 1 year). If the secret is unset,
+          # scorecard-action falls back to GITHUB_TOKEN which cannot
+          # read branch-protection — Branch-Protection.score returns
+          # -1 (unreadable). See RESEARCH §4 + Pitfall 8.
+          repo_token: ${{ secrets.SCORECARD_READ_TOKEN }}
           results_file: results.sarif
           results_format: sarif
           # Publishes the score to api.securityscorecards.dev so the
