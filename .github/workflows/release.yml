@@ -1,0 +1,264 @@
+name: Release
+
+# Phase 6 / D-72 — GPG-signed-tag-triggered, three-job release pipeline.
+#
+# Job 1: verify-signed-tag      — assert the tag was signed by the maintainer key.
+# Job 2: build-test-coverage-repro — mirrors ci.yml's test job + adds artifact prep.
+# Job 3: publish                — softprops/action-gh-release@v2 with .lua + .sha256.
+#
+# Pitfall mitigations:
+#   1  — Tag without -s: VALIDSIG grep in job 1 fails the workflow.
+#   2  — Missing MAINTAINER_GPG_PUBKEY secret: explicit unset-check + Yves fix one-liner.
+#   7  — Workflow-level `contents: write` over-permission: workflow uses `contents: read`;
+#         only the publish job escalates to `contents: write` (least-privilege).
+#   8  — `git verify-tag` exit-0 doesn't bind signer: job 1 greps `VALIDSIG <fingerprint>`.
+#  10  — release.yml accidentally triggering on branch pushes: `on: push: tags:` only,
+#         with two explicit tag patterns (stable + rc).
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+
+permissions:
+  contents: read
+
+env:
+  LC_ALL: C
+  MAINTAINER_FINGERPRINT: FDE07046A6178E89ADB57FD3DE300C53D8E18642
+
+jobs:
+  verify-signed-tag:
+    name: Verify GPG tag signature
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      tag_verified: ${{ steps.verify.outputs.verified }}
+    steps:
+      - name: Checkout with tag history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.ref }}
+
+      - name: Import maintainer public key
+        run: |
+          set -euo pipefail
+          if [ -z "${MAINTAINER_GPG_PUBKEY:-}" ]; then
+            echo "FAIL: MAINTAINER_GPG_PUBKEY secret is not set."
+            echo "      Yves: gpg --armor --export ${MAINTAINER_FINGERPRINT} | gh secret set MAINTAINER_GPG_PUBKEY"
+            exit 1
+          fi
+          echo "${MAINTAINER_GPG_PUBKEY}" | gpg --import
+          echo "${MAINTAINER_FINGERPRINT}:6:" | gpg --import-ownertrust
+        env:
+          MAINTAINER_GPG_PUBKEY: ${{ secrets.MAINTAINER_GPG_PUBKEY }}
+
+      - name: Verify tag signature (Pitfall 8 — assert signer fingerprint)
+        id: verify
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          # git verify-tag --raw emits machine-parseable status lines on
+          # stderr.  We must (a) treat a non-zero exit as a hard failure
+          # (do NOT mask with `|| true`), and (b) anchor the VALIDSIG
+          # grep on the `[GNUPG:]` status-line prefix so a tag annotation
+          # body containing the literal "VALIDSIG <fpr>" text cannot
+          # spoof the gate.
+          #
+          # VALIDSIG status-line format (gpg --status-fd documented):
+          #   [GNUPG:] VALIDSIG <signing-fpr> <date> <expires> <ver>
+          #     <reserved> <pubkey-algo> <hash-algo> <sig-class>
+          #     <primary-fpr>
+          # The maintainer fingerprint may match either the signing key
+          # (first field) or the primary key (last field on the line).
+          set +e
+          VERIFY_OUT=$(git verify-tag --raw "${TAG}" 2>&1)
+          RC=$?
+          set -e
+          echo "${VERIFY_OUT}"
+          if [ "${RC}" -ne 0 ]; then
+            echo "FAIL: git verify-tag exited ${RC} for ${TAG}"
+            exit 1
+          fi
+          # Match either:
+          #   (a) signing-fingerprint == maintainer (first field after VALIDSIG), OR
+          #   (b) primary-fingerprint == maintainer (LAST field on the line).
+          # Both grep -E patterns are anchored on "^\[GNUPG:\] VALIDSIG ",
+          # which is gpg's status-fd machine-parseable prefix — it cannot
+          # be reproduced inside a tag annotation body since `git verify-tag --raw`
+          # only emits `[GNUPG:]` lines from gpg itself, not from the tag.
+          if ! grep -qE "^\[GNUPG:\] VALIDSIG ${MAINTAINER_FINGERPRINT} " <<<"${VERIFY_OUT}" \
+             && ! grep -qE "^\[GNUPG:\] VALIDSIG [0-9A-F]+ .* ${MAINTAINER_FINGERPRINT}( |$)" <<<"${VERIFY_OUT}"; then
+            echo "FAIL: tag ${TAG} not signed by maintainer key ${MAINTAINER_FINGERPRINT}"
+            exit 1
+          fi
+          echo "OK: tag ${TAG} signed by maintainer"
+          echo "verified=true" >> "${GITHUB_OUTPUT}"
+
+  build-test-coverage-repro:
+    name: Build + test + reproducible build (release)
+    needs: verify-signed-tag
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Lua 5.4
+        uses: leafo/gh-actions-lua@v13
+        with:
+          luaVersion: "5.4"
+
+      - name: Set up LuaRocks
+        uses: leafo/gh-actions-luarocks@v6.1.0
+
+      - name: Install Lua dependencies
+        run: |
+          luarocks install busted
+          luarocks install luacheck
+          luarocks install luacov
+          luarocks install dkjson
+
+      - name: Lint with luacheck
+        run: luacheck .
+
+      - name: Run busted test suite (with coverage)
+        run: busted --coverage spec/
+
+      - name: Enforce 85% coverage threshold
+        run: |
+          set -e
+          luacov
+          TOTAL_LINE=$(grep -E "^Total" luacov.report.out | tail -1)
+          TOTAL_COV=$(echo "$TOTAL_LINE" | awk '{print $NF}' | sed 's/%//' | cut -d. -f1)
+          if [ -z "$TOTAL_COV" ]; then
+            echo "FAIL: could not parse coverage percentage from luacov.report.out"
+            exit 1
+          fi
+          if [ "$TOTAL_COV" -lt 85 ]; then
+            echo "FAIL: coverage ${TOTAL_COV}% < 85% threshold"
+            exit 1
+          fi
+          echo "OK: coverage ${TOTAL_COV}% meets the 85% threshold"
+
+      - name: Build artifact with __VERSION__ substitution from $GITHUB_REF_NAME (BUILD-03)
+        run: lua tools/build.lua
+
+      - name: Verify byte-identical build (CI-04)
+        run: lua tools/build.lua --verify
+
+      - name: BUILD-03 sanity — artifact version literal matches tag
+        run: |
+          set -euo pipefail
+          # Mirror tools/build.lua's version_to_number_string() algorithm
+          # exactly. The function treats the minor as a decimal-fraction-style
+          # two-character string: one-digit minor gets a trailing zero
+          # ("2" -> "20"); two-or-more-digit minor truncates to first two
+          # ("10" -> "10"). Patch and -rc suffixes are dropped.
+          #   v1.0.0      -> 1.00
+          #   v1.2.3      -> 1.20
+          #   v0.10.0     -> 0.10
+          #   v1.5.0      -> 1.50
+          #   v1.0.0-rc.1 -> 1.00
+          MAJOR=$(echo "${GITHUB_REF_NAME}" | sed -E 's/^v([0-9]+)\.([0-9]+).*/\1/')
+          MINOR=$(echo "${GITHUB_REF_NAME}" | sed -E 's/^v([0-9]+)\.([0-9]+).*/\2/')
+          if [ "${#MINOR}" -eq 1 ]; then
+            MINOR_STR="${MINOR}0"
+          else
+            MINOR_STR="${MINOR:0:2}"
+          fi
+          EXPECTED="${MAJOR}.${MINOR_STR}"
+          # Whitespace-tolerant grep — the amalgamator emits the line as
+          # `  version     = 1.00,` with a multi-space gap between key and =.
+          if ! grep -qE "version[[:space:]]*=[[:space:]]*${EXPECTED}," dist/paypal-pos.lua; then
+            echo "FAIL: artifact version != expected ${EXPECTED}"
+            grep -E '^[[:space:]]*version' dist/paypal-pos.lua || true
+            exit 1
+          fi
+          echo "OK: artifact version = ${EXPECTED}"
+
+      - name: SEC-04 gate — DEBUG = false in artifact
+        run: |
+          set -e
+          grep -q 'DEBUG = false' dist/paypal-pos.lua \
+            || { echo "FAIL: DEBUG = false missing from dist/paypal-pos.lua"; exit 1; }
+          echo "OK: DEBUG = false present"
+
+      - name: Compute SHA256 sidecar (BUILD-05)
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum paypal-pos.lua > paypal-pos.lua.sha256
+          cat paypal-pos.lua.sha256
+
+      - name: Extract tag annotation as release notes (BUILD-06)
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          mkdir -p dist
+          # '%(contents)' includes the PGP signature block for signed tags.
+          # Use '%(contents:subject)' + '%(contents:body)' to extract the
+          # human-readable parts only; both git-tag attribute aliases
+          # automatically strip the trailing '-----BEGIN PGP SIGNATURE-----'
+          # block. The sed pass is a belt-and-braces secondary scrub in
+          # case any sub-field unexpectedly retains armor lines.
+          git tag -l --format='%(contents:subject)%n%n%(contents:body)' "${TAG}" \
+            | sed '/^-----BEGIN PGP SIGNATURE-----/,/^-----END PGP SIGNATURE-----/d' \
+            > dist/release-notes.md
+          if [ ! -s dist/release-notes.md ]; then
+            # Fallback: extract this version's section from CHANGELOG.md
+            # (lines between `## [VERSION]` and the next `## [`).
+            VERSION="${TAG#v}"
+            awk "/^## \\[${VERSION}\\]/{flag=1;next} /^## \\[/{flag=0} flag" CHANGELOG.md > dist/release-notes.md
+          fi
+          wc -l dist/release-notes.md
+          # Safety assertion — fail loudly if any PGP marker survives.
+          if grep -q 'BEGIN PGP SIGNATURE\|END PGP SIGNATURE' dist/release-notes.md; then
+            echo "FAIL: PGP signature markers leaked into release notes"
+            exit 1
+          fi
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-artifacts
+          path: |
+            dist/paypal-pos.lua
+            dist/paypal-pos.lua.sha256
+            dist/release-notes.md
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish GitHub Release
+    needs: build-test-coverage-repro
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write   # Pitfall 7 mitigation — job-level least-privilege.
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: release-artifacts
+          path: dist/
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          body_path: dist/release-notes.md
+          files: |
+            dist/paypal-pos.lua
+            dist/paypal-pos.lua.sha256
+          prerelease: ${{ contains(github.ref_name, '-rc.') }}
+          fail_on_unmatched_files: true
+          draft: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

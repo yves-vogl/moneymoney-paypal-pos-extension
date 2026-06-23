@@ -119,6 +119,30 @@ jobs:
           fi
           echo "OK: only allowlisted hosts in dist/paypal-pos.lua (scheme + scheme-less)"
 
+      - name: D-79 — no raw print() calls in shipped artifact (must use M_log)
+        run: |
+          set -e
+          # D-79: every shipped log line must flow through M_log.* (which redacts
+          # credentials before emitting). The single legitimate raw `print(` call
+          # — M_log's emission point in src/log.lua — is marked with the inline
+          # sentinel `-- D-79-allowed: M_log emission point`. Any new raw print()
+          # introduced anywhere else in the artifact fails this gate.
+          #
+          # The grep walks dist/paypal-pos.lua, matches lines that have a print(
+          # call before any '--' comment marker, excludes lines whose first
+          # non-whitespace chars are a comment, and excludes lines carrying the
+          # D-79-allowed sentinel.
+          BAD=$(grep -nE '^[^-]*print\(' dist/paypal-pos.lua \
+            | grep -v '^[[:space:]]*--' \
+            | grep -v 'D-79-allowed' \
+            || true)
+          if [ -n "${BAD}" ]; then
+            echo "FAIL: raw print() calls in dist/paypal-pos.lua (must use M_log):"
+            echo "${BAD}"
+            exit 1
+          fi
+          echo "OK: no raw print() calls in dist/paypal-pos.lua"
+
       - name: No-AI-attribution gate
         run: |
           set -e
@@ -199,5 +223,28 @@ jobs:
             "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
             HEAD:refs/heads/coverage-badge
           echo "Pushed badge to coverage-badge branch"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  secret-scan:
+    # CI-05 / D-76 — gitleaks scans for inadvertently committed secrets.
+    # 06-02's branch-protection script references this job by its NAME
+    # ("gitleaks secret scan"), so the name string is load-bearing.
+    # The yves-vogl/paypal-pos-plugin repo is owned by a personal account,
+    # so no GITLEAKS_LICENSE secret is required (free for personal use).
+    # Pitfall-5 mitigation: .gitleaksignore at repo root carries the
+    # per-fingerprint allowlist of audited false positives (JWT-shaped test
+    # fixtures + planning-doc dict-key documentation naming `purchaseUUID1`).
+    name: gitleaks secret scan
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: write   # required so gitleaks can comment on the PR
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks scan
+        uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

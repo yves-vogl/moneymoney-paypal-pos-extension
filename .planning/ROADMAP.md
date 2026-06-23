@@ -20,10 +20,10 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
 
 - [x] **Phase 1: Foundations & Sandbox Probes** — Stand up the build pipeline, mocks, infra modules, and pin Lua-sandbox capabilities via 8 live probes before any auth code is written. **Completed 2026-06-17.**
 - [x] **Phase 2: Authenticated Network Layer** — Implement the JWT-bearer OAuth flow, hostname-allowlisted HTTP wrapper, token cache in LocalStorage, and `ListAccounts` so the user can add a PayPal POS account and a bad key fails fast. (completed 2026-06-19)
-- [ ] **Phase 3: Sale Spine (first user-visible slice)** — End-to-end `RefreshAccount` that returns card sales as MoneyMoney transactions with stable identity, idempotent on double-refresh; the first phase a real user can see working.
-- [ ] **Phase 4: Enrichment — Refunds, Fees, Payouts, Balance, VAT, Tips** — Layer the remaining transaction kinds and per-purpose metadata onto the spine; the slice that justifies this extension's existence over CSV export.
-- [ ] **Phase 5: Resilience & Error Handling** — Branched error handling for all 5 categories (token-mint, post-mint 401, 429, 5xx, network) with the fail-whole-refresh invariant enforced so `since` watermark cannot silently advance past undelivered data.
-- [ ] **Phase 6: Release & Polish — Reproducible Build, CI/CD, German Docs** — Tag-triggered reproducible release, GPG-tag verification, SHA256-attached artifact, bilingual README with "Inoffizielle Extensions erlauben" screenshot, GoBD-Hinweis, MADR ADRs — the things that make a stranger trust the extension.
+- [x] **Phase 3: Sale Spine (first user-visible slice)** — End-to-end `RefreshAccount` that returns card sales as MoneyMoney transactions with stable identity, idempotent on double-refresh; the first phase a real user can see working. (merged 2026-06-21)
+- [x] **Phase 4: Enrichment — Refunds, Fees, Payouts, Balance, VAT, Tips** — Layer the remaining transaction kinds and per-purpose metadata onto the spine; the slice that justifies this extension's existence over CSV export. (merged 2026-06-21)
+- [x] **Phase 5: Resilience & Error Handling** — Branched error handling for all 5 categories (token-mint, post-mint 401, 429, 5xx, network) with the fail-whole-refresh invariant enforced so `since` watermark cannot silently advance past undelivered data. (implementation + 05-06 fix-batch complete 2026-06-22)
+- [x] **Phase 6: Release & Polish — Reproducible Build, CI/CD, German Docs** — Tag-triggered reproducible release, GPG-tag verification, SHA256-attached artifact, bilingual README with "Inoffizielle Extensions erlauben" screenshot, GoBD-Hinweis, MADR ADRs — the things that make a stranger trust the extension. **IMPLEMENTATION COMPLETE 2026-06-22; v1.0.0-ready-for-tag — 06-01/02/03 landed; CP-1..CP-5 queued (see `.planning/phases/06-release-polish/06-HANDOFF.md`).**
 - [ ] **Phase 6.1 (INSERTED): Supply-chain & Scorecard hardening** — Lift OpenSSF Scorecard aggregate from 5.2 to ≥ 8.5 by pinning GitHub Actions to commit-SHAs, scoping workflow tokens to least-privilege, enabling branch-protection introspection, adding Semgrep SAST, and earning the OpenSSF Best Practices passing badge. See `.planning/research/openssf-scorecard-sprint-proposal.md`.
 - [ ] **Phase 7 (POST-v1, DEFERRED 2026-06-21): Optional OAuth Authorization-Code flow** — Add an opt-in OAuth2 Authorization-Code path (Zettle "Public/Partner App") next to the existing JWT-Bearer Assertion grant so non-technical merchants can connect via "Mit Zettle anmelden" instead of generating an API key manually. Requires: Zettle Partner-App registration + review, MoneyMoney-sandbox-compatible Out-Of-Band redirect handling (`urn:ietf:wg:oauth:2.0:oob`) verification, MADR ADR-0005 with rationale, dual-path `src/auth.lua` that preserves the Phase-2 JWT-Bearer surface byte-identically. Triggered if/when real users report API-key generation as a UX blocker. Not in v1.0.0 scope.
 
@@ -216,7 +216,14 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
   5. `CONTRIBUTING.md` (English) documents the dev loop, testing, amalgamator, release process, and GPG-signed-tag requirement; MADR-format ADRs cover amalgamator choice, LocalStorage token cache, JWT-bearer-only auth, fee modeling, no-TLS-pinning, string-return error pattern, and sandbox probe results; `LICENSE` carries the MIT text with copyright "Yves Vogl" (`DOC-05`, `DOC-06`, `DOC-07`).
   6. The GitHub repo metadata is set via `gh repo edit`: the German description ("MoneyMoney-Extension für PayPal POS — Karten-Umsätze, Refunds, Gebühren und Auszahlungen direkt in MoneyMoney. Open Source, MIT, GPG-signiert."), the seven topics (`moneymoney`, `moneymoney-extension`, `paypal-pos`, `zettle`, `lua`, `germany`, `accounting`), and a `CHANGELOG.md` in Keep-a-Changelog format maintained per SemVer release (`DOC-08`, `DOC-09`, `DOC-10`).
 
-**Plans:** TBD
+**Plans:** 2/3 plans executed
+
+Plans:
+
+- [x] 06-01-PLAN.md — Wave 1: __VERSION__ substitution (BUILD-03) + META-03 walker extension (DOC-04) + gitleaks + commit-lint + D-79 raw-print() grep (CI-05 / D-78 / D-79 / SEC-02 hardening) — **SHIPPED 2026-06-22** (5 GPG-signed commits cc14215..6b14185; 381/0/0/0 busted; repro SHA dev 4526a33f / tagged-v1.0.0 d1afc595)
+- [x] 06-02-PLAN.md — Wave 2: release.yml (BUILD-04/05/06) + branch-protection.sh + repo-metadata.sh (SEC-05/DOC-08/09) + README.de.md/README.md split (DOC-01..04) + CONTRIBUTING.md (DOC-05) + 4 backfilled ADRs (DOC-06) + image placeholders
+- [ ] 06-03-PLAN.md — Wave 3: CHANGELOG [1.0.0] cut (DOC-10) + STATE.md transition to v1.0.0-ready-for-tag + 06-HANDOFF.md post-merge/pre-tag runbook for Yves
+
 **UI hint:** no
 **AI integration hint:** no
 
@@ -253,7 +260,7 @@ These are acknowledged from `REQUIREMENTS.md ## v2 Requirements` but are deliber
 | 3. Sale Spine | 0/0 | Not started | - |
 | 4. Enrichment | 0/6 | Planning complete; ready to execute | - |
 | 5. Resilience & Error Handling | 3/5 | In Progress|  |
-| 6. Release & Polish | 0/0 | Not started | - |
+| 6. Release & Polish | 2/3 | In Progress|  |
 
 ---
 

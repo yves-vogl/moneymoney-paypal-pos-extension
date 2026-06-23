@@ -21,7 +21,7 @@ M_mapping    = {}
 DEBUG = false
 
 WebBanking{
-  version     = 0.00,
+  version     = __VERSION__,
   country     = "de",
   url         = "https://oauth.zettle.com",
   services    = {"PayPal POS"},

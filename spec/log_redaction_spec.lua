@@ -157,6 +157,99 @@ describe("M_log redaction", function()
   end)
 
   -- -----------------------------------------------------------------------
+  -- G-03: redactor must cover case-variant 'bearer' and additional OAuth /
+  -- OpenID JSON keys (assertion, refresh_token, id_token, client_secret).
+  -- The Zettle flow is JWT-bearer only today, but the redactor over-redacts
+  -- defensively per the SEC-01 design pillar.
+  -- -----------------------------------------------------------------------
+
+  it("G-03: redacts a lowercase 'bearer' scheme keyword", function()
+    M_log.info("authorization: bearer abc123def456lowercase")
+
+    local line = last_print()
+    assert.is_not_nil(line, "M_log.info should have produced output")
+    assert.is_truthy(line:find("Bearer <redacted>"),
+      "lowercase 'bearer' should also trigger redaction (got: " .. tostring(line) .. ")")
+    assert.is_falsy(line:find("abc123def456lowercase"),
+      "raw lowercase bearer value must not appear (got: " .. tostring(line) .. ")")
+  end)
+
+  it("G-03: redacts an uppercase 'BEARER' scheme keyword", function()
+    M_log.info("Authorization: BEARER UPPERCASETOKEN")
+
+    local line = last_print()
+    assert.is_not_nil(line, "M_log.info should have produced output")
+    assert.is_truthy(line:find("Bearer <redacted>"),
+      "uppercase 'BEARER' should also trigger redaction (got: " .. tostring(line) .. ")")
+    assert.is_falsy(line:find("UPPERCASETOKEN"),
+      "raw uppercase BEARER value must not appear (got: " .. tostring(line) .. ")")
+  end)
+
+  it("G-03: redacts assertion in JSON key-value form", function()
+    M_log.info('{"assertion":"jwt_assertion_value","grant_type":"jwt-bearer"}')
+
+    local line = last_print()
+    assert.is_not_nil(line, "M_log.info should have produced output")
+    assert.is_truthy(line:find('"assertion":"<redacted>"'),
+      'JSON "assertion" value should be replaced (got: ' .. tostring(line) .. ')')
+    assert.is_falsy(line:find("jwt_assertion_value"),
+      "raw JSON assertion value must not appear (got: " .. tostring(line) .. ")")
+  end)
+
+  it("G-03: redacts refresh_token in JSON key-value form", function()
+    M_log.info('{"refresh_token":"refresh_secret_xyz","token_type":"Bearer"}')
+
+    local line = last_print()
+    assert.is_not_nil(line, "M_log.info should have produced output")
+    assert.is_truthy(line:find('"refresh_token":"<redacted>"'),
+      'JSON "refresh_token" value should be replaced (got: ' .. tostring(line) .. ')')
+    assert.is_falsy(line:find("refresh_secret_xyz"),
+      "raw refresh_token value must not appear (got: " .. tostring(line) .. ")")
+  end)
+
+  it("G-03: redacts id_token in JSON key-value form", function()
+    M_log.info('{"id_token":"openid_jwt_value"}')
+
+    local line = last_print()
+    assert.is_not_nil(line, "M_log.info should have produced output")
+    assert.is_truthy(line:find('"id_token":"<redacted>"'),
+      'JSON "id_token" value should be replaced (got: ' .. tostring(line) .. ')')
+    assert.is_falsy(line:find("openid_jwt_value"),
+      "raw id_token value must not appear (got: " .. tostring(line) .. ")")
+  end)
+
+  it("G-03: redacts client_secret in JSON key-value form", function()
+    M_log.info('{"client_id":"public","client_secret":"shhh_super_secret"}')
+
+    local line = last_print()
+    assert.is_not_nil(line, "M_log.info should have produced output")
+    assert.is_truthy(line:find('"client_secret":"<redacted>"'),
+      'JSON "client_secret" value should be replaced (got: ' .. tostring(line) .. ')')
+    assert.is_falsy(line:find("shhh_super_secret"),
+      "raw client_secret value must not appear (got: " .. tostring(line) .. ")")
+  end)
+
+  it("G-03: redacts JWT signature segment containing + and = (standard base64 with padding)", function()
+    -- A JWT whose signature uses standard-base64 alphabet additions ('+',
+    -- '=') instead of the strict base64url ('-', '_'). The old third-
+    -- segment pattern truncated at the first '+' or '=', leaking the
+    -- trailing fragment. '/' is intentionally NOT supported in the
+    -- redactor's third-segment class to avoid clobbering URL paths
+    -- (e.g. 'finance.izettle.com/v2/accounts/...').
+    local fake_jwt = "abcd1234.efgh5678.sig+with+plus==pad"
+    M_log.info("token=" .. fake_jwt)
+
+    local line = last_print()
+    assert.is_not_nil(line, "M_log.info should have produced output")
+    assert.is_truthy(line:find("<redacted>"),
+      "JWT with '+'/'=' in signature must be fully redacted (got: " .. tostring(line) .. ")")
+    assert.is_falsy(line:find("with+plus"),
+      "fragment inside signature must not appear (got: " .. tostring(line) .. ")")
+    assert.is_falsy(line:find("==pad"),
+      "padding tail must not appear (got: " .. tostring(line) .. ")")
+  end)
+
+  -- -----------------------------------------------------------------------
   -- Negative cases — innocuous strings must pass through unchanged
   -- -----------------------------------------------------------------------
 

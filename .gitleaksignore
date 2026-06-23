@@ -1,0 +1,61 @@
+# .gitleaksignore — per-fingerprint allowlist for legitimate false positives.
+#
+# Format: <commit-sha>:<path>:<rule-id>:<line> (one entry per line)
+# NEVER add a blanket `paths` allowlist or a wildcard entry — every line below
+# MUST point at a specific commit/path/line that gitleaks has audited as a
+# false positive.
+#
+# False positives in this file (all confirmed non-secret):
+#
+# 1. spec/auth_spec.lua + spec/entry_spec.lua
+#    JWT-shaped test fixtures used to exercise the assertion-grant flow.
+#    The token body `hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig` is a hand-crafted
+#    placeholder — it is NOT a valid signed JWT, NOT a credential to any
+#    real service, and was authored as a test value before the gitleaks
+#    workflow landed. Removing it would break the test suite.
+#
+# 2. .planning/phases/04-enrichment-refunds-fees-payouts/*.md
+#    The Phase-4 planning notes describe MoneyMoney's `transactionCode`
+#    dual-write contract by naming the `purchaseUUID1` field as a dict-key
+#    documentation snippet. gitleaks' `generic-api-key` rule misfires on
+#    the literal token `purchaseUUID1` after a `key` assignment; this is
+#    documentation, not a secret.
+#
+# Pitfall-5 mitigation per 06-RESEARCH §4: dry-run locally on
+# 2026-06-22, 21 hits all confirmed false positives, fingerprints
+# enumerated below verbatim.
+
+# spec/auth_spec.lua + spec/entry_spec.lua — JWT-shaped test fixtures
+09b3dc0d2273ceb9dd346ec51081313e16599113:spec/entry_spec.lua:generic-api-key:13
+26a625a9268a2b4aa6a4f053e8fe5249f99b56d3:spec/auth_spec.lua:generic-api-key:294
+3159411b52c11a39959426d0eaef59b78089ea24:spec/auth_spec.lua:generic-api-key:355
+69585a2354284e7cac59e2798348a7ba74055c09:spec/auth_spec.lua:generic-api-key:332
+6e91ec60286e3902245e55786623dbaf92df6272:spec/auth_spec.lua:generic-api-key:294
+6edd77271f6c38b73c557c184e8ba73a54749e75:spec/auth_spec.lua:generic-api-key:332
+96cb0a20b21d2d0f8d86dc0acec68252ce4cc91f:spec/entry_spec.lua:generic-api-key:13
+9bc6c8f9be0cc31d510aff5405481c46a756ee54:spec/auth_spec.lua:generic-api-key:357
+c516638f880c292a0233797373ff5e7401570a73:spec/entry_spec.lua:generic-api-key:13
+e5ff30b1fefd729aff9e3aa0ed24d3aaf6dc7bfb:spec/auth_spec.lua:generic-api-key:294
+ec64b1971f64c284f82387658051a5ef71ecfac1:spec/auth_spec.lua:generic-api-key:332
+
+# .planning/phases/04-enrichment-refunds-fees-payouts/*.md — documentation strings
+0ac35b752b1c0d7f655fb2e33ddb90e7b0fbe79d:.planning/phases/04-enrichment-refunds-fees-payouts/04-RESEARCH.md:generic-api-key:280
+0ac35b752b1c0d7f655fb2e33ddb90e7b0fbe79d:.planning/phases/04-enrichment-refunds-fees-payouts/04-RESEARCH.md:generic-api-key:1060
+26d6736f85fb952af104dbe17a1f98ffda3530da:.planning/phases/04-enrichment-refunds-fees-payouts/04-03-PLAN.md:generic-api-key:640
+705001d41158fd66c324760b6134da43e4bf8d54:.planning/phases/04-enrichment-refunds-fees-payouts/04-03-SUMMARY.md:generic-api-key:86
+705001d41158fd66c324760b6134da43e4bf8d54:.planning/phases/04-enrichment-refunds-fees-payouts/04-03-SUMMARY.md:generic-api-key:174
+74f644cedd974f38aeb5f597dc199f6f3a369391:.planning/phases/04-enrichment-refunds-fees-payouts/04-03-PLAN.md:generic-api-key:640
+74f644cedd974f38aeb5f597dc199f6f3a369391:.planning/phases/04-enrichment-refunds-fees-payouts/04-03-SUMMARY.md:generic-api-key:86
+74f644cedd974f38aeb5f597dc199f6f3a369391:.planning/phases/04-enrichment-refunds-fees-payouts/04-03-SUMMARY.md:generic-api-key:174
+74f644cedd974f38aeb5f597dc199f6f3a369391:.planning/phases/04-enrichment-refunds-fees-payouts/04-RESEARCH.md:generic-api-key:280
+74f644cedd974f38aeb5f597dc199f6f3a369391:.planning/phases/04-enrichment-refunds-fees-payouts/04-RESEARCH.md:generic-api-key:1060
+
+# Phase-6 commits whose diffs/messages historically carried the same
+# documentation phrasing in CI workflow comments, the .gitleaksignore
+# header, and the 06-01-SUMMARY rollup. Working tree already rewords the
+# documentation snippets; entries below silence the historical commit
+# scan only.
+6b14185a812b84c550572d540bbe0c2dfda2ea7e:.github/workflows/ci.yml:generic-api-key:237
+17966765f085caa744673babc83a94fc9758edb5:.gitleaksignore:generic-api-key:19
+f5707596e10444ca333955d73eb0d154a9edd476:.planning/phases/06-release-polish/06-01-SUMMARY.md:generic-api-key:120
+f5707596e10444ca333955d73eb0d154a9edd476:.planning/phases/06-release-polish/06-01-SUMMARY.md:generic-api-key:128

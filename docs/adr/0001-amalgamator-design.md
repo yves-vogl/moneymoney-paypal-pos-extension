@@ -35,7 +35,7 @@ concatenates `src/*.lua` modules in declared order.
 - `src/webbanking_header.lua` is emitted verbatim at the top of the artifact: it contains
   the `WebBanking{...}` registration call and predeclares all cross-module tables
   (`M_log`, `M_errors`, `M_i18n`, `M_model`, `M_http`, `M_auth`, `M_pagination`,
-  `M_purchases`, `M_payouts`, `M_balance`, `M_mapping`) as top-level locals.
+  `M_purchases`, `M_finance`, `M_mapping`) as top-level locals.
 - `src/entry.lua` is emitted verbatim at the tail: the MoneyMoney callbacks must be
   top-level globals, not enclosed in a `do...end` block.
 - All other modules are wrapped in `do...end` blocks with a `-- === MODULE: <name> ===`
