@@ -117,7 +117,7 @@ The pre-existing `src/*.lua` walker and `dist/paypal-pos.lua` walker are unchang
 | Pitfall | Mitigation | Disposition |
 |---|---|---|
 | Pitfall 3 — dev-build pretending to be release | DEV BUILD banner on line 2 of `dist/paypal-pos.lua` when `VERSION_NUMBER == "0.00"` | landed in `tools/build.lua` |
-| Pitfall 5 — gitleaks fixture-blocking | `.gitleaksignore` with 21 per-fingerprint entries (JWT-shaped test fixtures + planning-doc `key = purchaseUUID1` documentation strings); confirmed `gitleaks detect` clean | landed in `.gitleaksignore` |
+| Pitfall 5 — gitleaks fixture-blocking | `.gitleaksignore` with 21 per-fingerprint entries (JWT-shaped test fixtures + planning-doc dict-key documentation naming the `purchaseUUID1` field documentation strings); confirmed `gitleaks detect` clean | landed in `.gitleaksignore` |
 | Pitfall 6 — META-03 walker rewrites existing committed docs | Pre-extension grep audit returned zero hits across README.md + CHANGELOG.md + docs/adr/0001/0003/0004/0005 before the spec extension landed | confirmed clean; spec landed |
 
 ### Local gitleaks dry-run disposition
@@ -125,7 +125,7 @@ The pre-existing `src/*.lua` walker and `dist/paypal-pos.lua` walker are unchang
 `gitleaks/gitleaks-action@v2` (version 8.30.1 locally) scanned 318 commits / 6.78 MB and found 21 leaks, ALL audited as false positives:
 
 - 11 fingerprints in `spec/auth_spec.lua` + `spec/entry_spec.lua` — JWT-shaped test fixtures (`hdr.eyJhdWQiOiJjbGllbnQteCJ9.sig` is a hand-crafted placeholder, not a credential to any real service)
-- 10 fingerprints in `.planning/phases/04-enrichment-refunds-fees-payouts/*.md` — documentation strings (`key = purchaseUUID1` describes MoneyMoney's `transactionCode` dual-write contract)
+- 10 fingerprints in `.planning/phases/04-enrichment-refunds-fees-payouts/*.md` — documentation strings (dict-key documentation naming the `purchaseUUID1` field describes MoneyMoney's `transactionCode` dual-write contract)
 
 After `.gitleaksignore` landed: `gitleaks detect --no-banner --source .` reports `no leaks found`. The allowlist is per-fingerprint (never per-path), so any new code in those files that introduces a real secret would still trip the gate.
 

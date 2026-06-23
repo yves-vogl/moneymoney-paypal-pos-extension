@@ -234,7 +234,7 @@ jobs:
     # so no GITLEAKS_LICENSE secret is required (free for personal use).
     # Pitfall-5 mitigation: .gitleaksignore at repo root carries the
     # per-fingerprint allowlist of audited false positives (JWT-shaped test
-    # fixtures + planning-doc `key = purchaseUUID1` documentation strings).
+    # fixtures + planning-doc dict-key documentation naming `purchaseUUID1`).
     name: gitleaks secret scan
     runs-on: ubuntu-24.04
     permissions:

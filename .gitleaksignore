@@ -16,10 +16,10 @@
 #
 # 2. .planning/phases/04-enrichment-refunds-fees-payouts/*.md
 #    The Phase-4 planning notes describe MoneyMoney's `transactionCode`
-#    dual-write contract using `key = purchaseUUID1` as a documentation
-#    string. gitleaks' `generic-api-key` rule matches the literal token
-#    `purchaseUUID1` against the `key = ` prefix; this is documentation,
-#    not a secret.
+#    dual-write contract by naming the `purchaseUUID1` field as a dict-key
+#    documentation snippet. gitleaks' `generic-api-key` rule misfires on
+#    the literal token `purchaseUUID1` after a `key` assignment; this is
+#    documentation, not a secret.
 #
 # Pitfall-5 mitigation per 06-RESEARCH §4: dry-run locally on
 # 2026-06-22, 21 hits all confirmed false positives, fingerprints

@@ -10,6 +10,7 @@
 
 -- luacheck: globals M_http M_log MM M_i18n M_errors
 -- luacheck: ignore 431
+-- luacheck: ignore 122  -- os.time stub for deterministic wall-clock-budget tests
 
 local Mocks = require("spec.helpers.mm_mocks")
 
@@ -27,6 +28,7 @@ end
 describe("M_http retry-with-backoff (Phase 5 / D-62 / D-63 / ADR-0005 Invariants 2+3)", function()
 
   local _captured_sleeps
+  local _orig_os_time
 
   before_each(function()
     Mocks.setup()
@@ -37,10 +39,20 @@ describe("M_http retry-with-backoff (Phase 5 / D-62 / D-63 / ADR-0005 Invariants
     _G.MM.sleep = function(s)
       _captured_sleeps[#_captured_sleeps + 1] = s
     end
+    -- Pin os.time() inside this spec so the wall-clock budget guard
+    -- (_WALL_CLOCK_CAP=60 in src/http.lua per S-01/WR-03 fix) doesn't
+    -- falsely fire on slow CI runners where 1+ second of real time
+    -- elapses between _start_time capture and the cap-at-60 sleep check
+    -- in the Retry-After=9999 case. The captured sleep value is what the
+    -- test asserts; how long the captured sleep would *actually* take
+    -- in real time is irrelevant (MM.sleep is stubbed to a no-op).
+    _orig_os_time = os.time
+    os.time = function() return 1700000000 end  -- frozen UTC
     load_artifact()
   end)
 
   after_each(function()
+    os.time = _orig_os_time
     Mocks.teardown()
   end)
 
