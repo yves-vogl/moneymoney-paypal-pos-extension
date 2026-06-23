@@ -17,8 +17,12 @@ local sha256
 -- ---------------------------------------------------------------------------
 
 local MANIFEST_PATH = "tools/manifest.txt"
-local OUTPUT_PATH   = "dist/paypal-pos.lua"
-local TMP_PATH      = "dist/paypal-pos.lua.tmp"
+-- Output path is overridable via $BUILD_OUT_PATH (P6-R-08) so spec runs
+-- that invoke build.lua under arbitrary version env vars do not clobber
+-- the canonical dist/paypal-pos.lua artifact a developer or CI is
+-- inspecting. CI invocations leave the env var unset and get the default.
+local OUTPUT_PATH   = os.getenv("BUILD_OUT_PATH") or "dist/paypal-pos.lua"
+local TMP_PATH      = OUTPUT_PATH .. ".tmp"
 local HEADER_MOD    = "webbanking_header"
 local ENTRY_MOD     = "entry"
 local BANNER        = "-- paypal-pos amalgamated artifact — do not edit by hand\n"
@@ -272,8 +276,14 @@ end
 -- ---------------------------------------------------------------------------
 
 local function write_output(path, content)
-  -- Create dist/ if it does not exist (os.execute is permitted in tools/).
-  os.execute("mkdir -p dist")
+  -- Ensure the parent directory exists. Default OUTPUT_PATH lives under
+  -- dist/; an overridden $BUILD_OUT_PATH (P6-R-08) may live anywhere
+  -- (e.g. os.tmpname() output under /tmp). Extract the dirname and
+  -- mkdir -p it. (os.execute is permitted in tools/.)
+  local dir = path:match("^(.*)/[^/]+$")
+  if dir and dir ~= "" then
+    os.execute("mkdir -p " .. dir)
+  end
   local f, err = io.open(path, "wb")
   if not f then
     io.stderr:write("BUILD ERROR: cannot write " .. path .. ": " .. tostring(err) .. "\n")
