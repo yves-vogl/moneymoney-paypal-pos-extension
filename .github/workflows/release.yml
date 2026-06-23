@@ -61,13 +61,37 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
-          # git verify-tag --raw emits machine-parseable status lines. The
-          # load-bearing check is the `VALIDSIG <FINGERPRINT>` line — `git
-          # verify-tag` alone returns 0 for any signature trusted in the
-          # local keyring, but we require the signer to BE the maintainer.
-          VERIFY_OUT=$(git verify-tag --raw "${TAG}" 2>&1 || true)
+          # git verify-tag --raw emits machine-parseable status lines on
+          # stderr.  We must (a) treat a non-zero exit as a hard failure
+          # (do NOT mask with `|| true`), and (b) anchor the VALIDSIG
+          # grep on the `[GNUPG:]` status-line prefix so a tag annotation
+          # body containing the literal "VALIDSIG <fpr>" text cannot
+          # spoof the gate.
+          #
+          # VALIDSIG status-line format (gpg --status-fd documented):
+          #   [GNUPG:] VALIDSIG <signing-fpr> <date> <expires> <ver>
+          #     <reserved> <pubkey-algo> <hash-algo> <sig-class>
+          #     <primary-fpr>
+          # The maintainer fingerprint may match either the signing key
+          # (first field) or the primary key (last field on the line).
+          set +e
+          VERIFY_OUT=$(git verify-tag --raw "${TAG}" 2>&1)
+          RC=$?
+          set -e
           echo "${VERIFY_OUT}"
-          if ! echo "${VERIFY_OUT}" | grep -q "VALIDSIG ${MAINTAINER_FINGERPRINT}"; then
+          if [ "${RC}" -ne 0 ]; then
+            echo "FAIL: git verify-tag exited ${RC} for ${TAG}"
+            exit 1
+          fi
+          # Match either:
+          #   (a) signing-fingerprint == maintainer (first field after VALIDSIG), OR
+          #   (b) primary-fingerprint == maintainer (LAST field on the line).
+          # Both grep -E patterns are anchored on "^\[GNUPG:\] VALIDSIG ",
+          # which is gpg's status-fd machine-parseable prefix — it cannot
+          # be reproduced inside a tag annotation body since `git verify-tag --raw`
+          # only emits `[GNUPG:]` lines from gpg itself, not from the tag.
+          if ! grep -qE "^\[GNUPG:\] VALIDSIG ${MAINTAINER_FINGERPRINT} " <<<"${VERIFY_OUT}" \
+             && ! grep -qE "^\[GNUPG:\] VALIDSIG [0-9A-F]+ .* ${MAINTAINER_FINGERPRINT}( |$)" <<<"${VERIFY_OUT}"; then
             echo "FAIL: tag ${TAG} not signed by maintainer key ${MAINTAINER_FINGERPRINT}"
             exit 1
           fi
