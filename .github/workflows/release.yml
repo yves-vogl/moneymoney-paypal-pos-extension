@@ -202,7 +202,15 @@ jobs:
           set -euo pipefail
           TAG="${GITHUB_REF_NAME}"
           mkdir -p dist
-          git for-each-ref "refs/tags/${TAG}" --format='%(contents)' > dist/release-notes.md
+          # '%(contents)' includes the PGP signature block for signed tags.
+          # Use '%(contents:subject)' + '%(contents:body)' to extract the
+          # human-readable parts only; both git-tag attribute aliases
+          # automatically strip the trailing '-----BEGIN PGP SIGNATURE-----'
+          # block. The sed pass is a belt-and-braces secondary scrub in
+          # case any sub-field unexpectedly retains armor lines.
+          git tag -l --format='%(contents:subject)%n%n%(contents:body)' "${TAG}" \
+            | sed '/^-----BEGIN PGP SIGNATURE-----/,/^-----END PGP SIGNATURE-----/d' \
+            > dist/release-notes.md
           if [ ! -s dist/release-notes.md ]; then
             # Fallback: extract this version's section from CHANGELOG.md
             # (lines between `## [VERSION]` and the next `## [`).
@@ -210,6 +218,11 @@ jobs:
             awk "/^## \\[${VERSION}\\]/{flag=1;next} /^## \\[/{flag=0} flag" CHANGELOG.md > dist/release-notes.md
           fi
           wc -l dist/release-notes.md
+          # Safety assertion — fail loudly if any PGP marker survives.
+          if grep -q 'BEGIN PGP SIGNATURE\|END PGP SIGNATURE' dist/release-notes.md; then
+            echo "FAIL: PGP signature markers leaked into release notes"
+            exit 1
+          fi
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
