@@ -28,6 +28,7 @@ Die Architektur-Entscheidungen sind als MADR-formatierte ADRs unter
 - JWT-Bearer-Auth (ADR-0006)
 - Kein TLS-Pinning (ADR-0007)
 - String-Return-Fehlermuster (ADR-0008)
+- OpenSSF-Scorecard-Stance (ADR-0009)
 
 ## Status
 

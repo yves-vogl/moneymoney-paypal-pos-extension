@@ -27,6 +27,7 @@ Architecture decisions are documented as MADR-format ADRs under
 - JWT bearer auth (ADR-0006)
 - No TLS pinning (ADR-0007)
 - String-return error pattern (ADR-0008)
+- OpenSSF Scorecard stance (ADR-0009)
 
 ## Status
 
