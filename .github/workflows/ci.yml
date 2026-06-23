@@ -167,11 +167,9 @@ jobs:
           BAD_ALIAS=$(grep -nE 'local[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*(print|io\.write)[[:space:]]*$' dist/paypal-pos.lua \
             | grep -v '^[[:space:]]*--' \
             || true)
-          BAD=""
-          if [ -n "${BAD_CALLS}" ]; then BAD="${BAD_CALLS}"; fi
+          BAD="${BAD_CALLS}"
           if [ -n "${BAD_ALIAS}" ]; then
-            if [ -n "${BAD}" ]; then BAD="${BAD}
-${BAD_ALIAS}"; else BAD="${BAD_ALIAS}"; fi
+            BAD="$(printf '%s\n%s' "${BAD}" "${BAD_ALIAS}")"
           fi
           if [ -n "${BAD}" ]; then
             echo "FAIL: raw print()/io.write()/aliased emitters in dist/paypal-pos.lua (must use M_log):"
