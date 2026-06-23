@@ -6,7 +6,8 @@ architecture, the release process, and the commit/PR discipline this repository
 enforces.
 
 > The primary user documentation is German (`README.de.md`). This contributor
-> guide is English so it is approachable for non-German collaborators.
+> guide is in English so non-German collaborators can read it without
+> translation friction.
 
 ---
 
@@ -99,14 +100,14 @@ Before pushing, verify each of the following:
 
 ## Testing conventions
 
-- **TDD: RED → GREEN.** Write the failing spec first (commit prefix `test:`),
-  then the implementation that makes it pass (commit prefix `feat:` or `fix:`).
+- **TDD: RED → GREEN.** Write the failing spec first (commit type `test:`),
+  then the implementation that makes it pass (commit type `feat:` or `fix:`).
   Each RED commit must show a failing test in `busted` output; each GREEN
   commit must show the test transitioning to passing.
 - **mm_mocks.lua is the only mock boundary.** Tests stub MoneyMoney's globals
   (`Connection`, `JSON`, `LocalStorage`, `MM`, `WebBanking`, account types,
-  `MM.sleep`) inside `spec/helpers/mm_mocks.lua`. Do not introduce ad-hoc
-  module-level monkey-patches in individual spec files — keep the mock surface
+  `MM.sleep`) inside `spec/helpers/mm_mocks.lua`. Do not introduce ad hoc
+  module-level monkey patches in individual spec files — keep the mock surface
   in one auditable place.
 - **Fixtures under `spec/fixtures/`.** Record realistic JSON responses from the
   Zettle sandbox (NEVER production) and commit them. Tests load fixtures via a
