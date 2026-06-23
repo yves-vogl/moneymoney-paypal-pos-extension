@@ -129,7 +129,13 @@ than an aspirational firewall.
 
 **Positive:**
 
-- A German merchant whose API key was revoked sees `"PayPal POS / Zettle: Der API-Key wurde widerrufen oder ist abgelaufen. Bitte unter my.zettle.com/apps/api-keys neu erzeugen."` instead of `attempt to index a nil value (field 'access_token')`. The message tells them where to go and what to do.
+- A German merchant whose API key was revoked sees the localized message:
+
+  > `"Anmeldung verloren — bitte API-Key in MoneyMoney neu eintragen."`
+
+  (the `error.token_revoked` string from `src/i18n.lua`) instead of the raw
+  Lua error `attempt to index a nil value (field 'access_token')`. The
+  message tells them exactly what to do.
 - The exact error string is a contract — tests assert specific strings
   (e.g. `spec/refresh_spec.lua` checks `assert.equal(M_i18n.t("error.token_revoked"), result)`). Refactors that change the string break the test, surfacing intent.
 - Localization is centralized in `src/i18n.lua`. Adding a translation
@@ -151,9 +157,8 @@ than an aspirational firewall.
   `M_log.*` channel emits more context (subject to the SEC-01 redactor).
 - Tests asserting exact strings are sensitive to wording changes — a
   lektor pass that polishes error phrasing requires updating the test
-  literals in lockstep. ADR-0005 §IN-04 documented this; the
-  Phase-6 CP-1 lektor pass will batch the string + test updates
-  together.
+  literals in lockstep. ADR-0005 §IN-04 documented this; lektor passes
+  batch string and test updates together to preserve the test contract.
 
 **Constraint for future contributors:**
 

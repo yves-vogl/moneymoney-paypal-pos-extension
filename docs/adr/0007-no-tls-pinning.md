@@ -133,8 +133,7 @@ performs by default against the macOS system trust store.
 - SEC-01 redactor (credential exposure in logs).
 - Reproducible build (source-to-artifact integrity).
 - GPG-signed releases (publisher identity).
-- HSTS on `*.izettle.com` (preloaded; downgrade protection at the
-  browser-PKI ecosystem level).
+- HSTS on `*.izettle.com` (downgrade protection at the TLS layer).
 
 ## References
 

@@ -39,7 +39,7 @@ cache substrate.
 
 This ADR retroactively documents the Phase-2 decision (Plan 02-05; commits
 landed 2026-06-16..18) so a future maintainer can read the cache schema and
-invalidation rules in one place without spelunking the source.
+invalidation rules in one place without reading the source end-to-end.
 
 References:
 
@@ -64,7 +64,7 @@ LocalStorage.zettle = {
 
 `M_auth.cached_token()` returns the cached `access_token` when
 `os.time() < expires_at - 60` (60-second safety margin against clock skew and
-in-flight TTL exhaustion) AND the `client_id` field matches the freshly
+TTL expiration during an in-flight request) AND the `client_id` field matches the freshly
 decoded assertion's `client_id` claim. Mismatch (the user pasted a different
 API key into MoneyMoney's credentials dialog) discards the cache and re-mints.
 
@@ -75,8 +75,9 @@ When `cached_token()` returns `nil`, `M_auth.mint_token()` calls
 The `client_id` field is reserved for ADR-0006's Phase-7 forward-compat:
 once a second auth flow (OAuth Authorization-Code grant) is added, a single
 MoneyMoney instance may hold tokens for multiple clients; the field
-distinguishes them. For v1.0.x (assertion-grant-only) the field is set but
-never read for branching — the freshness check alone is sufficient.
+distinguishes them. For v1.0.x (assertion-grant-only) the field is recorded
+but never used to choose between code paths — the freshness check alone is
+sufficient.
 
 ## Consequences
 

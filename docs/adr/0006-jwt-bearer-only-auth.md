@@ -32,7 +32,7 @@ this extension:
    refresh token. Supports multi-tenant + refresh-token rotation.
 
 CLAUDE.md's "Alternatives Considered" table explicitly rejects flow 2 for
-v1.0:
+v1.0.x:
 
 > OAuth2 browser flow (authorization code grant) — The extension cannot
 > open a browser, host a callback, or redirect. The MoneyMoney credentials
@@ -66,9 +66,12 @@ credentials array, single entry). `src/auth.lua` implements only the
 
 The shipped `WebBanking{}` registration table does NOT declare any web-view
 URL or redirect callback. The interactive flag in `InitializeSession2` is
-honored solely to surface the standard "Anmeldung fehlgeschlagen" /
-"Anmeldung blockiert" string-return error messages (see ADR-0008) — never to
-launch external auth UI.
+honored solely to surface the standard localized string-return error
+messages from `src/i18n.lua` — `error.invalid_grant`
+("Anmeldung fehlgeschlagen: API-Key wurde abgelehnt.") for a rejected key
+and `error.token_revoked` ("Anmeldung verloren — bitte API-Key in
+MoneyMoney neu eintragen.") for a revoked session (see ADR-0008) — never
+to launch external auth UI.
 
 **Forward-compat for Phase 7 (deferred).** When OAuth Authorization-Code is
 added (no Phase-7 schedule yet), the assertion-grant codepath in
@@ -92,7 +95,7 @@ co-exist with the flow-1 record, distinguished by `client_id`.
   per-account-credential model. Adding flow 2 with multi-tenant would have
   introduced friction in MoneyMoney's account-list UI for no v1.0.x user
   benefit.
-- Easier security audit surface — one auth path, one token type, one
+- Smaller security-audit surface — one auth path, one token type, one
   failure mode (`invalid_grant`).
 
 **Negative:**
