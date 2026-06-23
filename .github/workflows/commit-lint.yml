@@ -30,7 +30,12 @@ jobs:
           set -euo pipefail
           BASE="${{ github.event.pull_request.base.sha }}"
           HEAD="${{ github.event.pull_request.head.sha }}"
-          REGEX='^(feat|fix|docs|test|refactor|chore|ci|build|perf|style|revert)(\([^)]+\))?: .+'
+          # Conventional Commits 1.0.0 grammar:
+          #   <type>[optional scope][!]: <description>
+          # The trailing '!' marks a breaking change (e.g. 'feat!:' or
+          # 'feat(api)!:'). The old regex omitted '!?', rejecting valid
+          # breaking-change commit subjects.
+          REGEX='^(feat|fix|docs|test|refactor|chore|ci|build|perf|style|revert)(\([^)]+\))?!?: .+'
           FAIL=0
           while IFS= read -r SHA; do
             SUBJECT=$(git log --format=%s -n 1 "${SHA}")
