@@ -1,6 +1,6 @@
 # MoneyMoney PayPal POS Extension
 
-> Eine Community-Extension für [MoneyMoney](https://moneymoney.app), die PayPal POS (ehemals Zettle) als unterstützten Kontotyp ergänzt — Karten-Umsätze, Refunds, Gebühren und Auszahlungen direkt in MoneyMoney.
+> Eine Community-Extension für [MoneyMoney](https://moneymoney.app), die PayPal POS (ehemals Zettle) als unterstützten Kontotyp ergänzt — Kartenumsätze, Rückerstattungen (Refunds), Gebühren und Auszahlungen direkt in MoneyMoney.
 
 [![CI](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/actions/workflows/ci.yml)
 [![Coverage](https://raw.githubusercontent.com/yves-vogl/moneymoney-paypal-pos-extension/coverage-badge/coverage.svg)](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/actions/workflows/ci.yml)
@@ -54,10 +54,10 @@ MoneyMoney lädt Community-Extensions nur, wenn dieser Schalter aktiv ist. Die f
 
 Mit `v0.2.0` zeigt die Extension folgende Daten aus PayPal POS / Zettle direkt in MoneyMoney:
 
-- Vollständige Buchhaltungssicht: Auszahlungen, Gebühren, MwSt-Aufschlüsselung sowie beglichene und offene Salden in einem Konto.
-- Refunds verlinken zum ursprünglichen Beleg — die Belegnummer des Original-Verkaufs steht im Verwendungszweck der Rückerstattungsbuchung.
+- Vollständige Buchhaltungssicht: Auszahlungen, Gebühren, USt-Aufschlüsselung sowie beglichene und offene Salden in einem Konto.
+- Rückerstattungen verlinken zum ursprünglichen Beleg — die Belegnummer des Original-Verkaufs steht im Verwendungszweck der Rückerstattungsbuchung.
 - Pro Kartenzahlung: Kartentyp und Zahlungsart (kontaktlos, Chip, online) im Verwendungszweck.
-- MwSt-Aufschlüsselung pro Satz, wenn das Unternehmen mit gemischten Sätzen arbeitet (z.B. 19 % auf Speisen vor Ort, 7 % zum Mitnehmen).
+- USt-Aufschlüsselung pro Satz, wenn das Unternehmen mit gemischten Sätzen arbeitet (z. B. 19 % auf Speisen vor Ort, 7 % zum Mitnehmen).
 - Abgeschlossene Verkäufe werden mit Wertstellungsdatum (dem Auszahlungstag) gebucht, sobald die Auszahlung im Finance-API sichtbar ist.
 
 ---
@@ -67,7 +67,7 @@ Mit `v0.2.0` zeigt die Extension folgende Daten aus PayPal POS / Zettle direkt i
 Die Extension beschränkt sich auf die Darstellung der PayPal-POS-Daten in MoneyMoney. Sie nimmt explizit keine Bewertungen vor, die der Steuerberatung obliegen:
 
 - Wir nehmen keine steuerrechtliche Bewertung von Umsätzen oder Trinkgeldern vor.
-- Wir bestätigen keine GoBD-Bewertung.
+- Wir bestätigen keine GoBD-Konformität.
 - Wir erstellen keine USt-Voranmeldung.
 - Wir ersetzen den Steuerberater nicht.
 
@@ -79,7 +79,7 @@ Die exportierten Daten sind als Grundlage für die Buchhaltung gedacht — die E
 
 <!-- lektor-review: pending — CP-1 -->
 
-Hinweis zur Buchhaltung: Diese Extension liest Rohdaten aus der PayPal POS API und stellt sie in MoneyMoney dar. Sie erhebt KEINEN Anspruch auf GoBD-Konformität, DATEV-Export oder steuerrechtliche Bewertung. Die Klassifizierung der Umsätze (Erlöse, Aufwendungen, Vorsteuer, etc.) obliegt der Buchhaltung bzw. der Steuerberatung. Die Extension ersetzt keine Buchhaltungssoftware.
+Hinweis zur Buchhaltung: Diese Extension liest Rohdaten aus der PayPal POS API und stellt sie in MoneyMoney dar. Sie erhebt **keinen** Anspruch auf GoBD-Konformität, DATEV-Export oder steuerrechtliche Bewertung. Die Klassifizierung der Umsätze (Erlöse, Aufwendungen, Vorsteuer, etc.) obliegt der Buchhaltung bzw. der Steuerberatung. Die Extension ersetzt keine Buchhaltungssoftware.
 
 Wer regulatorische Anforderungen an Aufzeichnungspflichten erfüllen muss, sollte die ausgelesenen Daten gemeinsam mit einer Fachperson (Steuerberatung oder Buchhaltungsfachkraft) prüfen und in eine geeignete Buchhaltungs-Lösung übernehmen.
 
@@ -87,9 +87,9 @@ Wer regulatorische Anforderungen an Aufzeichnungspflichten erfüllen muss, sollt
 
 ## Inbetriebnahme bei bestehendem v0.1.0 API-Key
 
-Wer bereits einen API-Key aus `v0.1.0` verwendet, braucht für `v0.2.0` einen neuen Schlüssel mit erweitertem Berechtigungsumfang. Grund: das Finance-API (Auszahlungen, Gebühren, Salden) erfordert die zusätzliche Berechtigung `READ:FINANCE`, die in `v0.1.0`-Schlüsseln nicht gesetzt war. Ohne den neuen Scope schlägt die Aktualisierung mit einem Anmelde-Fehler fehl.
+Wer bereits einen API-Key aus `v0.1.0` verwendet, braucht für `v0.2.0` einen neuen Schlüssel mit zusätzlichen Scopes. Grund: das Finance-API (Auszahlungen, Gebühren, Salden) erfordert die zusätzliche Berechtigung `READ:FINANCE`, die in `v0.1.0`-Schlüsseln nicht gesetzt war. Ohne den neuen Scope schlägt die Aktualisierung mit einem Anmelde-Fehler fehl.
 
-Schritt-für-Schritt-Anleitung:
+So geht's:
 
 1. **Neuen Key erzeugen** unter <https://my.zettle.com/apps/api-keys?scopes=READ:PURCHASE+READ:FINANCE>. Beide Scopes — `READ:PURCHASE` **und** `READ:FINANCE` — müssen aktiviert sein.
 2. Den neuen JWT-Key kopieren (Zettle zeigt ihn nur einmal an).
@@ -104,17 +104,17 @@ Der alte Key kann anschließend in der Zettle-Verwaltung deaktiviert werden.
 
 Folgende Verhaltensweisen sind bewusst akzeptiert. Sie sind in [ADR-0004](docs/adr/0004-finance-api-scope-and-fee-fallback.md) dokumentiert und werden mit einer späteren Version ggf. überarbeitet.
 
-- **Verzögerte Buchung von Auszahlungen.** Bei Händlern mit wöchentlichem oder monatlichem Auszahlungsrhythmus werden Verkäufe ein bis zwei Refreshes lang als „nicht-gebucht" angezeigt, bis die zugehörige Auszahlung im Finance-API sichtbar ist. Der Verkauf erscheint ab dem ersten Refresh — nur das Wertstellungsdatum und der Status `booked` ändern sich später.
-- **Tagesaggregat von Gebühren — Sonderfall „nachgereichte Verknüpfung".** Falls Zettle die Zuordnung einer Einzelgebühr zur Original-Karten-Zahlung erst zwischen zwei Refreshes nachreicht, kann es vorkommen, dass die Extension den Tag im ersten Refresh als _„PayPal POS Transaktionsgebühren — Detail-Verknüpfung nicht verfügbar"_ aggregiert bucht und im zweiten Refresh dann zusätzlich die Einzelgebühr als eigene Buchung anlegt. Die Aggregat-Buchung des ersten Refreshes bleibt in MoneyMoney bestehen — Gebühr und Aggregat decken denselben Tag doppelt ab. Sobald das auftritt, einfach die Aggregat-Buchung manuell in MoneyMoney löschen; die Einzel-Buchungen sind dann die richtige, bleibende Sicht.
+- **Verzögerte Buchung von Auszahlungen.** Bei Händlern mit wöchentlichem oder monatlichem Auszahlungsrhythmus werden Verkäufe ein bis zwei Aktualisierungsläufe lang als „nicht gebucht" angezeigt, bis die zugehörige Auszahlung im Finance-API sichtbar ist. Der Verkauf erscheint ab dem ersten Aktualisierungslauf — nur das Wertstellungsdatum und der Status `booked` ändern sich später.
+- **Tagesaggregat von Gebühren — Sonderfall „nachgereichte Verknüpfung".** Falls Zettle die Zuordnung einer Einzelgebühr zur Original-Kartenzahlung erst zwischen zwei Aktualisierungsläufen nachreicht, kann es vorkommen, dass die Extension den Tag im ersten Aktualisierungslauf als „PayPal POS Transaktionsgebühren — Detail-Verknüpfung nicht verfügbar" aggregiert bucht und im zweiten Aktualisierungslauf dann zusätzlich die Einzelgebühr als eigene Buchung anlegt. Die Aggregat-Buchung des ersten Aktualisierungslaufs bleibt in MoneyMoney bestehen — Gebühr und Aggregat decken denselben Tag doppelt ab. Sobald das auftritt, einfach die Aggregat-Buchung manuell in MoneyMoney löschen; die Einzel-Buchungen sind dann die richtige, bleibende Sicht.
 - **Mehrere Händler-Konten parallel.** Das Verbinden mehrerer PayPal-POS-Accounts in einem MoneyMoney-Profil ist als zukünftige Erweiterung geplant, in `v0.2.0` aber noch nicht offiziell freigegeben.
 
 ---
 
 ## Warum diese Extension
 
-Sole Proprietors und kleine Händler in Deutschland nutzen **PayPal POS** für Karten-Zahlungen am Tresen. MoneyMoney unterstützt von Haus aus keine PayPal-POS-Konten — Karten-Umsätze tauchen erst sichtbar auf, wenn PayPal die Auszahlung auf das Geschäftskonto bucht. Damit sind Einzel-Umsätze, Trinkgelder, Refunds, USt-Aufteilung und Gebühren in MoneyMoney nicht abbildbar — Buchhaltung passiert daneben in Excel.
+Einzelunternehmer und kleine Händler in Deutschland nutzen **PayPal POS** für Kartenzahlungen am Tresen. MoneyMoney unterstützt von Haus aus keine PayPal-POS-Konten — Kartenumsätze tauchen erst sichtbar auf, wenn PayPal die Auszahlung auf das Geschäftskonto bucht. Damit sind Einzel-Umsätze, Trinkgelder, Rückerstattungen, USt-Aufteilung und Gebühren in MoneyMoney nicht abbildbar — Buchhaltung passiert daneben in Excel.
 
-Diese Extension schließt die Lücke: API-Key einmal eintragen, ab dann erscheinen alle Karten-Umsätze, Refunds, Gebühren und Auszahlungen automatisch in MoneyMoney — mit USt- und Trinkgeld-Transparenz, geeignet als Beleg-Grundlage für die Buchhaltung.
+Diese Extension schließt die Lücke: API-Key einmal eintragen, ab dann erscheinen alle Kartenumsätze, Rückerstattungen, Gebühren und Auszahlungen automatisch in MoneyMoney — mit USt- und Trinkgeld-Transparenz, geeignet als Beleg-Grundlage für die Buchhaltung.
 
 ---
 
@@ -172,7 +172,7 @@ Eine erfolgreiche `git verify-tag`-Prüfung meldet `Good signature from "Yves Vo
 
 - **Keine Telemetrie.** Die Extension sendet ausschließlich Anfragen an offizielle PayPal-/Zettle-API-Hosts (`oauth.zettle.com`, `purchase.izettle.com`, `finance.izettle.com`).
 - **Keine Drittparteien.** Kein Analytics, kein externes Logging.
-- **API-Keys** werden ausschließlich über MoneyMoney's eingebaute Anmelde-Daten-Verwaltung gespeichert — nie geloggt, nie in Fehlertexten ausgegeben.
+- **API-Keys** werden ausschließlich über MoneyMoneys eingebaute Anmelde-Daten-Verwaltung gespeichert — nie geloggt, nie in Fehlertexten ausgegeben.
 - **Read-Only.** Die Extension liest nur — sie führt keinerlei schreibende Operationen auf dem PayPal-POS-Konto durch.
 
 ---
