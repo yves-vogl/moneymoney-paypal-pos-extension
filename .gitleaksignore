@@ -49,3 +49,13 @@ ec64b1971f64c284f82387658051a5ef71ecfac1:spec/auth_spec.lua:generic-api-key:332
 74f644cedd974f38aeb5f597dc199f6f3a369391:.planning/phases/04-enrichment-refunds-fees-payouts/04-03-SUMMARY.md:generic-api-key:174
 74f644cedd974f38aeb5f597dc199f6f3a369391:.planning/phases/04-enrichment-refunds-fees-payouts/04-RESEARCH.md:generic-api-key:280
 74f644cedd974f38aeb5f597dc199f6f3a369391:.planning/phases/04-enrichment-refunds-fees-payouts/04-RESEARCH.md:generic-api-key:1060
+
+# Phase-6 commits whose diffs/messages historically carried the same
+# documentation phrasing in CI workflow comments, the .gitleaksignore
+# header, and the 06-01-SUMMARY rollup. Working tree already rewords the
+# documentation snippets; entries below silence the historical commit
+# scan only.
+6b14185a812b84c550572d540bbe0c2dfda2ea7e:.github/workflows/ci.yml:generic-api-key:237
+17966765f085caa744673babc83a94fc9758edb5:.gitleaksignore:generic-api-key:19
+f5707596e10444ca333955d73eb0d154a9edd476:.planning/phases/06-release-polish/06-01-SUMMARY.md:generic-api-key:120
+f5707596e10444ca333955d73eb0d154a9edd476:.planning/phases/06-release-polish/06-01-SUMMARY.md:generic-api-key:128
