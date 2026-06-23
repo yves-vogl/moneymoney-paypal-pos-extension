@@ -3,7 +3,7 @@
 **Created:** 2026-06-16
 **Granularity:** standard (6 phases)
 **Mode:** mvp (vertical-slice-when-possible; foundation layers 1–3 unavoidable before first user-facing demo at end of Phase 3)
-**Coverage:** 70/70 v1 requirements mapped to phases
+**Coverage:** 75/75 v1 requirements mapped to phases (Phase 6.1 added 5: SEC-05, SEC-06, SEC-07, SEC-08, BUILD-03)
 **Phase count rationale:** Reconciles research synthesis (FEATURES=5, ARCH=6, PITFALLS labeled 1–8) onto the dependency-ordered 6-phase backbone from `research/SUMMARY.md §7` under `granularity=standard`.
 
 ---
@@ -24,7 +24,7 @@ The first observable end-to-end demo lands at **end of Phase 3** (paste API key 
 - [x] **Phase 4: Enrichment — Refunds, Fees, Payouts, Balance, VAT, Tips** — Layer the remaining transaction kinds and per-purpose metadata onto the spine; the slice that justifies this extension's existence over CSV export. (merged 2026-06-21)
 - [x] **Phase 5: Resilience & Error Handling** — Branched error handling for all 5 categories (token-mint, post-mint 401, 429, 5xx, network) with the fail-whole-refresh invariant enforced so `since` watermark cannot silently advance past undelivered data. (implementation + 05-06 fix-batch complete 2026-06-22)
 - [x] **Phase 6: Release & Polish — Reproducible Build, CI/CD, German Docs** — Tag-triggered reproducible release, GPG-tag verification, SHA256-attached artifact, bilingual README with "Inoffizielle Extensions erlauben" screenshot, GoBD-Hinweis, MADR ADRs — the things that make a stranger trust the extension. **IMPLEMENTATION COMPLETE 2026-06-22; v1.0.0-ready-for-tag — 06-01/02/03 landed; CP-1..CP-5 queued (see `.planning/phases/06-release-polish/06-HANDOFF.md`).**
-- [x] **Phase 6.1 (INSERTED): Supply-chain & Scorecard hardening** — Lift OpenSSF Scorecard aggregate from 5.2 to ≥ 8.5 by pinning GitHub Actions to commit-SHAs, scoping workflow tokens to least-privilege, enabling branch-protection introspection, adding Semgrep SAST, and earning the OpenSSF Best Practices passing badge. See `.planning/research/openssf-scorecard-sprint-proposal.md`.
+- [x] **Phase 6.1 (INSERTED): Supply-chain & Scorecard hardening** — Lift OpenSSF Scorecard aggregate from 5.2 to ≥ 7.5 (short-term realistic target per ADR-0009 RESEARCH §10) by pinning GitHub Actions to commit-SHAs, scoping workflow tokens to least-privilege, enabling branch-protection introspection, adding Semgrep SAST, and earning the OpenSSF Best Practices passing badge. Cumulative roadmap to ≥ 8.5 once ossf/scorecard#5103 merges upstream (SAST detection enabled) AND Maintained heals at ~90 days repo age (~2026-09-15). See `.planning/research/openssf-scorecard-sprint-proposal.md`.
 - [ ] **Phase 7 (POST-v1, DEFERRED 2026-06-21): Optional OAuth Authorization-Code flow** — Add an opt-in OAuth2 Authorization-Code path (Zettle "Public/Partner App") next to the existing JWT-Bearer Assertion grant so non-technical merchants can connect via "Mit Zettle anmelden" instead of generating an API key manually. Requires: Zettle Partner-App registration + review, MoneyMoney-sandbox-compatible Out-Of-Band redirect handling (`urn:ietf:wg:oauth:2.0:oob`) verification, MADR ADR-0005 with rationale, dual-path `src/auth.lua` that preserves the Phase-2 JWT-Bearer surface byte-identically. Triggered if/when real users report API-key generation as a UX blocker. Not in v1.0.0 scope.
 
 ---
@@ -245,8 +245,8 @@ These are acknowledged from `REQUIREMENTS.md ## v2 Requirements` but are deliber
 
 ## Coverage Notes
 
-- **Total v1 REQ-IDs in REQUIREMENTS.md:** 70.
-- **Mapped to phases:** 70/70 (Phase 1: 7, Phase 2: 10, Phase 3: 10, Phase 4: 15, Phase 5: 6, Phase 6: 22). Zero orphans, zero duplicates.
+- **Total v1 REQ-IDs in REQUIREMENTS.md:** 75 (70 original + 5 added by Plan 06.1-08).
+- **Mapped to phases:** 75/75 (Phase 1: 7, Phase 2: 10, Phase 3: 10, Phase 4: 15, Phase 5: 6, Phase 6: 22, Phase 6.1: 5). Zero orphans, zero duplicates.
 - **Out-of-scope items confirmed:** MoneyMoney RSA signature (tracked as UP-01 stretch), Apple Developer ID signing, OAuth browser flow, TLS cert pinning, auto-update/telemetry, write operations, multi-merchant in one instance, non-German primary currencies, manual paid versions, live integration tests against production. See `REQUIREMENTS.md ## Out of Scope`.
 
 ---
@@ -303,7 +303,7 @@ All phases run sequentially. No parallelization across phase boundaries — each
 
 ### Phase 6.1: Supply-chain & Scorecard hardening (INSERTED)
 
-**Goal:** OpenSSF Scorecard aggregate ≥ 8.5 / 10 on `main` HEAD without compromising the project's solo-maintainer constraints; the supply-chain posture (pinned actions, least-privilege tokens, branch-protection visibility, Semgrep SAST, signed releases scaffolded in Phase 6, OpenSSF Best Practices passing badge) is documented, auditable, and stable enough to be a published prerequisite for any future v1.0.0 release.
+**Goal:** OpenSSF Scorecard aggregate ≥ 7.5 / 10 on `main` HEAD (short-term realistic target per ADR-0009 RESEARCH §10) without compromising the project's solo-maintainer constraints; cumulative roadmap to ≥ 8.5 once ossf/scorecard#5103 merges upstream AND Maintained heals at ~90 days repo age. The supply-chain posture (pinned actions, least-privilege tokens, branch-protection visibility, Semgrep SAST, signed releases scaffolded in Phase 6, OpenSSF Best Practices passing badge) is documented, auditable, and stable enough to be a published prerequisite for any future v1.0.0 release.
 **Mode:** mvp
 **Depends on:** Phase 6 (release pipeline must exist so Signed-Releases hardening can attach)
 **Requirements:** TBD — to be derived from the sprint proposal during `/gsd-discuss-phase 6.1`. Anticipated coverage: a new `SEC-05` (pinned actions), `SEC-06` (workflow token least-privilege), `SEC-07` (branch protection enforced + introspectable), `SEC-08` (SAST on every commit), `BUILD-03` (OpenSSF Best Practices passing badge), and updates to existing `SEC-04` (DEBUG=false gate) and `BUILD-01`/`BUILD-02` (Sigstore/cosign on release artifact, SLSA provenance).
