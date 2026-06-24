@@ -13,4 +13,5 @@ pagination
 purchases
 finance
 mapping
+update
 entry

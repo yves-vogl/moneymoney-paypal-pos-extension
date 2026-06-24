@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-06-24
+
+### Hinzugefügt
+
+- **Update-Check (optional)** — bei jedem MoneyMoney-Refresh wird maximal 1× pro 24h gegen `api.github.com/repos/yves-vogl/moneymoney-paypal-pos-extension/releases/latest` geprüft, ob ein neueres Stable-Release verfügbar ist. Pre-releases (rc/beta/alpha) werden ignoriert. Bei Treffer erscheint eine Status-Meldung `Update verfügbar: vX.Y.Z` im MoneyMoney-Refresh-Log. Cache via `LocalStorage`. Netzwerk-Fehler sind silent, brechen den Refresh nicht ab.
+- **Opt-out** für den Update-Check über das neue zweite Credential-Feld „Update-Check" in der MoneyMoney-Login-Maske: Werte `aus` / `off` / `false` / `0` / `no` / `nein` (case-insensitive, beliebige Leerzeichen) deaktivieren die Prüfung. Leer = aktiv.
+
+### Geändert
+
+- `tools/build.lua` substituiert jetzt ZWEI Platzhalter: `__VERSION__` (numerisch, MoneyMoney-Konvention) und `__VERSION_TAG__` (voller Tag-String wie `v1.0.1`, für die Semver-Vergleichslogik des Update-Checks).
+- `src/webbanking_header.lua` deklariert `M_update`-Modul + `VERSION_TAG`-Konstante.
+- Egress-Allowlist (`.github/workflows/ci.yml`) erweitert um `api.github.com`.
+- `SECURITY.md` listet die vier ausgehenden Hosts explizit auf inkl. Opt-out-Hinweis.
+
+### Sicherheit
+
+- Update-Check sendet **keine** Identifikatoren, keinen API-Key, keine Konto- oder Transaktionsdaten — ausschließlich ein unauthenticated `GET` auf öffentliche Repo-Metadaten.
+- CI-Gate `Egress-Allowlist` erzwingt die vier Hosts (oauth.zettle.com, purchase.izettle.com, finance.izettle.com, api.github.com) auf jedem Release-Build.
+
 ## [1.0.0] - 2026-06-23
 
 **First stable release.**

@@ -157,7 +157,15 @@ end
 -- Module-scope cache: resolved once per build invocation. The build process
 -- is short-lived and the resolution involves io.popen calls; computing once
 -- here avoids repeated subshell spawns inside build().
-local VERSION_NUMBER = version_to_number_string(resolve_version_string())
+local VERSION_RAW    = resolve_version_string()
+local VERSION_NUMBER = version_to_number_string(VERSION_RAW)
+-- D-83: Phase 7 update-check needs the full tag string (with patch +
+-- optional pre-release suffix preserved) for semver comparison against
+-- the latest GitHub release. Falls back to "DEV" when no tag is in
+-- scope so the update-check module can suppress the lookup entirely
+-- for dev builds (avoids false-positive "update available: v1.0.0"
+-- against an unreleased local branch).
+local VERSION_TAG = (VERSION_RAW and VERSION_RAW:match("^v%d") and VERSION_RAW) or "DEV"
 
 -- Parse manifest; return ordered list of module base-names.
 -- Skips blank lines and lines whose first non-whitespace char is '#'.
@@ -247,6 +255,11 @@ local function build(modules)
       -- (no pattern characters in `__VERSION__`); idempotent because the
       -- substituted result never re-contains the token.
       content = content:gsub("__VERSION__", VERSION_NUMBER)
+      -- D-83: Phase-7 dual substitution — VERSION_TAG carries the full
+      -- tag literal ("v1.0.1") for src/update.lua's semver compare. The
+      -- token does not contain pattern metacharacters; the substituted
+      -- result is a quoted-string literal so a second gsub would no-op.
+      content = content:gsub("__VERSION_TAG__", VERSION_TAG)
       -- Emit verbatim at top; ensure trailing newline
       parts[#parts + 1] = ensure_trailing_newline(content)
     elseif mod == ENTRY_MOD then

@@ -266,8 +266,20 @@ function Mocks.setup()
     timestamp2string = function(epoch) return os.date("!%Y-%m-%dT%H:%M:%SZ", epoch) end,
   }
 
-  -- LocalStorage: plain table reset each setup
-  _G.LocalStorage = {}
+  -- LocalStorage: plain table reset each setup.
+  -- D-83 Phase-7: pre-warm the update-check cache with a fresh entry +
+  -- nil latest_tag so M_update.check returns nil and never fires an
+  -- api.github.com request that would consume a mock queued for the
+  -- actual Zettle endpoint. Tests that need to exercise the
+  -- update-check path explicitly clear LocalStorage.update_check
+  -- before invoking it.
+  _G.LocalStorage = {
+    update_check = {
+      checked_at = os.time(),
+      latest_tag = nil,
+      html_url   = nil,
+    },
+  }
 
   -- WebBanking: captures the registration table for inspection by entry_spec
   _G.WebBanking = function(t)

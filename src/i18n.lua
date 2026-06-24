@@ -46,6 +46,13 @@ local STRINGS = {
     ["error.token_revoked"]       =
       "Anmeldung verloren \xe2\x80\x94 bitte API-Key in MoneyMoney neu eintragen.",
     ["credential.api_key.label"]  = "API-Key",
+    -- Phase 7: optional update-check + opt-out credential field
+    ["credential.update_check.label"]       = "Update-Check",
+    ["credential.update_check.description"] =
+      "Auf neue Releases pr\xc3\xbcfen (1x t\xc3\xa4glich, api.github.com). "
+      .. "Leer = aktiv. \"aus\"/\"off\"/\"false\" = deaktiviert.",
+    ["update.available"]          = "Update verf\xc3\xbcgbar: %s (aktuelle Version: %s) \xe2\x80\x94 %s",
+    ["update.up_to_date"]         = "Extension ist aktuell (Version %s)",
   },
   en = {
     ["account.name"]              = "PayPal POS — %s",
@@ -89,6 +96,12 @@ local STRINGS = {
     ["error.token_revoked"]       =
       "Session lost \xe2\x80\x94 please re-enter the API key in MoneyMoney.",
     ["credential.api_key.label"]  = "API key",
+    -- Phase 7: optional update-check + opt-out credential field
+    ["credential.update_check.label"]       = "Update check",
+    ["credential.update_check.description"] =
+      "Check for new releases (once per day, api.github.com). Empty = on. \"off\"/\"false\" = disabled.",
+    ["update.available"]          = "Update available: %s (current: %s) \xe2\x80\x94 %s",
+    ["update.up_to_date"]         = "Extension is up to date (version %s)",
   },
 }
 
