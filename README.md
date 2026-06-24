@@ -20,29 +20,31 @@
 
 **Diese Extension befindet sich in aktiver Entwicklung.** Es existiert noch kein installierbares Release. Das erste signierte Release (`v0.1.0`) wird veröffentlicht, sobald der grundlegende Umsatz-Sync (Phase 3 der [Roadmap](.planning/ROADMAP.md)) stabil läuft.
 
-Wer den Fortschritt verfolgen oder mitwirken möchte: ⭐ das Repository markieren und im Abschnitt [Beitragen](#beitragen) starten.
+Du möchtest den Fortschritt verfolgen oder mitwirken? ⭐ Markiere das Repository und starte im Abschnitt [Beitragen](#beitragen).
 
 > _Hier erscheint nach `v0.1.0` ein Screenshot der Extension in MoneyMoney._
 
 ---
 
-## Inoffizielle Extensions erlauben
+## Installation
 
-MoneyMoney lädt Community-Extensions nur, wenn dieser Schalter aktiv ist. Die folgenden vier Schritte führen einmalig durch die Einrichtung — danach lädt die Extension bei jedem MoneyMoney-Start automatisch.
+Zur Verwendung der Extension gehst Du bitte folgendermaßen vor:
 
-1. In MoneyMoney **Hilfe → Erweiterungen im Finder zeigen** öffnen.
+1. Wähle die `paypal-pos.lua`-Datei aus dem aktuellen [Release](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/releases) durch einen Klick auf **↓ Download** aus.
+
+2. Rufe in MoneyMoney die Menüfunktion **Hilfe → Datenbank im Finder zeigen** auf.
 
    ![Menüpunkt im Hilfe-Menü von MoneyMoney](docs/img/help-menu-extensions-folder.png)
 
-2. `paypal-pos.lua` (aus dem aktuellen [Release](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/releases)) in den geöffneten Ordner kopieren.
+3. Lege die heruntergeladene `.lua`-Datei in das Verzeichnis **Extensions**.
 
-3. In MoneyMoney **Einstellungen → Erweiterungen** öffnen und den Schalter **„Inoffizielle Extensions erlauben"** aktivieren.
+4. Öffne in MoneyMoney **Einstellungen → Erweiterungen** und aktiviere den Schalter **„Inoffizielle Extensions erlauben"**.
 
    ![Schalter „Inoffizielle Extensions erlauben" in den MoneyMoney-Einstellungen](docs/img/inoffizielle-extensions-erlauben.png)
 
-4. **Konto hinzufügen → PayPal POS** wählen und den API-Key einfügen.
+5. Wähle **Konto hinzufügen → PayPal POS** und füge Deinen API-Key ein.
 
-**Hinweis Sandboxed vs Non-Sandboxed Build:** Der Mac-App-Store-Build von MoneyMoney läuft in einer Sandbox; der Erweiterungs-Ordner liegt unter `~/Library/Containers/com.moneymoney-app.retail/Data/Library/Application Support/MoneyMoney/Extensions/`. Der Direkt-Download von der MoneyMoney-Website ist nicht sandboxed; der Ordner liegt unter `~/Library/Application Support/MoneyMoney/Extensions/`. Der Menüpunkt **Hilfe → Erweiterungen im Finder zeigen** öffnet in jedem Fall den korrekten Pfad — daher ist die manuelle Pfad-Eingabe nicht nötig.
+> **Hinweis Sandbox vs Direkt-Download:** Beide MoneyMoney-Varianten (App Store und Direkt-Download) öffnen über **Hilfe → Datenbank im Finder zeigen** automatisch den richtigen Ordner. Eine manuelle Pfad-Eingabe ist nicht nötig.
 
 ---
 
@@ -81,16 +83,16 @@ Wer regulatorische Anforderungen an Aufzeichnungspflichten erfüllen muss, sollt
 
 ## Inbetriebnahme bei bestehendem v0.1.0 API-Key
 
-Wer bereits einen API-Key aus `v0.1.0` verwendet, braucht für `v0.2.0` einen neuen Schlüssel mit zusätzlichen Scopes. Grund: das Finance-API (Auszahlungen, Gebühren, Salden) erfordert die zusätzliche Berechtigung `READ:FINANCE`, die in `v0.1.0`-Schlüsseln nicht gesetzt war. Ohne den neuen Scope schlägt die Aktualisierung mit einem Anmelde-Fehler fehl.
+Wenn Du bereits einen API-Key aus `v0.1.0` verwendest, brauchst Du für `v0.2.0` einen neuen Schlüssel mit zusätzlichen Scopes. Grund: das Finance-API (Auszahlungen, Gebühren, Salden) erfordert die zusätzliche Berechtigung `READ:FINANCE`, die in `v0.1.0`-Schlüsseln nicht gesetzt war. Ohne den neuen Scope schlägt die Aktualisierung mit einem Anmelde-Fehler fehl.
 
-So geht's:
+So gehst Du vor:
 
-1. **Neuen Key erzeugen** unter <https://my.zettle.com/apps/api-keys?scopes=READ:PURCHASE+READ:FINANCE>. Beide Scopes — `READ:PURCHASE` **und** `READ:FINANCE` — müssen aktiviert sein.
-2. Den neuen JWT-Key kopieren (Zettle zeigt ihn nur einmal an).
-3. In MoneyMoney unter **Konten → PayPal POS → entfernen** das bestehende Konto löschen.
-4. **Konto hinzufügen → PayPal POS** wählen, den neuen Key einfügen — das Konto erscheint mit allen `v0.2.0`-Funktionen.
+1. **Erzeuge einen neuen Key** unter <https://my.zettle.com/apps/api-keys?scopes=READ:PURCHASE+READ:FINANCE>. Beide Scopes — `READ:PURCHASE` **und** `READ:FINANCE` — müssen aktiviert sein.
+2. Kopiere den neuen JWT-Key (Zettle zeigt ihn nur einmal an).
+3. Lösche in MoneyMoney unter **Konten → PayPal POS → entfernen** das bestehende Konto.
+4. Wähle **Konto hinzufügen → PayPal POS** und füge den neuen Key ein — das Konto erscheint mit allen `v0.2.0`-Funktionen.
 
-Der alte Key kann anschließend in der Zettle-Verwaltung deaktiviert werden.
+Den alten Key kannst Du anschließend in der Zettle-Verwaltung deaktivieren.
 
 ---
 
@@ -140,10 +142,10 @@ Alle Tags und Release-Assets dieses Repos werden mit dem GPG-Schlüssel des Main
 
 ```
 Fingerprint: FDE07046 A617 8E89 ADB5 7FD3 DE30 0C53 D8E1 8642
-Maintainer:  Yves Vogl <yves@kadenz.live>
+Maintainer:  Yves Vogl <yves.vogl@mac.com>
 ```
 
-So prüft man ein Release:
+So prüfst Du ein Release:
 
 ```bash
 # Public Key vom Keyserver importieren
@@ -156,7 +158,7 @@ shasum -a 256 -c paypal-pos.lua.sha256
 git verify-tag v1.0.0
 ```
 
-Eine erfolgreiche `git verify-tag`-Prüfung meldet `Good signature from "Yves Vogl <yves@kadenz.live>"` und bestätigt, dass der Tag — und damit der gebaute Release-Artifact — seit der Signatur nicht verändert wurde. Die Release-Pipeline (`.github/workflows/release.yml`) wiederholt diese Prüfung serverseitig, bevor sie ein Artifact veröffentlicht: ein unsigniertes oder fremd-signiertes Tag bricht den Workflow ab.
+Eine erfolgreiche `git verify-tag`-Prüfung meldet `Good signature from "Yves Vogl <yves.vogl@mac.com>"` und bestätigt, dass der Tag — und damit der gebaute Release-Artifact — seit der Signatur nicht verändert wurde. Die Release-Pipeline (`.github/workflows/release.yml`) wiederholt diese Prüfung serverseitig, bevor sie ein Artifact veröffentlicht: ein unsigniertes oder fremd-signiertes Tag bricht den Workflow ab.
 
 > Hinweis: MoneyMoney selbst kennt eine separate RSA-Signatur, die nur der MoneyMoney-Hersteller vergeben kann. Diese Extension läuft daher initial als „Inoffizielle Extension". GPG-Signatur am Tag, reproduzierbarer Build und SHA256-Sidecar bilden die unabhängige Vertrauenskette dieser Veröffentlichung.
 
@@ -173,7 +175,7 @@ Eine erfolgreiche `git verify-tag`-Prüfung meldet `Good signature from "Yves Vo
 
 ## Unterstützen
 
-Wer diese Extension nützlich findet und die Weiterentwicklung unterstützen möchte: [GitHub Sponsors → @yves-vogl](https://github.com/sponsors/yves-vogl). Sponsoring ist freiwillig und ändert nichts am Funktionsumfang oder am Open-Source-Status — die Extension bleibt MIT-lizenziert und kostenlos.
+Wenn Du diese Extension nützlich findest und die Weiterentwicklung unterstützen möchtest: [GitHub Sponsors → @yves-vogl](https://github.com/sponsors/yves-vogl). Sponsoring ist freiwillig und ändert nichts am Funktionsumfang oder am Open-Source-Status — die Extension bleibt MIT-lizenziert und kostenlos.
 
 ---
 
