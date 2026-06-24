@@ -20,10 +20,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `__VERSION__`-Substitution in `tools/build.lua` aus dem Git-Tag; die
   `WebBanking{version}`-Angabe im Artefakt entspricht der veröffentlichten
   Version.
-- Zweisprachige Dokumentation: `README.de.md` (deutsch-primär, mit
+- Deutsche Benutzer-Dokumentation in `README.md` mit
   Screenshot-illustrierter Installationsanleitung, GoBD-Hinweis und
-  Datenschutz/Sicherheits-Erläuterungen); `README.md` als englischer
-  Pointer für internationale Besucher.
+  Datenschutz/Sicherheits-Erläuterungen.
 - `CONTRIBUTING.md` (englisch) dokumentiert den Entwicklungs-Loop,
   Test-Konventionen, Amalgamator-Architektur, Release-Prozess und die
   GPG-signierten-Tag-Anforderung.
@@ -43,16 +42,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `germany`, `accounting`).
 - Test-Wächter gegen verbotene Steuer-Klassifizierungs-Phrasen
   (`spec/meta_no_tax_classification_spec.lua`, intern META-03) erweitert
-  auf alle Markdown-Dokumentations-Dateien: README.md, README.de.md,
-  CONTRIBUTING.md, CHANGELOG.md und alle ADRs werden bei jedem CI-Lauf
-  auf die 13 verbotenen Phrasen geprüft.
+  auf alle Markdown-Dokumentations-Dateien: README.md, CONTRIBUTING.md,
+  CHANGELOG.md und alle ADRs werden bei jedem CI-Lauf auf die 13
+  verbotenen Phrasen geprüft.
 
 ### Bekannte Grenzen (unverändert seit v0.2.0)
 
 - Verzögerte Buchung von Auszahlungen (1–2 Aktualisierungszyklen bei
   wöchentlichem oder monatlichem Auszahlungsrhythmus) — siehe ADR-0004.
 - Tagesaggregat von Gebühren bei nachträglich nachgereichter Verknüpfung
-  durch Zettle — siehe README.de.md.
+  durch Zettle — siehe README.md.
 - 90-Tage-Klammer für den Erstabgleich; ältere Umsätze werden nicht
   sichtbar gemacht.
 - Umsätze in anderen Währungen als EUR werden übergangen.

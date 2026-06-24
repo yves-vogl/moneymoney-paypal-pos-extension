@@ -20,7 +20,7 @@ Bitte **nicht** über öffentliche Issues melden, solange die Lücke nicht behob
 **Bevorzugter Kanal:** GitHub Private Vulnerability Reporting unter
 [github.com/yves-vogl/moneymoney-paypal-pos-extension/security/advisories/new](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/security/advisories/new)
 
-**Alternativ per signierter E-Mail:** an `yves@kadenz.live`, verschlüsselt mit dem öffentlichen GPG-Schlüssel des Maintainers:
+**Alternativ per signierter E-Mail:** an `yves.vogl@mac.com`, verschlüsselt mit dem öffentlichen GPG-Schlüssel des Maintainers:
 
 ```
 Fingerprint: FDE07046 A617 8E89 ADB5 7FD3 DE30 0C53 D8E1 8642
@@ -95,7 +95,7 @@ This extension is in a pre-release state. Security fixes are developed against `
 **Reporting a vulnerability — preferred:** GitHub Private Vulnerability Reporting at
 [github.com/yves-vogl/moneymoney-paypal-pos-extension/security/advisories/new](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/security/advisories/new)
 
-**Alternative:** PGP-encrypted email to `yves@kadenz.live`. Maintainer key fingerprint:
+**Alternative:** PGP-encrypted email to `yves.vogl@mac.com`. Maintainer key fingerprint:
 `FDE07046 A617 8E89 ADB5 7FD3 DE30 0C53 D8E1 8642` (available on keys.openpgp.org).
 
 Please include affected files / commit SHA, minimal reproduction, expected vs. observed behaviour, security impact (CIA triad), and — if known — a suggested fix or mitigation. Acknowledgement within 72 hours; first substantive assessment within 7 days; fix-release timeline depends on severity. Responsible disclosures are credited in the fix-release CHANGELOG with the reporter's consent.
