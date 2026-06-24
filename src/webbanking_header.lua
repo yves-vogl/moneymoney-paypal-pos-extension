@@ -33,7 +33,7 @@ WebBanking{
   credentials = {
     {
       label       = "API-Key",
-      description = "JWT-Bearer Token aus https://my.zettle.com/apps/api-keys (Scopes: READ:PURCHASE + READ:FINANCE)",
+      description = "JWT-Bearer Token (Scopes: READ:PURCHASE + READ:FINANCE)",
       secret      = true,
     },
   },
