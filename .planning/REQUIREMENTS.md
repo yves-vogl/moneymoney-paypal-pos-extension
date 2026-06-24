@@ -255,4 +255,4 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 
 ---
 *Requirements defined: 2026-06-16*
-*Last updated: 2026-06-16 after `/gsd-roadmap` (Traceability table populated, coverage 70/70)*
+*Last updated: 2026-06-24 — rc.3 cleanup-batch drift sweep (P6.1-R-10). Previous content edits: 2026-06-16 (/gsd-roadmap; Traceability table populated, coverage 70/70).*
