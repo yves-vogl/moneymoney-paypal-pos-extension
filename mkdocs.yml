@@ -64,14 +64,16 @@ plugins:
             Mitwirken: Contributing
             Änderungsverlauf: Changelog
 
-# `validation` is used to keep `mkdocs build --strict` green while tolerating
-# cross-repo relative links inside included Markdown (README.md links to
-# `.planning/` and to `LICENSE` at repo root — those are valid in the repo
-# tree on GitHub but live outside `docs/` and so cannot be resolved by the
-# mkdocs build. Surface as INFO instead of WARN so --strict passes.)
+# S-07: split validation per category instead of demoting everything to info.
+# `absolute_links: info` keeps the cross-repo README-to-`.planning/` /
+# README-to-`LICENSE` links quiet (those are valid in the GitHub repo tree
+# but live outside `docs/` and so cannot be resolved by the mkdocs build).
+# `not_found: warn` re-arms the gate for intra-docs orphans — a real
+# orphan (e.g. `adr/0099-typo.md`) still surfaces via the strict-build
+# warning gate so we do not silently ship broken intra-doc links.
 validation:
   links:
-    not_found: info
+    not_found: warn
     absolute_links: info
     unrecognized_links: info
 
@@ -105,5 +107,8 @@ nav:
 # mkdocs only serves files inside docs_dir (default: docs/) — the explicit nav
 # above further limits what is built. The .planning/ folder lives at repo root,
 # outside docs/, and is never picked up.
+# P6.1-R-13: also drop macOS Finder droppings — a stray docs/.DS_Store would
+# otherwise be copied into the published site.
 exclude_docs: |
   img/README.md
+  **/.DS_Store
