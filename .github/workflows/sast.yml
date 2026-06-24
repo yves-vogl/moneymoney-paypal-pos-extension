@@ -14,8 +14,13 @@ name: SAST
 # Semgrep catches real findings and p/secrets reinforces SEC-01 redaction.
 
 on:
+  # P6.1-R-07: align push trigger with ci.yml (`branches: ["**"]`) so
+  # SAST runs on every branch push, not just main/phase-*. Prevents
+  # developer surprise where SAST findings only surface in a PR rather
+  # than on a feature-branch push. Matches the consistent dev-experience
+  # bar set by ci.yml.
   push:
-    branches: ["main", "phase-*/**", "phase-*"]
+    branches: ["**"]
   pull_request:
     branches: ["**"]
 
