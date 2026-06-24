@@ -5,7 +5,7 @@ This guide covers the development loop, testing conventions, the amalgamator
 architecture, the release process, and the commit/PR discipline this repository
 enforces.
 
-> The primary user documentation is German (`README.de.md`). This contributor
+> The user documentation in [`README.md`](README.md) is German. This contributor
 > guide is in English so non-German collaborators can read it without
 > translation friction.
 

@@ -16,8 +16,8 @@ To replace a placeholder:
 2. Save the PNG at the same path (overwriting the 1×1 placeholder).
 3. Commit with the conventional message `docs(img): capture <filename>`.
 4. Remove the `<!-- screenshot: pending — CP-5 -->` marker next to the image
-   reference in `README.de.md`.
+   reference in `README.md`.
 
 The placeholder PNGs are valid 1×1 transparent images (~68 bytes) so the
-markdown image references in `README.de.md` render without broken-image
+markdown image references in `README.md` render without broken-image
 icons before CP-5 is closed.

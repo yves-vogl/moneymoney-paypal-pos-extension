@@ -24,12 +24,11 @@ end
 
 -- DOC_TARGETS: documentation files the Phase-6 META-03 walker covers.
 -- Static list covers the canonical entries; dynamic enumeration adds every
--- ADR. Files MAY be absent during W1 (README.de.md / CONTRIBUTING.md land
--- in W2); the it() block tolerates missing files but asserts that at least
--- one target exists so a future delete-everything regression still fails.
+-- ADR. Files MAY be absent during W1 (CONTRIBUTING.md lands in W2); the
+-- it() block tolerates missing files but asserts that at least one target
+-- exists so a future delete-everything regression still fails.
 local DOC_TARGETS = {
   "README.md",
-  "README.de.md",
   "CONTRIBUTING.md",
   "CHANGELOG.md",
 }
@@ -118,13 +117,13 @@ describe("META-03: forbidden tax-classification phrases (D-55)", function()
   end)
 
   it("none of the documentation files contains a forbidden phrase (DOC-04 / Phase 6 extension)", function()
-    -- Phase-6 extension: protects README.md + README.de.md + CONTRIBUTING.md +
-    -- CHANGELOG.md + every docs/adr/*.md against accidentally introducing one
-    -- of the 13 D-55 forbidden phrases as Wave-2 doc authoring lands.
-    -- Files absent at scan time (W1 stage: README.de.md / CONTRIBUTING.md do
-    -- not yet exist) are skipped silently; the assertion only fires for
-    -- files that physically exist. At least one target MUST exist so a
-    -- delete-everything regression still trips the gate.
+    -- Phase-6 extension: protects README.md + CONTRIBUTING.md + CHANGELOG.md +
+    -- every docs/adr/*.md against accidentally introducing one of the 13 D-55
+    -- forbidden phrases as Wave-2 doc authoring lands.
+    -- Files absent at scan time (W1 stage: CONTRIBUTING.md does not yet exist)
+    -- are skipped silently; the assertion only fires for files that physically
+    -- exist. At least one target MUST exist so a delete-everything regression
+    -- still trips the gate.
     local scanned = 0
     for _, path in ipairs(DOC_TARGETS) do
       local f = io.open(path, "rb")

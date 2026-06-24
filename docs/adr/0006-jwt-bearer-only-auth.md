@@ -103,7 +103,7 @@ co-exist with the flow-1 record, distinguished by `client_id`.
 - Users must mint a JWT manually at `https://my.zettle.com/apps/api-keys`
   and paste it into MoneyMoney. The flow has friction; the Phase-4
   ADR-0004 "Inbetriebnahme bei bestehendem v0.1.0 API-Key" section in
-  `README.de.md` walks users through it.
+  `README.md` walks users through it.
 - No refresh-token rotation — every 7200-second TTL expiration is a fresh
   POST to `/token` against the user's API key. Mitigated by the
   `LocalStorage.zettle` cache (ADR-0002).

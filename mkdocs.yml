@@ -65,7 +65,7 @@ plugins:
             Änderungsverlauf: Changelog
 
 # `validation` is used to keep `mkdocs build --strict` green while tolerating
-# cross-repo relative links inside included Markdown (README.de.md links to
+# cross-repo relative links inside included Markdown (README.md links to
 # `.planning/` and to `LICENSE` at repo root — those are valid in the repo
 # tree on GitHub but live outside `docs/` and so cannot be resolved by the
 # mkdocs build. Surface as INFO instead of WARN so --strict passes.)
