@@ -20,7 +20,10 @@ permissions: read-all
 jobs:
   analysis:
     name: Scorecard analysis
-    runs-on: ubuntu-latest
+    # P6.1-R-06: pin to ubuntu-24.04 to match every other workflow in the
+    # repo (ci/release/commit-lint/sast/docs all use ubuntu-24.04). Avoids
+    # silent drift when GitHub flips the `ubuntu-latest` floor.
+    runs-on: ubuntu-24.04
     permissions:
       # Upload findings to the GitHub code-scanning UI.
       security-events: write
