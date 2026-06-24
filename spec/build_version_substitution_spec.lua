@@ -144,13 +144,13 @@ describe("BUILD-03: __VERSION__ substitution (D-73)", function()
         .. tostring(lines_tagged[2]) .. ")")
 
     -- Dev fallback: line 2 should contain 'DEV BUILD' when version resolves to 0.00.
-    -- We force the dev-fallback shape by unsetting GITHUB_REF_NAME AND providing
-    -- a sentinel that prevents git from resolving an exact-match tag. The cleanest
-    -- way is to set GITHUB_REF_NAME to an empty/non-matching string that the regex
-    -- in version_to_number_string rejects, which forces `0.00`. We use
-    -- GITHUB_REF_NAME="dev-test" — does not match `^v%d` so resolve_version_string
-    -- falls through; version_to_number_string returns `0.00`.
-    local ok_dev, dev_path = run_build("GITHUB_REF_NAME=dev-test")
+    -- Setting GITHUB_REF_NAME="dev-test" defeats tier 1 (no `^v%d` match), but on
+    -- CI at a tagged commit `git describe --tags --exact-match` still resolves to
+    -- the live tag and overrides via tier 2. Setting GIT_DIR=/nonexistent forces
+    -- BOTH git invocations (tier 2 + tier 3) to fail; resolve_version_string then
+    -- returns "dev-unknown" → version_to_number_string returns "0.00" → DEV BUILD
+    -- banner is emitted. This makes the test stable on CI release builds too.
+    local ok_dev, dev_path = run_build("GIT_DIR=/nonexistent GITHUB_REF_NAME=dev-test")
     assert.is_truthy(ok_dev)
     local dev = read_file(dev_path)
     local lines_dev = {}
