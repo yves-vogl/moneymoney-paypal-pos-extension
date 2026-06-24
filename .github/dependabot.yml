@@ -12,8 +12,9 @@ updates:
   # Grouping (added by Plan 06.1-05): minor + patch SHA bumps coalesce into
   # ONE weekly PR. Major-version bumps stay in separate PRs (they need
   # attention; the breaking-change surface is larger). Without grouping,
-  # the 10+ pinned actions would emit 10+ individual PRs per week — review
-  # fatigue + queue bloat.
+  # each pinned action would emit its own weekly PR — review fatigue +
+  # queue bloat. (P6.1-R-11: dropped brittle count phrasing — actual
+  # pinned-action count drifts as the workflow surface grows.)
   #
   # LuaRocks is not supported by Dependabot. Lua tooling versions are
   # pinned by the rockspec resolution at install time; CI installs the
