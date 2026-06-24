@@ -282,8 +282,16 @@ jobs:
           git checkout -q -b coverage-badge
           git add coverage.svg
           git commit -q -m "ci: refresh coverage badge (${COVERAGE_PCT}%)"
-          git push -q --force \
-            "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+          # S-04: do NOT interpolate the token into the URL — token-in-URL
+          # ends up in the git config of the staging dir, in any process
+          # listing of `git push` arguments visible to other processes on
+          # the runner, and in error-path logs that may echo command lines.
+          # `http.extraHeader` sends the Authorization header at request
+          # time without baking it into config or argv (the moneymoney-paypal
+          # repo identifier yves-vogl/moneymoney-paypal-pos-extension is
+          # in GITHUB_REPOSITORY at run time).
+          git -c http.extraHeader="Authorization: Bearer ${GITHUB_TOKEN}" push -q --force \
+            "https://github.com/${GITHUB_REPOSITORY}.git" \
             HEAD:refs/heads/coverage-badge
           echo "Pushed badge to coverage-badge branch"
         env:
