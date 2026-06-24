@@ -205,14 +205,24 @@ jobs:
           # 40-hex-char commit SHA. Catches future PRs that introduce
           # a floating tag (`@v4`, `@main`, …) at PR time rather than
           # waiting for the next OpenSSF Scorecard run.
+          #
+          # S-05 / S-06 hardening:
+          # - Anchor the negative filter on a right-boundary so a string
+          #   like `@<40hex><extra>` cannot smuggle a longer-than-40
+          #   identifier past the gate. The accepted right boundary is
+          #   end-of-line OR whitespace OR `#` (the start of the version
+          #   comment). Anything else after the 40 hex chars fails.
+          # - Keep the alpha-hex class lowercase-only — Dependabot writes
+          #   SHAs in lowercase by contract, so an uppercase-hex SHA in
+          #   a PR is a manual edit and SHOULD fail the gate.
           BAD=$(grep -EnR "uses:[[:space:]]*[^#@[:space:]]+@(v[0-9]+(\.[0-9]+)*|main|master|[a-zA-Z]+)" .github/workflows/ \
-            | grep -v "@[a-f0-9]\{40\}" || true)
+            | grep -vE "@[a-f0-9]{40}( |$|#)" || true)
           if [ -n "$BAD" ]; then
             echo "FAIL: unpinned actions detected (must be 40-hex commit SHA):"
             echo "$BAD"
             exit 1
           fi
-          COUNT=$(grep -EhR "uses:[[:space:]]*[^[:space:]]+@[a-f0-9]{40}" .github/workflows/ | wc -l | tr -d ' ')
+          COUNT=$(grep -EhR "uses:[[:space:]]*[^[:space:]]+@[a-f0-9]{40}( |$|#)" .github/workflows/ | wc -l | tr -d ' ')
           echo "OK: ${COUNT} SHA-pinned uses: refs across .github/workflows/"
 
   badge:
