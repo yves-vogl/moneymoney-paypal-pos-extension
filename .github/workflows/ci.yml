@@ -301,7 +301,7 @@ jobs:
     # CI-05 / D-76 — gitleaks scans for inadvertently committed secrets.
     # 06-02's branch-protection script references this job by its NAME
     # ("gitleaks secret scan"), so the name string is load-bearing.
-    # The yves-vogl/paypal-pos-plugin repo is owned by a personal account,
+    # The yves-vogl/moneymoney-paypal-pos-extension repo is owned by a personal account,
     # so no GITLEAKS_LICENSE secret is required (free for personal use).
     # Pitfall-5 mitigation: .gitleaksignore at repo root carries the
     # per-fingerprint allowlist of audited false positives (JWT-shaped test
