@@ -13,6 +13,19 @@ Diese Extension befindet sich in der Pre-Release-Phase. Sicherheits-Fixes werden
 | `main` (Pre-Release) | ✅ |
 | keine Release-Tags vorhanden | n/a |
 
+## Ausgehende Verbindungen / Egress
+
+Die Extension stellt Verbindungen ausschließlich zu folgenden Hosts her:
+
+- `oauth.zettle.com` — OAuth-Token-Exchange
+- `purchase.izettle.com` — Karten-Umsätze
+- `finance.izettle.com` — Gebühren, Auszahlungen, Salden
+- `api.github.com` — **optional**: Update-Check (max. 1× pro 24h, prüft den `releases/latest`-Endpoint des Public-Repos). Kann pro Konto über das zweite Credential-Feld „Update-Check" mit Wert `aus` / `off` / `false` / `0` deaktiviert werden.
+
+Es werden keine Identifikatoren übertragen, kein API-Key, keine Konto- oder Transaktionsdaten — der Update-Check liest ausschließlich öffentliche Repo-Metadaten (`tag_name` des neuesten Releases) ohne Authentifizierung.
+
+Ein CI-Gate (`.github/workflows/ci.yml` Egress-Allowlist) erzwingt diese vier Hosts auf jedem Release-Build.
+
 ## Eine Sicherheitslücke melden
 
 Bitte **nicht** über öffentliche Issues melden, solange die Lücke nicht behoben und ein Patch-Release publiziert ist.

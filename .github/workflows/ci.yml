@@ -107,7 +107,7 @@ jobs:
           set -e
           # Primary check: scheme-prefixed URLs.
           BAD=$(grep -Eo 'https?://[^"'"'"' ]+' dist/paypal-pos.lua \
-            | grep -v 'oauth\.zettle\.com\|purchase\.izettle\.com\|finance\.izettle\.com' \
+            | grep -v 'oauth\.zettle\.com\|purchase\.izettle\.com\|finance\.izettle\.com\|api\.github\.com' \
             || true)
           if [ -n "$BAD" ]; then
             echo "FAIL: unexpected scheme-prefixed hosts in dist/paypal-pos.lua:"
@@ -131,8 +131,8 @@ jobs:
           # the three legitimate API hosts. The remaining set MUST be empty.
           BAD_BARE=$(grep -Eo '\b([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+(com|net|org|io|dev|app|cloud|sh|de|info|co|biz|me|xyz|tech)\b' dist/paypal-pos.lua \
             | sort -u \
-            | grep -Ev '^(oauth\.zettle\.com|purchase\.izettle\.com|finance\.izettle\.com)$' \
-            | grep -Ev '^(account|transaction|credential|error|purpose|http|finance|mapping|auth|entry)\.' \
+            | grep -Ev '^(oauth\.zettle\.com|purchase\.izettle\.com|finance\.izettle\.com|api\.github\.com)$' \
+            | grep -Ev '^(account|transaction|credential|error|purpose|http|finance|mapping|auth|entry|update)\.' \
             || true)
           if [ -n "$BAD_BARE" ]; then
             echo "FAIL: unexpected scheme-less hostnames in dist/paypal-pos.lua (S-05 SEC):"

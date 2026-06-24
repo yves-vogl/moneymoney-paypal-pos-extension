@@ -17,6 +17,8 @@ Die Extension authentifiziert sich gegen PayPal POS / Zettle per JWT-Bearer-Asse
 
 4. Wechsle zurück zu MoneyMoney, wähle **Konto hinzufügen → PayPal POS** und füge den Key in das Feld **API-Key** ein.
 
+   > Das zweite Feld **„Update-Check"** kannst Du leer lassen — dann prüft die Extension einmal pro Tag, ob ein neueres Release verfügbar ist. Wenn Du das nicht möchtest, trage `aus` ein.
+
 ## Sicherheit
 
 - Der Key wird ausschließlich in MoneyMoneys eingebauter Anmelde-Daten-Verwaltung gespeichert.

@@ -29,7 +29,9 @@ function InitializeSession2(protocol, bankCode, step, credentials, interactive) 
   --   {"x"} or {"x", "y"}              positional array of strings
   --   {{value = "x"}, ...}             challenge-style array of {label, value}
   --   {username = "x", password = "y"} default UI fallback
-  local api_key
+  -- D-83 Phase 7: second credentials field carries the optional
+  -- update-check opt-out string ("aus"/"off"/"false" -> disabled).
+  local api_key, opt_out
   if type(credentials) == "string" then
     api_key = credentials
   elseif type(credentials) == "table" then
@@ -40,10 +42,21 @@ function InitializeSession2(protocol, bankCode, step, credentials, interactive) 
         api_key = credentials[1]
       end
     end
+    if credentials[2] then
+      if type(credentials[2]) == "table" and credentials[2].value then
+        opt_out = credentials[2].value
+      elseif type(credentials[2]) == "string" then
+        opt_out = credentials[2]
+      end
+    end
     if api_key == nil then
       api_key = credentials.password or credentials.username
     end
   end
+  -- Persist the opt-out string in the module table so RefreshAccount
+  -- can consult it without re-reading credentials (which it does not
+  -- receive). MoneyMoney keeps Lua state across session calls.
+  M_update.OPT_OUT = opt_out
 
   if api_key == nil or api_key == "" then
     return M_i18n.t("error.invalid_grant")
@@ -137,6 +150,18 @@ end
 -- The four other callbacks (SupportsBank, InitializeSession2, ListAccounts,
 -- EndSession) are FROZEN per Phase-2 surface contract.
 function RefreshAccount(account, since) -- luacheck: ignore 431
+  -- D-83 Phase 7: optional Github-Release update check. At most 1 call
+  -- per 24h via the LocalStorage cache; returns nil on dev builds, on
+  -- network failure, or when the user opted out. MM.printStatus surfaces
+  -- the notice in the refresh log.
+  local update_msg = M_update.check({
+    current_tag = VERSION_TAG,
+    opt_out     = M_update.OPT_OUT,
+  })
+  if update_msg and type(MM) == "table" and type(MM.printStatus) == "function" then
+    MM.printStatus(update_msg)
+  end
+
   -- Step 1: resolve orgUuid from account.accountNumber (D-23a).
   -- T-03-W4-02: guard against missing / non-string / empty accountNumber.
   local orgUuid = account and account.accountNumber

@@ -14,7 +14,7 @@ So bleibt der Inhalt diskutierbar, durchsuchbar und Du kannst direkt antworten o
 
 ## Kurzform der wichtigsten Punkte
 
-- **Keine Telemetrie**, keine Drittparteien. Nur die offiziellen Zettle-API-Hosts.
+- **Keine Telemetrie**, keine Drittparteien — abgesehen vom optionalen Update-Check (ab `v1.0.1`), der maximal 1× pro 24h gegen `api.github.com` prüft, ob ein neueres Release verfügbar ist. Pro Konto deaktivierbar (zweites Credential-Feld „Update-Check" auf `aus` / `off` / `false` setzen).
 - **API-Keys** liegen ausschließlich in MoneyMoneys Anmelde-Daten-Verwaltung.
 - **Read-Only** — keine schreibenden Operationen.
 - **Keine GoBD-Konformität** zugesichert. Die Extension liefert Rohdaten; die buchhalterische Bewertung obliegt der Steuerberatung.
