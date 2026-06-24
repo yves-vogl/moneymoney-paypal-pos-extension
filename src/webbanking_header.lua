@@ -26,4 +26,15 @@ WebBanking{
   url         = "https://oauth.zettle.com",
   services    = {"PayPal POS"},
   description = "PayPal POS / Zettle Umsätze, Gebühren und Auszahlungen",
+  -- D-19: API-key model uses InitializeSession2's credentials array; the
+  -- declaration below names the field "API-Key" in the MoneyMoney login
+  -- dialog (replacing the default Benutzername/Passwort fallback). Single
+  -- masked field; description points users at the Zettle API-Key page.
+  credentials = {
+    {
+      label       = "API-Key",
+      description = "JWT-Bearer Token aus https://my.zettle.com/apps/api-keys (Scopes: READ:PURCHASE + READ:FINANCE)",
+      secret      = true,
+    },
+  },
 }
