@@ -66,9 +66,15 @@ M_log.redact = function(s)
 end
 
 -- _emit: format and print a log line if the level is active.
+-- P6-R-11: gate on `DEBUG == true` (strict equality), not Lua truthiness.
+-- A future contributor or build-time substitution assigning `DEBUG = 0`,
+-- `DEBUG = ""`, or `DEBUG = "false"` would all be Lua-truthy and would
+-- silently re-enable DEBUG output — leaking redacted-but-noisy traces
+-- through MoneyMoney's status pane. Strict equality keeps SEC-04 (DEBUG
+-- = false in the shipped artifact) as the single observable knob.
 local function _emit(name, ...)
   local level_num = _LEVEL[name] or _LEVEL.INFO
-  local threshold = DEBUG and _LEVEL.DEBUG or _LEVEL.INFO
+  local threshold = (DEBUG == true) and _LEVEL.DEBUG or _LEVEL.INFO
   if level_num < threshold then return end
 
   local parts = {}

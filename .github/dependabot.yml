@@ -12,15 +12,14 @@ updates:
   # Grouping (added by Plan 06.1-05): minor + patch SHA bumps coalesce into
   # ONE weekly PR. Major-version bumps stay in separate PRs (they need
   # attention; the breaking-change surface is larger). Without grouping,
-  # the 10+ pinned actions would emit 10+ individual PRs per week — review
-  # fatigue + queue bloat.
+  # each pinned action would emit its own weekly PR — review fatigue +
+  # queue bloat. (P6.1-R-11: dropped brittle count phrasing — actual
+  # pinned-action count drifts as the workflow surface grows.)
   #
   # LuaRocks is not supported by Dependabot. Lua tooling versions are
   # pinned by the rockspec resolution at install time; CI installs the
   # latest published version of each tool, which keeps the toolchain
-  # current without manual bumps. Semgrep CLI (pinned in sast.yml) is
-  # bumped via manual PR for now — track in backlog if a Python ecosystem
-  # entry becomes worth adding.
+  # current without manual bumps.
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -36,6 +35,32 @@ updates:
       - github-actions
     groups:
       actions-minor-patch:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+    open-pull-requests-limit: 5
+
+  # S-02 follow-up: Python toolchain (Semgrep, MkDocs + plugins) is
+  # hash-pinned in requirements/{docs,sast}.lock.txt. Dependabot scans
+  # the top-level `.in` files via `directory: /requirements`; bumps
+  # arrive as PRs that update the lockfile (Dependabot re-runs
+  # `pip-compile --generate-hashes` and refreshes both .lock.txt files).
+  - package-ecosystem: pip
+    directory: /requirements
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Berlin
+    commit-message:
+      prefix: ci
+      include: scope
+    labels:
+      - dependencies
+      - python
+    groups:
+      pip-minor-patch:
         applies-to: version-updates
         update-types:
           - minor

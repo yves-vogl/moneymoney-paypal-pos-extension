@@ -79,6 +79,13 @@ distinguishes them. For v1.0.x (assertion-grant-only) the field is recorded
 but never used to choose between code paths — the freshness check alone is
 sufficient.
 
+> **Note (P6-R-13):** ADR-0002 and ADR-0006 were authored in the same
+> Phase-6 batch (commits landed 2026-06-22). The cross-reference here
+> to "ADR-0006's Phase-7 forward-compat" is a forward declaration —
+> ADR-0006 was not in `main` at the time ADR-0002 was first sketched;
+> both ADRs landed together to ensure the forward-compat semantics
+> stayed consistent across the pair.
+
 ## Consequences
 
 **Positive:**

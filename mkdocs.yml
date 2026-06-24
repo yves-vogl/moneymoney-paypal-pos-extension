@@ -36,42 +36,10 @@ theme:
 
 plugins:
   - search
-  - include-markdown
-  - i18n:
-      docs_structure: folder
-      languages:
-        - locale: de
-          default: true
-          name: Deutsch
-          build: true
-        - locale: en
-          name: English
-          build: true
-          nav_translations:
-            Übersicht: Overview
-            Vollständiges README: Full README
-            Architektur (ADRs): Architecture (ADRs)
-            Amalgamator-Design: Amalgamator design
-            LocalStorage-Token-Cache: LocalStorage token cache
-            Sandbox-Probes: Sandbox probes
-            Finance-API-Scope: Finance API scope
-            Resilience-Invarianten: Resilience invariants
-            JWT-Bearer-Auth: JWT bearer auth
-            Kein TLS-Pinning: No TLS pinning
-            String-Return-Fehlermuster: String-return error pattern
-            OpenSSF-Scorecard-Stance: OpenSSF Scorecard stance
-            Sicherheits-Policy: Security policy
-            Mitwirken: Contributing
-            Änderungsverlauf: Changelog
 
-# `validation` is used to keep `mkdocs build --strict` green while tolerating
-# cross-repo relative links inside included Markdown (README.md links to
-# `.planning/` and to `LICENSE` at repo root — those are valid in the repo
-# tree on GitHub but live outside `docs/` and so cannot be resolved by the
-# mkdocs build. Surface as INFO instead of WARN so --strict passes.)
 validation:
   links:
-    not_found: info
+    not_found: warn
     absolute_links: info
     unrecognized_links: info
 
@@ -86,24 +54,15 @@ markdown_extensions:
 
 nav:
   - Übersicht: index.md
-  - Vollständiges README: readme.md
-  - Architektur (ADRs):
-      - Amalgamator-Design: adr/0001-amalgamator-design.md
-      - LocalStorage-Token-Cache: adr/0002-localstorage-token-cache.md
-      - Sandbox-Probes: adr/0003-sandbox-probe-results.md
-      - Finance-API-Scope: adr/0004-finance-api-scope-and-fee-fallback.md
-      - Resilience-Invarianten: adr/0005-resilience-invariants.md
-      - JWT-Bearer-Auth: adr/0006-jwt-bearer-only-auth.md
-      - Kein TLS-Pinning: adr/0007-no-tls-pinning.md
-      - String-Return-Fehlermuster: adr/0008-string-return-error-pattern.md
-      - OpenSSF-Scorecard-Stance: adr/0009-openssf-scorecard-stance.md
-  - Sicherheits-Policy: security.md
-  - Mitwirken: contributing.md
-  - Änderungsverlauf: changelog.md
+  - Installation: installation.md
+  - API-Key erzeugen: api-key.md
+  - Häufige Fragen: faq.md
 
-# Exclude the .planning/ artefacts and other non-doc directories from build scope.
-# mkdocs only serves files inside docs_dir (default: docs/) — the explicit nav
-# above further limits what is built. The .planning/ folder lives at repo root,
-# outside docs/, and is never picked up.
+# MkDocs serves files inside docs_dir (default: docs/). The .planning/, src/,
+# spec/, ADRs, SECURITY.md, CONTRIBUTING.md, CHANGELOG.md and README.md live
+# outside docs/ and are intentionally NOT part of the published anwender-doc.
+# Repo readers find those via the GitHub repo browser.
 exclude_docs: |
   img/README.md
+  adr/
+  **/.DS_Store

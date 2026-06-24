@@ -41,7 +41,7 @@ Phase: **06 (release-polish) — MERGED 2026-06-23** via PR #14 (squash; `d1e100
 | ID | Item | Owner | Status |
 |----|------|-------|--------|
 | CP-1 | loop-lektor pass on README.de.md + CHANGELOG [1.0.0] + 4 new ADRs + CONTRIBUTING | autonomous (lektor agent) | **DONE 2026-06-23** — 36 findings (5 HIGH); cleanup batch landed in 4 commits (33986b0/0a929c8/193e9ca/e17001b); merged via PR #14 |
-| CP-2 | Branch protection: `bash tools/setup-branch-protection.sh` | orchestrator | **DONE 2026-06-23** — verified via `gh api …/branches/main/protection`: enforce_admins=true, 3 required checks, linear_history=true, allow_force_pushes=false, allow_deletions=false, required_signatures=true |
+| CP-2 | Branch protection: `bash tools/setup-branch-protection.sh` | orchestrator | **DONE 2026-06-23** — verified via `gh api …/branches/main/protection`: enforce_admins=true, **5 required checks** (CI test + gitleaks + commit-lint + Scorecard analysis + Semgrep SAST after CP-6.1-B applied), linear_history=true, allow_force_pushes=false, allow_deletions=false, required_signatures=true. (P6.1-R-12: bumped from "3 required checks" to "5" — Phase 6.1's CP-6.1-B re-run added Scorecard + Semgrep to the CHECKS array.) |
 | CP-3 | Repo metadata: `bash tools/setup-repo-metadata.sh` | orchestrator | **DONE 2026-06-23** — description + 7 topics |
 | CP-4 | v1.0.0 tag publication: `git tag -s v1.0.0 -m "Release v1.0.0"` → `git push origin v1.0.0` | **Yves** | **pending** — gated on CP-5 and on setting `MAINTAINER_GPG_PUBKEY` repo secret |
 | CP-5 | Capture real screenshots for `docs/img/inoffizielle-extensions-erlauben.png` + `docs/img/help-menu-extensions-folder.png` | **Yves** ("die Tage") | **pending — reminder for orchestrator to surface at session start** |

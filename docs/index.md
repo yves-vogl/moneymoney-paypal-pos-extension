@@ -1,38 +1,29 @@
 # MoneyMoney PayPal POS Extension
 
-Eine Community-Extension für [MoneyMoney](https://moneymoney.app), die
-PayPal POS (ehemals Zettle) als unterstützten Kontotyp ergänzt —
-Kartenumsätze, Rückerstattungen, Gebühren und Auszahlungen direkt in
-MoneyMoney.
+Diese Extension ergänzt **MoneyMoney** um **PayPal POS** (ehemals Zettle) als unterstützten Kontotyp. Du siehst Deine Karten-Umsätze, Refunds, Gebühren und Auszahlungen direkt in MoneyMoney — mit USt- und Trinkgeld-Transparenz, geeignet als Beleg-Grundlage für die Buchhaltung.
 
-## Schnelleinstieg
+## In drei Schritten
 
-1. **[Vollständiges README](readme.md)** — Installation, API-Key-Erzeugung
-   (Scopes `READ:PURCHASE` + `READ:FINANCE`), GoBD-Hinweis, Inbetriebnahme,
-   Verifikation signierter Releases.
-2. **[Sicherheits-Policy](security.md)** — Schwachstellen verantwortungsvoll
-   melden.
-3. **[Mitwirken](contributing.md)** — Setup für lokale Entwicklung, Conventional
-   Commits, Test- und Coverage-Vorgaben.
+1. **[Installation](installation.md)** — Download, „Inoffizielle Extensions erlauben", Datei in den Extensions-Ordner.
+2. **[API-Key erzeugen](api-key.md)** — neuer Zettle-API-Key mit Scopes `READ:PURCHASE` + `READ:FINANCE`.
+3. **[Häufige Fragen](faq.md)** — Bekannte Grenzen, Datenschutz, Inoffizielle vs. offizielle Extension.
 
-## Architektur
+## Was Du am Ende siehst
 
-Die Architektur-Entscheidungen sind als MADR-formatierte ADRs unter
-**[Architektur (ADRs)](adr/0001-amalgamator-design.md)** dokumentiert:
+- Karten-Umsätze als einzelne Buchungen mit Kartentyp und Zahlungsart
+- Refunds als separate Buchungen mit Verweis auf den Original-Beleg
+- Trinkgelder und USt-Aufschlüsselung im Verwendungszweck
+- Gebühren pro Karten-Zahlung
+- Auszahlungen (Payouts) als eigene Buchungen
+- Beglichener und offener Saldo getrennt
 
-- Amalgamator-Design (ADR-0001)
-- LocalStorage-Token-Cache (ADR-0002)
-- Sandbox-Probes (ADR-0003)
-- Finance-API-Scope (ADR-0004)
-- Resilience-Invarianten (ADR-0005)
-- JWT-Bearer-Auth (ADR-0006)
-- Kein TLS-Pinning (ADR-0007)
-- String-Return-Fehlermuster (ADR-0008)
-- OpenSSF-Scorecard-Stance (ADR-0009)
+## Voraussetzungen
 
-## Status
+- **MoneyMoney** in aktueller oder vorletzter Stable-Version
+- Ein **PayPal POS / Zettle** Geschäftskonto in Deutschland
+- macOS
 
-Diese Extension befindet sich derzeit in aktiver Entwicklung. Status,
-aktuelle Funktionen und der Beitragspfad finden sich im
-[Repository-README](https://github.com/yves-vogl/moneymoney-paypal-pos-extension)
-sowie im [Änderungsverlauf](changelog.md).
+## Aktueller Stand
+
+Die Extension ist in der **Release-Candidate-Phase** für `v1.0.0`. Aktuelle Releases:
+<https://github.com/yves-vogl/moneymoney-paypal-pos-extension/releases>

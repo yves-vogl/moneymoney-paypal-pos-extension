@@ -30,7 +30,7 @@ matter for the stance taken in this ADR):
 | Fuzzing | 0 / 10 | accepted gap |
 | Code-Review | 0 / 10 | accepted gap |
 | Packaging | -1 (N/A) | structural N/A |
-| Contributors | 6 / 10 | structural cap |
+| Contributors | 6 / 10 | partial — accepted, structural ceiling (already passes Scorecard's threshold; see P6.1-R-09 below) |
 | Maintained | 0 / 10 | heals-itself |
 
 Phase 6.1 was scoped to lift the aggregate by hardening every check whose
@@ -58,6 +58,11 @@ References:
 - Plan 06.1-01..04 hardening commits (89f4ee4, 7d12378, 035522f, c9a8c1a,
   c515dfe, 27d7476, 184b2f6, 93684aa, d506bda)
 - Plan 06.1-06 MkDocs site (ca006fc, 773b166, a89b39b)
+- P6.1-R-08 note: SHAs above reference the pre-squash Phase-6.1 branch
+  history; Phase 6.1 was squash-merged into `main` as a single commit
+  (`c6a9865`, PR #16). The 7-char SHAs are stable references inside the
+  phase-branch's history (still resolvable via `git log --all`) and were
+  normalised here to 7-char form for consistency with other ADRs.
 - 06.1-RESEARCH §4 (Branch-Protection options), §5 (SAST detection),
   §10 (revised aggregate target), §11 (per-gap acceptance text)
 
@@ -130,9 +135,16 @@ in CI (BUILD-02); GPG-signed git tags trigger the release pipeline
 commits use his work email at adesso SE; the check counts adesso SE as
 one of the project's "organisations". Structural: a single-organisation
 project will not score higher on this check until external contributors
-join. Compensating: open-source-under-MIT licence (BUILD-07 / DOC-07)
-that explicitly welcomes contributions; `CONTRIBUTING.md` documents the
-contribution workflow; the project has an explicit no-CLA policy.
+join. **P6.1-R-09 clarification:** 6 / 10 already passes Scorecard's
+Contributors threshold (the check rewards >= 2 distinct contributing
+organisations; 1 org yields a partial score, not the floor). Listed
+here as "partial — accepted, structural ceiling" rather than "gap" —
+this is the highest score the check will return until external
+contributors land, and no further compensating control is meaningful
+at the project's current scale. Compensating: open-source-under-MIT
+licence (BUILD-07 / DOC-07) that explicitly welcomes contributions;
+`CONTRIBUTING.md` documents the contribution workflow; the project has
+an explicit no-CLA policy.
 
 **Maintained (0 / 10).** Scorecard's Maintained check requires the
 repository to be at least 90 days old (and to show activity in that

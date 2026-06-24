@@ -14,8 +14,13 @@ name: SAST
 # Semgrep catches real findings and p/secrets reinforces SEC-01 redaction.
 
 on:
+  # P6.1-R-07: align push trigger with ci.yml (`branches: ["**"]`) so
+  # SAST runs on every branch push, not just main/phase-*. Prevents
+  # developer surprise where SAST findings only surface in a PR rather
+  # than on a feature-branch push. Matches the consistent dev-experience
+  # bar set by ci.yml.
   push:
-    branches: ["main", "phase-*/**", "phase-*"]
+    branches: ["**"]
   pull_request:
     branches: ["**"]
 
@@ -31,18 +36,23 @@ jobs:
       contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
         with:
           python-version: "3.12"
 
-      - name: Install Semgrep (pinned version)
-        run: pip install semgrep==1.167.0  # pin Semgrep CLI for deterministic CI; bump via manual PR (Plan 06.1-05 covers github-actions Dependabot)
+      - name: Install Semgrep (hash-pinned)
+        # S-02: hash-pinned install against the generated lockfile.
+        # requirements/sast.in declares the top-level pin (semgrep==1.167.0);
+        # .lock.txt adds transitive deps with --hash=sha256:... per wheel.
+        # Bump Semgrep via manual PR — regenerate via:
+        #   pip-compile --generate-hashes -o requirements/sast.lock.txt requirements/sast.in
+        run: pip install --require-hashes --no-deps -r requirements/sast.lock.txt
 
       - name: Run Semgrep (p/security-audit + p/secrets, ERROR-blocking)
         run: |

@@ -133,7 +133,19 @@ performs by default against the macOS system trust store.
 - SEC-01 redactor (credential exposure in logs).
 - Reproducible build (source-to-artifact integrity).
 - GPG-signed releases (publisher identity).
-- HSTS on `*.izettle.com` (downgrade protection at the TLS layer).
+- Observed HSTS response headers on `oauth.zettle.com`
+  (`Strict-Transport-Security: max-age=31536000`) and
+  `purchase.izettle.com`
+  (`Strict-Transport-Security: max-age=31536000; includeSubDomains`)
+  provide downgrade protection at the TLS layer after first contact.
+  Neither `zettle.com` nor `izettle.com` is on the HSTS preload list
+  (verified 2026-06-24 via `hstspreload.org` API — both return
+  `status: unknown`), so a hostile network can in principle strip
+  the FIRST HTTPS request's TLS layer if the user has never reached
+  the host before. This is structurally a TOFU (trust-on-first-use)
+  property of plain HSTS; pinning would not change it for this
+  extension (no API to influence the TLS layer either way per the
+  rationale above).
 
 ## References
 

@@ -82,6 +82,13 @@ an additional credentials-dialog option, not a replacement. The
 forward-compat hook: a future cache record for a flow-2 token would
 co-exist with the flow-1 record, distinguished by `client_id`.
 
+> **Note (P6-R-13):** ADR-0002 and ADR-0006 were authored in the same
+> Phase-6 batch (commits landed 2026-06-22). ADR-0002 forward-references
+> "ADR-0006's Phase-7 forward-compat" and ADR-0006 forward-references
+> ADR-0002's `client_id` field — neither was in `main` at the moment
+> the other was first sketched. Both landed together to ensure the
+> forward-compat semantics stayed consistent across the pair.
+
 ## Consequences
 
 **Positive:**

@@ -33,3 +33,4 @@ spec/fixtures/local/
 # Dependency lock caches (LuaRocks tree pinned via Rockfile, not tracked tree)
 .luarocks/
 lua_modules/
+site/
