@@ -57,15 +57,18 @@ echo "Setting description on ${OWNER_REPO} ..."
 gh repo edit "${OWNER_REPO}" --description "${DESCRIPTION}"
 
 echo "Replacing topics on ${OWNER_REPO} (PUT — exact-set semantics) ..."
+# P6-R-09: build the -f names[]=... arguments by iterating over the array
+# instead of hardcoding indices 0..6. The previous form (7 fixed -f lines)
+# silently truncated to 7 if TOPICS grew, and silently passed empty
+# `names[]=` for any missing index if TOPICS shrank. Iterating preserves
+# 1-to-1 correspondence between array entries and PUT payload.
+GH_TOPIC_ARGS=()
+for t in "${TOPICS[@]}"; do
+  GH_TOPIC_ARGS+=(-f "names[]=${t}")
+done
 gh api -X PUT "repos/${OWNER_REPO}/topics" \
   -H "Accept: application/vnd.github+json" \
-  -f "names[]=${TOPICS[0]}" \
-  -f "names[]=${TOPICS[1]}" \
-  -f "names[]=${TOPICS[2]}" \
-  -f "names[]=${TOPICS[3]}" \
-  -f "names[]=${TOPICS[4]}" \
-  -f "names[]=${TOPICS[5]}" \
-  -f "names[]=${TOPICS[6]}" \
+  "${GH_TOPIC_ARGS[@]}" \
   >/dev/null
 
 echo "OK: description and topics set on ${OWNER_REPO}."
