@@ -13,9 +13,12 @@ enforces.
 
 ## Code of conduct
 
-Be respectful. Discuss code, not people. Assume good intent. If you find a
-security issue, do not open a public issue — follow the disclosure path in
-[`SECURITY.md`](SECURITY.md).
+This project has adopted the Contributor Covenant v2.1 — see
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md). In short: be respectful, discuss
+code, not people, assume good intent. If you find a security issue, do not
+open a public issue — follow the disclosure path in
+[`SECURITY.md`](SECURITY.md). Project roles and decision-making are
+documented in [`GOVERNANCE.md`](GOVERNANCE.md).
 
 ---
 
@@ -99,6 +102,22 @@ Before pushing, verify each of the following:
 ---
 
 ## Testing conventions
+
+### Test policy (binding)
+
+This is the project's formal test policy (OpenSSF Best Practices
+`test_policy_mandated` / `tests_documented_added` / `regression_tests_added50`):
+
+1. **New functionality MUST ship with automated tests.** Any PR adding major
+   new functionality is rejected unless it includes busted specs exercising
+   the new behaviour (the 1:1 `spec/<module>_spec.lua` ↔ `src/<module>.lua`
+   convention below).
+2. **Bug fixes MUST include a regression test** that fails before the fix and
+   passes after it (the RED → GREEN discipline below makes this auditable in
+   the commit history).
+3. **Coverage is enforced, not aspirational.** CI fails the build below
+   **85 % statement coverage** (luacov, `ci.yml`) — above the 80 % the
+   OpenSSF Silver tier requires.
 
 - **TDD: RED → GREEN.** Write the failing spec first (commit type `test:`),
   then the implementation that makes it pass (commit type `feat:` or `fix:`).
@@ -251,6 +270,24 @@ test(05-02): RED for ERR-04 token-revoked recovery
 
 All commits and tags MUST be GPG-signed. Branch protection on `main`
 enforces this serverside — unsigned commits cannot be merged.
+
+---
+
+## Developer Certificate of Origin (DCO)
+
+Contributions are accepted under the
+[Developer Certificate of Origin v1.1](https://developercertificate.org/).
+By adding a `Signed-off-by` trailer you certify that you have the right to
+submit the contribution under this repository's MIT license.
+
+Every commit MUST carry a sign-off trailer matching the commit's author:
+
+```
+Signed-off-by: Your Name <your.email@example.org>
+```
+
+`git commit -s` adds it automatically. There is no CLA — the DCO sign-off
+is the project's sole contribution-licensing mechanism.
 
 ---
 

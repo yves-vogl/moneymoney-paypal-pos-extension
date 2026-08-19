@@ -6,12 +6,13 @@
 
 ## Unterstützte Versionen
 
-Diese Extension befindet sich in der Pre-Release-Phase. Sicherheits-Fixes werden ausschließlich gegen den `main`-Branch entwickelt und mit der nächsten regulären Veröffentlichung freigegeben. Es existiert noch kein veröffentlichtes Release.
+Sicherheits-Fixes werden gegen den `main`-Branch entwickelt und mit dem nächsten Release veröffentlicht. Unterstützt wird ausschließlich das jeweils **neueste Release** — ein Upgrade besteht aus dem Austausch einer einzelnen `.lua`-Datei.
 
 | Version | Unterstützt |
 |---------|-------------|
-| `main` (Pre-Release) | ✅ |
-| keine Release-Tags vorhanden | n/a |
+| neuestes Release (aktuell `v1.0.1`) | ✅ |
+| `main` (unveröffentlicht) | ✅ (Fixes landen hier zuerst) |
+| ältere Releases | ❌ — bitte aktualisieren |
 
 ## Ausgehende Verbindungen / Egress
 
@@ -88,7 +89,9 @@ Phase 6.1 etabliert wurde. Die aktiven Kontrollen sind:
 Diese Posture ist gegenüber der OpenSSF Scorecard messbar; siehe
 [ADR-0009](docs/adr/0009-openssf-scorecard-stance.md) für den bewussten
 Trade-off-Diskurs (akzeptierte Lücken, alternative Optionen, upstream-timed
-Verbesserungen) und das CII Best Practices Badge (Passing-Tier) im README.
+Verbesserungen). Die OpenSSF-Best-Practices-Selbstauskunft (Passing → Silver)
+ist in Vorbereitung — Status in
+[Issue #42](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/issues/42).
 
 ### `SCORECARD_READ_TOKEN`-Rotation
 
@@ -103,7 +106,7 @@ Der Fine-grained PAT wird mit 1-Jahres-Ablauf erstellt. Vor Ablauf:
 
 ## English
 
-This extension is in a pre-release state. Security fixes are developed against `main` and shipped with the next regular release.
+Security fixes are developed against `main` and shipped with the next regular release. Only the **latest release** (currently `v1.0.1`) is supported; upgrading means replacing a single `.lua` file.
 
 **Reporting a vulnerability — preferred:** GitHub Private Vulnerability Reporting at
 [github.com/yves-vogl/moneymoney-paypal-pos-extension/security/advisories/new](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/security/advisories/new)
@@ -136,7 +139,9 @@ in Phase 6.1. Active controls:
 The posture is measurable against the OpenSSF Scorecard; see
 [ADR-0009](docs/adr/0009-openssf-scorecard-stance.md) for the deliberate
 trade-off discussion (accepted gaps, alternative options, upstream-timed
-improvements) and the CII Best Practices Passing-tier badge in the README.
+improvements). The OpenSSF Best Practices self-assessment (Passing → Silver)
+is in preparation — status tracked in
+[issue #42](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/issues/42).
 
 ### `SCORECARD_READ_TOKEN` rotation
 
@@ -146,3 +151,58 @@ The fine-grained PAT is created with a 1-year expiry. Before expiry:
 2. `gh secret set SCORECARD_READ_TOKEN --repo yves-vogl/moneymoney-paypal-pos-extension`.
 3. Revoke the old PAT in GitHub settings.
 4. Trigger `gh workflow run "OpenSSF Scorecard"` to verify.
+
+## Assurance case
+
+This section is the project's security assurance case (OpenSSF Best
+Practices Silver tier: `assurance_case`, `documentation_security`,
+`implement_secure_design`, `input_validation`): what is protected, where the
+trust boundaries run, and why the implemented controls are considered
+sufficient.
+
+### Protected assets
+
+- The Zettle **API key** the user enters in MoneyMoney (grants read access
+  to the user's PayPal POS data).
+- The short-lived **JWT bearer token** obtained from `oauth.zettle.com`.
+- The user's **financial data** (turnover, refunds, fees, payouts) in
+  transit and at rest in MoneyMoney's local database.
+
+### Trust boundaries
+
+1. **MoneyMoney runtime ↔ extension.** The extension runs inside
+   MoneyMoney's Lua sandbox and uses only the documented WebBanking API
+   (`Connection()`, `JSON()`, `LocalStorage`, `MM.*`). Credentials are
+   stored by MoneyMoney's encrypted database, never by the extension
+   itself; the token cache in `LocalStorage` inherits that protection
+   ([ADR-0002](docs/adr/0002-localstorage-token-cache.md)).
+2. **Extension ↔ Zettle API.** All requests travel over HTTPS through
+   MoneyMoney's `Connection()`, which performs system TLS certificate
+   verification by default; the extension never disables verification and
+   deliberately adds no custom pinning (trade-off documented in
+   [ADR-0007](docs/adr/0007-no-tls-pinning.md)). Authentication is
+   JWT-bearer-only ([ADR-0006](docs/adr/0006-jwt-bearer-only-auth.md));
+   no password flows exist.
+3. **Extension ↔ GitHub (optional update check).** An unauthenticated read
+   of public release metadata, at most once per 24 h, opt-out per account;
+   no identifiers or financial data leave the machine (see the egress
+   section above).
+
+### Threats considered and their mitigations
+
+| Threat | Mitigation |
+|--------|------------|
+| Credential or token disclosure via log output | Every log line passes the `M_log` redactor, which strips JWT/Bearer substrings before `print()` (SEC-01); locked in by `spec/log_redaction_spec.lua`. |
+| Malformed or hostile API responses | Response payloads are treated as untrusted: JSON decoding runs inside `pcall`, decoded structures are read field-by-field, and unexpected shapes degrade to explicit localized error strings via the string-return error pattern ([ADR-0008](docs/adr/0008-string-return-error-pattern.md)) instead of propagating raw data. |
+| Unexpected network egress | Only `oauth.zettle.com`, `purchase.izettle.com`, `finance.izettle.com` and (optionally) `api.github.com` are referencable in the built artifact; a CI grep gate fails the build on any other hostname (SEC-04). |
+| Supply-chain tampering | SHA-pinned actions, blocking Semgrep SAST, gitleaks, signed commits and tags, reproducible `--verify` build, weekly Scorecard — see the controls table above. |
+| Cryptographic weaknesses | The extension implements **no cryptographic primitives of its own**; TLS, certificate validation and secret storage are delegated to the operating system via MoneyMoney. There is nothing to misconfigure at the extension layer. |
+
+### Accepted residual risks
+
+- **No TLS pinning:** a compromised system trust store defeats transport
+  security. [ADR-0007](docs/adr/0007-no-tls-pinning.md) documents why
+  pinning was rejected for this deployment model.
+- **Trusted host application:** a compromised MoneyMoney installation or
+  operating system is outside this extension's threat model (see "Out of
+  scope").
