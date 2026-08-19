@@ -46,6 +46,16 @@ updates:
   # the top-level `.in` files via `directory: /requirements`; bumps
   # arrive as PRs that update the lockfile (Dependabot re-runs
   # `pip-compile --generate-hashes` and refreshes both .lock.txt files).
+  #
+  # `allow: direct` keeps Dependabot to the three top-level pins
+  # (mkdocs, mkdocs-material, semgrep). Version-update PRs that bump
+  # individual TRANSITIVE lock entries fight the resolver: Semgrep pins
+  # exact versions of its deps (peewee, wcmatch, mcp, wrapt, boltons,
+  # pydantic-core, …), so such bumps produce resolver-invalid locks —
+  # CI installs with `--no-deps` and cannot catch it, and grouped bumps
+  # even break pairings like pydantic/pydantic-core (see PR #64).
+  # Transitives refresh legitimately whenever a top-level pin bumps and
+  # the lock is re-resolved; security updates are unaffected by `allow`.
   - package-ecosystem: pip
     directory: /requirements
     schedule:
@@ -53,6 +63,8 @@ updates:
       day: monday
       time: "06:00"
       timezone: Europe/Berlin
+    allow:
+      - dependency-type: direct
     commit-message:
       prefix: ci
       include: scope
