@@ -48,7 +48,7 @@ jobs:
 
       - name: Install Semgrep (hash-pinned)
         # S-02: hash-pinned install against the generated lockfile.
-        # requirements/sast.in declares the top-level pin (semgrep==1.167.0);
+        # requirements/sast.in declares the top-level pin (semgrep==1.174.0);
         # .lock.txt adds transitive deps with --hash=sha256:... per wheel.
         # Bump Semgrep via manual PR — regenerate via:
         #   pip-compile --generate-hashes -o requirements/sast.lock.txt requirements/sast.in
