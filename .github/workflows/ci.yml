@@ -290,7 +290,17 @@ jobs:
           # time without baking it into config or argv (the moneymoney-paypal
           # repo identifier yves-vogl/moneymoney-paypal-pos-extension is
           # in GITHUB_REPOSITORY at run time).
-          git -c http.extraHeader="Authorization: Bearer ${GITHUB_TOKEN}" push -q --force \
+          #
+          # GitHub's git-over-HTTPS smart endpoint only accepts Basic auth
+          # (username `x-access-token`, password = token) — a raw
+          # `Authorization: Bearer <token>` header is rejected before the
+          # extraHeader is even evaluated as credentials, so git falls back
+          # to an interactive username prompt and fails with "could not
+          # read Username ... No such device or address" on a non-tty
+          # runner. Confirmed empirically against a scratch branch on this
+          # repo (2026-08-22) — Bearer failed, Basic/x-access-token worked.
+          BASIC=$(printf 'x-access-token:%s' "${GITHUB_TOKEN}" | base64 | tr -d '\n')
+          git -c http.extraHeader="Authorization: Basic ${BASIC}" push -q --force \
             "https://github.com/${GITHUB_REPOSITORY}.git" \
             HEAD:refs/heads/coverage-badge
           echo "Pushed badge to coverage-badge branch"
