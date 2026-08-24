@@ -27,6 +27,10 @@ Installation, API-Key erzeugen und häufige Fragen — alles dort.
 
 Code-Beiträge willkommen — siehe [CONTRIBUTING.md](CONTRIBUTING.md). Pull Requests gehen gegen `main`; alle Commits sind GPG-signiert.
 
+- **Verhaltenskodex** → [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- **Projekt-Governance** (Rollen, Entscheidungsprozess, Bus-Factor) → [GOVERNANCE.md](GOVERNANCE.md)
+- **Roadmap** (nächste 12 Monate) → [ROADMAP.md](ROADMAP.md)
+
 ## 📦 Releases
 
 Aktuelle Releases inkl. signiertem `paypal-pos.lua` + SHA256-Sidecar:

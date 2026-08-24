@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Dokumentation
+
+- OpenSSF Best Practices **Silver**-Tier-Vorbereitung (Issue #42, ungegateter
+  Teil): kriterien-scharfe Gap-Analyse gegen die live abgerufene
+  Silver-Kriterienliste unter `.planning/research/`, inklusive
+  vorbereiteter Fragebogen-Antworten zur Übertragung durch den Maintainer.
+- `CONTRIBUTING.md`: neuer Abschnitt „Coding style" benennt den Style-Guide
+  des Projekts explizit und verweist auf die luacheck-Durchsetzung
+  (`coding_standards` / `coding_standards_enforced`).
+- `README.md` verlinkt jetzt `GOVERNANCE.md`, `CODE_OF_CONDUCT.md` und
+  `ROADMAP.md` im Abschnitt „Mitwirken".
+- `docs/index.md`: veraltete „Release-Candidate für v1.0.0"-Angabe korrigiert
+  (aktuell `v1.0.1`, stabil, aktive Wartung).
+
 ## [1.0.1] - 2026-06-24
 
 ### Hinzugefügt
