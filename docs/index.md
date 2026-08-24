@@ -25,5 +25,8 @@ Diese Extension ergänzt **MoneyMoney** um **PayPal POS** (ehemals Zettle) als u
 
 ## Aktueller Stand
 
-Die Extension ist in der **Release-Candidate-Phase** für `v1.0.0`. Aktuelle Releases:
+Die Extension ist **stabil und in aktiver Wartung** — feature-vollständig für den
+beschriebenen Anwendungsfall (siehe
+[Roadmap](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/blob/main/ROADMAP.md)).
+Aktuelle Releases:
 <https://github.com/yves-vogl/moneymoney-paypal-pos-extension/releases>

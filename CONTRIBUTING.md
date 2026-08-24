@@ -101,6 +101,45 @@ Before pushing, verify each of the following:
 
 ---
 
+## Coding style
+
+This is the project's identified coding style (OpenSSF Best Practices
+`coding_standards` / `coding_standards_enforced`):
+
+- **2-space indentation**, no tabs.
+- **snake_case** for locals, functions and table fields; the `M_*` prefix is
+  reserved exclusively for the cross-module tables predeclared in
+  `src/webbanking_header.lua` (`M_log`, `M_auth`, `M_http`, `M_mapping`, …) —
+  never use it for anything else.
+- **One file, one concern.** Each `src/*.lua` module owns a single
+  responsibility (see the source-layout table above); do not fold unrelated
+  logic into an existing module to avoid adding a file.
+- **No cross-module `require()`.** The amalgamator resolves module
+  boundaries at build time via the `M_*` globals (ADR-0001) — a sibling
+  module is always referenced through its `M_*` table, never captured as a
+  local across files.
+- **No `require()`, `io.*`, `os.execute()`, `os.popen()`, or `DEBUG = true`
+  in `src/*.lua`.** The sandbox exposes these globals, but the build's H8 /
+  SEC gates reject their use as a code-discipline rule (ADR-0003).
+- **Every `print()` goes through `M_log`.** Direct `print()` calls bypass
+  the SEC-01 redactor and can leak a token into MoneyMoney's log; the sole
+  exception is `M_log`'s own emission point, marked with the
+  `-- D-79-allowed: M_log emission point` sentinel.
+
+**Enforcement:** [`luacheck`](https://github.com/lunarmodules/luacheck) 1.2.0
+runs against the ruleset in [`.luacheckrc`](.luacheckrc) (`std =
+"lua54+busted"`, an explicit `read_globals` allowlist for every MoneyMoney
+built-in, and an explicit `globals` list for the handful of top-level
+callbacks/module tables the sandbox requires). It is a required, blocking
+status check (`Lint + tests + reproducible build` in `.github/workflows/ci.yml`)
+on every push and pull request — a PR with any luacheck warning cannot merge.
+Style deviations that luacheck cannot express (the `M_*` prefix convention,
+the no-`require()` rule, the `print()`-via-`M_log` rule) are additionally
+enforced by the amalgamator's H8/SEC build gates (`tools/build.lua`) and by
+review against this document.
+
+---
+
 ## Testing conventions
 
 ### Test policy (binding)
