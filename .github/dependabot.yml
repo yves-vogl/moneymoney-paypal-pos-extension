@@ -41,21 +41,42 @@ updates:
           - patch
     open-pull-requests-limit: 5
 
-  # S-02 follow-up: Python toolchain (Semgrep, MkDocs + plugins) is
-  # hash-pinned in requirements/{docs,sast}.lock.txt. Dependabot scans
-  # the top-level `.in` files via `directory: /requirements`; bumps
-  # arrive as PRs that update the lockfile (Dependabot re-runs
-  # `pip-compile --generate-hashes` and refreshes both .lock.txt files).
+  # ── Python CI toolchain (Semgrep, MkDocs + plugins) ─────────────────────
   #
-  # `allow: direct` keeps Dependabot to the three top-level pins
-  # (mkdocs, mkdocs-material, semgrep). Version-update PRs that bump
-  # individual TRANSITIVE lock entries fight the resolver: Semgrep pins
-  # exact versions of its deps (peewee, wcmatch, mcp, wrapt, boltons,
-  # pydantic-core, …), so such bumps produce resolver-invalid locks —
-  # CI installs with `--no-deps` and cannot catch it, and grouped bumps
-  # even break pairings like pydantic/pydantic-core (see PR #64).
-  # Transitives refresh legitimately whenever a top-level pin bumps and
-  # the lock is re-resolved; security updates are unaffected by `allow`.
+  # S-02 follow-up. requirements/{docs,sast}.txt are pip-compile output,
+  # generated from requirements/{docs,sast}.in. `allow: dependency-type:
+  # direct` is what keeps Dependabot to the three top-level pins (mkdocs,
+  # mkdocs-material, semgrep) and off the ~300 transitive entries.
+  #
+  # That only works if Dependabot RECOGNISES the .txt as a compiled
+  # lockfile. It pairs them by basename: PipCompileFileMatcher#
+  # manifest_for_lockfile_name strips `.txt` and looks for `<basename>.in`
+  # (dependabot-core, python/lib/dependabot/python/
+  # pip_compile_file_matcher.rb); the alternate route matches
+  # `--output-file=<name>` against the file's Dependabot-relative name.
+  # While these files were named `sast.lock.txt` / `docs.lock.txt`, the
+  # basename lookup was for `sast.lock.in` — which does not exist — and the
+  # header wrote `--output-file=requirements/sast.lock.txt`, which does not
+  # match the directory-relative `sast.lock.txt` under
+  # `directory: /requirements`. Both routes failed, so file_parser.rb never
+  # assigned `requirements: []` (its non-top-level marker), every pinned
+  # line parsed as top-level, `allow: direct` filtered nothing, and
+  # Dependabot emitted single-line bumps that no resolver would produce —
+  # PRs #74-#77 on 2026-08-24, the same class the #66 comment predicted but
+  # could not actually prevent. Both workflows install with
+  # `--require-hashes --no-deps`, so CI could not catch the corruption.
+  #
+  # DO NOT rename these files back to `*.lock.txt`. The `.in` -> `.txt`
+  # basename pairing is load-bearing.
+  #
+  # Semgrep pins exact/compatible versions of its deps (mcp==1.29.0,
+  # peewee~=3.14, boltons~=21.0, wcmatch~=8.3, opentelemetry-*~=1.37.0),
+  # so transitives must move by re-resolution when a top-level pin bumps —
+  # never by editing a lock line.
+  #
+  # Note on `ignore`: deliberately NOT used to silence transitives. Ignore
+  # rules also apply to Dependabot security updates, so a blanket ignore
+  # would mute a genuine advisory on a transitive.
   - package-ecosystem: pip
     directory: /requirements
     schedule:
