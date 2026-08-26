@@ -1,7 +1,12 @@
 # OpenSSF Best Practices — Silver tier gap analysis
 
 **Drafted:** 2026-08-24
-**Status:** preparation complete; submission is maintainer-only (see "What remains")
+**Revised:** 2026-08-27 — second pass: closed the three PARTIAL dependency
+criteria with real repository changes, ran the regression-test archaeology the
+first pass deferred, replaced the coverage claim with a measured number, and
+retired §2 (the required-check-count finding, since fixed).
+**Status:** every criterion that can be satisfied inside this repository is
+satisfied; the two remaining are account-gated (see "What remains")
 **Scope:** Issue [#42](https://github.com/yves-vogl/moneymoney-paypal-pos-extension/issues/42)
 **Criteria source:** `WebFetch https://www.bestpractices.dev/en/criteria/1`, accessed
 2026-08-24. This is the live Silver-tier criteria page (tier confirmed in the
@@ -11,13 +16,15 @@ change over time.
 
 ---
 
-## 0. Sequencing premise (unchanged from the 2026-08-19/22 issue findings)
+## 0. Sequencing premise (re-verified 2026-08-27)
 
 Silver's first criterion is `achieve_passing` ("The project MUST achieve a
-passing level badge"). Re-verified today:
-`https://www.bestpractices.dev/en/projects.json?q=moneymoney` still returns
-zero registered projects for this repository. **Nobody has clicked "Get Your
-Badge Now" yet** — that is an account-gated action only `@yves-vogl` can take
+passing level badge"). Re-verified again on **2026-08-27**, and deliberately
+falsified rather than merely repeated: `projects.json?q=moneymoney`,
+`?q=paypal-pos`, `?q=zettle`, `?q=yves-vogl` and the `?url=` lookup all return
+`[]`, while a control query for a known project (`?q=curl`) returns a populated
+record (id 63) — so the endpoint is live and the empty result is a real
+absence, not an API outage. **Nobody has clicked "Get Your Badge Now" yet** — that is an account-gated action only `@yves-vogl` can take
 (see "What remains" at the bottom). This gap analysis is written so it holds
 regardless of when that step happens: every other criterion below is scored
 against what actually exists in the repository/GitHub configuration today.
@@ -81,13 +88,13 @@ the maintainer's badge-site account).
 | `installation_common` | MUST | **MET** | `docs/installation.md` documents the standard MoneyMoney extension convention: drop the `.lua` file into MoneyMoney's Extensions folder (opened via **Hilfe → Datenbank im Finder zeigen**). There is no package-registry distribution channel for MoneyMoney extensions — this drop-in convention *is* the commonly-used convention for this ecosystem. |
 | `installation_standard_variables` | MUST | **N/A** | No installer exists; MoneyMoney's Extensions folder is the single, fixed install location the host application defines — there is no project-controlled "where do built artifacts go" decision to honour standard variables for. |
 | `installation_development_quick` | MUST | **MET** | `CONTRIBUTING.md` § "Prerequisites" + "Test loop" — `brew install lua@5.4 luarocks` + four `luarocks install` lines + the single-command test/lint/build loop gets a new contributor productive in minutes. |
-| `external_dependencies` | MUST | **PARTIAL — corrects a prior over-claim** | Two of three dependency surfaces are computer-processable: GitHub Actions (`.github/dependabot.yml` `package-ecosystem: github-actions`) and the Python CI toolchain (`requirements/{docs,sast}.in` + pip-compile-generated `requirements/{docs,sast}.txt` hash-locked files). The **Lua dev/test toolchain** (`busted`, `luacheck`, `luacov`, `dkjson`) has no machine-readable manifest anywhere in the repo — no `.rockspec`, no lockfile; the versions are named only in `CONTRIBUTING.md` prose and in `ci.yml`'s unpinned `luarocks install <name>` lines. The shipped runtime artifact (`dist/paypal-pos.lua`) itself has **zero** external dependencies (single-file, no libraries), so this gap only concerns the dev toolchain. An earlier issue-#42 status comment (2026-08-20) claimed this criterion fully MET via "Dependabot + pinned lockfiles" — that claim did not account for the Lua toolchain and is corrected here. |
-| `dependency_monitoring` | MUST | **PARTIAL — same correction** | GitHub Actions and the pip toolchain are monitored by Dependabot (weekly PRs, verified via `.github/dependabot.yml`). The Lua dev toolchain is **not** monitored by any tool — `.github/dependabot.yml`'s own comment states the reason accurately ("LuaRocks is not supported by Dependabot"), but the stated compensating claim ("CI installs the latest published version of each tool, which keeps the toolchain current") is a floating-`latest` install, not a monitored/audited dependency — it trades staleness risk for supply-chain-trust risk (an unpinned `luarocks install busted` on a compromised or typosquatted package would go undetected until it broke something visibly). |
-| `updateable_reused_components` | MUST | **PARTIAL — same correction** | Same reasoning as the two rows above: GH Actions and pip components are trivially identifiable/updateable (Dependabot PRs); the Lua toolchain has no identifiable pinned version to update *from* in the first place. |
+| `external_dependencies` | MUST | **MET (was PARTIAL; closed 2026-08-27)** | All three dependency surfaces are now computer-processable. GitHub Actions: `.github/dependabot.yml` (`package-ecosystem: github-actions`). Python CI toolchain: `requirements/{docs,sast}.in` + pip-compile hash-locked `.txt`. **Lua dev toolchain: `moneymoney-paypal-pos-extension-dev-1.rockspec`** — a dev-only manifest in the conventional LuaRocks format pinning `busted == 2.3.0-1`, `luacheck == 1.2.0-1`, `luacov == 0.17.0-1`, `dkjson == 2.11-1`. `ci.yml` and `release.yml` now install with `luarocks install --only-deps <rockspec>` instead of four bare `luarocks install <name>` lines. Verified: `luarocks lint` exit 0, and `--only-deps` resolves the full closure under both Lua 5.4 and 5.5. The shipped artifact still has **zero** runtime dependencies. |
+| `dependency_monitoring` | MUST | **MET (was PARTIAL; closed 2026-08-27)** | GH Actions + pip are monitored by Dependabot. The Lua toolchain is now monitored by `.github/workflows/lua-toolchain-audit.yml`: weekly (`cron: 0 6 * * 1`), it parses the pins out of the rockspec with `lua` itself, queries `luarocks search --porcelain` for the newest published version of each, and opens/updates a tracking issue on drift. **Stated limit, not papered over:** this is a *freshness* check, not a CVE check. No vulnerability feed exists for this ecosystem — OSV.dev rejects `"ecosystem":"LuaRocks"` with `{"code":3,"message":"invalid ecosystem"}` (verified 2026-08-27) and the GitHub Advisory Database carries no LuaRocks advisories. The criterion's "monitor or periodically check" is met by the best signal the ecosystem actually offers; claiming CVE coverage here would be false. |
+| `updateable_reused_components` | MUST | **MET (was PARTIAL; closed 2026-08-27)** | Every reused component now has an identifiable pinned version to update *from*: Dependabot PRs for Actions/pip, and a single-line edit in the rockspec (validated by CI) for the Lua toolchain. The old floating `luarocks install <name>` had no version to update from at all, which is why this was PARTIAL. |
 | `interfaces_current` | SHOULD | **MET** | No deprecated MoneyMoney WebBanking API calls or Zettle endpoints are in use; `docs/adr/0006-jwt-bearer-only-auth.md` documents the currently-recommended Zettle OAuth flow (no legacy password grant). |
 | `automated_integration_testing` | MUST | **MET** | `busted spec/` runs as a required status check on every push/PR (`.github/workflows/ci.yml`); re-verified locally today: 409 successes / 0 failures / 0 errors / 0 pending. |
-| `regression_tests_added50` | MUST | **MET** | `CONTRIBUTING.md` § "Test policy (binding)" mandates a regression test for **every** bug fix (stricter than the 50% floor), enforced via the documented RED→GREEN commit-pair discipline. No systematic commit-archaeology audit of "which of the last 6 months' fixes actually shipped a regression test" was performed in this pass — flagged as a light residual verification step for whoever fills the questionnaire, not a reason to downgrade the status (the *policy* is unambiguously stronger than the criterion requires). |
-| `test_statement_coverage80` | MUST | **MET** | CI enforces **85%** luacov statement coverage as a hard gate (`.github/workflows/ci.yml` "Generate text coverage report and enforce 85% threshold" step) — above the 80% floor. |
+| `regression_tests_added50` | MUST | **MET — now audited, not assumed** | The first pass flagged that no commit archaeology had been done. Done now. Ten `fix:` commits since 2026-02-27; five touch `src/` (i.e. are software-bug fixes rather than CI/tooling fixes). Of those five, four shipped a regression test: `9050e31` (spec in the same commit) and `762cead` / `e925111` / `03e6964`, whose RED half is the preceding commit `7db9865` ("test(02): add failing tests for B-01/B-02 nil-crash paths and H-01/M-02 rate_limit path", +120 lines across `spec/auth_spec.lua`, `spec/entry_spec.lua`, `spec/http_spec.lua`) — the documented RED→GREEN pair discipline, which a same-commit-only search misses. That is 4/5 = **80 %**, above the 50 % floor. The fifth, `66d9b95`, had **no** regression test — closed in this pass by `spec/webbanking_declaration_spec.lua` (see §3), taking the ratio to 5/5. |
+| `test_statement_coverage80` | MUST | **MET — measured, not inferred** | The first pass cited the CI *threshold* (85 %). The criterion asks what coverage the suite actually provides, so it was measured with the project's own tooling on 2026-08-27: `busted --coverage spec/` + `luacov` → **415 successes / 0 failures / 0 errors / 0 pending, 94.53 % statement coverage** (1037 hit / 60 missed on `dist/paypal-pos.lua`; it was 93.78 % / 409 tests before this pass added `spec/webbanking_declaration_spec.lua`). Comfortably above the 80 % floor, and above the repo's own 85 % CI gate. |
 | `test_policy_mandated` | MUST | **MET** | `CONTRIBUTING.md` § "Test policy (binding)" point 1. |
 | `tests_documented_added` | MUST | **MET** | Same section, point 1 — the policy is in the documented contribution instructions, not just in an internal convention. |
 | `warnings_strict` | MUST | **MET** | `luacheck .` required check is zero-warnings, zero-errors, blocking (`.luacheckrc` at repo root; `CONTRIBUTING.md` pre-commit checklist). |
@@ -114,76 +121,105 @@ the maintainer's badge-site account).
 
 | Criterion | Tier | Status | Evidence |
 |---|---|---|---|
-| `static_analysis_common_vulnerabilities` | MUST | **MET** | Semgrep `p/security-audit` + `p/secrets` rulesets run on every push/PR (`.github/workflows/sast.yml`), SARIF uploaded to code-scanning. The criterion only requires the tool to be *used*, not that it be a required/blocking merge check (see cross-cutting finding below on the actual required-check list). |
+| `static_analysis_common_vulnerabilities` | MUST | **MET** | Semgrep `p/security-audit` + `p/secrets` rulesets run on every push/PR (`.github/workflows/sast.yml`), SARIF uploaded to code-scanning. Since PR #80 it is also a required status check on `main` (verified live 2026-08-27), though the criterion only requires the tool to be *used*. |
 | `dynamic_analysis_unsafe` | MUST | **N/A** | Lua is a memory-safe language; the criterion only applies to memory-unsafe languages (C/C++). |
 
 ---
 
-## 2. Cross-cutting finding — `SECURITY.md` overstates the required-check count
+## 2. Cross-cutting finding of the first pass — RESOLVED
 
-**This is the most important finding of this pass** — verified live against the
-GitHub API today (2026-08-24), not assumed:
+The 2026-08-24 pass found that `SECURITY.md` claimed 5 required status checks
+while branch protection actually required 3, and flagged it as a factual
+inaccuracy in a MUST-have document (`documentation_security` /
+`assurance_case`).
+
+**That is now closed.** Re-verified live on 2026-08-27:
 
 ```
 $ gh api repos/yves-vogl/moneymoney-paypal-pos-extension/branches/main/protection \
     --jq '.required_status_checks.contexts'
-["Lint + tests + reproducible build","gitleaks secret scan","Commit-message lint"]
+["Lint + tests + reproducible build","gitleaks secret scan","Commit-message lint","Semgrep SAST"]
 ```
 
-`SECURITY.md` (both the German and English "Lieferketten-Kontrollen" /
-"Supply-chain controls" sections) states: *"required status checks: 5
-(Lint+tests+reproducible build, gitleaks secret scan, Commit-message lint,
-**Scorecard analysis, Semgrep SAST**)."* That is currently **false** —
-branch protection on `main` only requires the first three. Scorecard and
-Semgrep run on every push and PR and upload results, but a red run on either
-of them today would **not** block a merge to `main`.
-
-This does not change any Silver-criterion status above (`static_analysis_
-common_vulnerabilities` only requires the tool to run, not that it gate
-merges), but it is a factual inaccuracy in a MUST-have document
-(`documentation_security` / `assurance_case`) and should be corrected. Fixing
-it is a two-way decision (tighten branch protection to add the two checks,
-*or* soften the doc's claim to match reality) that touches
-`SECURITY.md` and possibly `tools/setup-branch-protection.sh` /
-`.github/workflows/*` — outside this PR's docs-only file whitelist.
-**Handed off to `loop-security-engineer` and the maintainer** (see PR body).
+Both halves of the two-way decision were taken: branch protection was tightened
+(`Semgrep SAST` became a required check, PR #80) *and* the doc was corrected to
+match (PRs #81, #82, #83). `SECURITY.md` now states 4 and additionally records
+why `Scorecard analysis` structurally *cannot* be a fifth — `scorecard.yml` has
+no `pull_request` trigger, so as a required check it would block every PR
+forever rather than gate it. Nothing in that area is outstanding.
 
 ---
 
-## 3. What this PR closes (see file diff)
+## 3. What the 2026-08-27 pass changed in the repository
 
-- `docs/index.md` — stale "Release-Candidate-Phase für v1.0.0" claim, fixes
-  `documentation_current`.
-- `CONTRIBUTING.md` § "Coding style" (new) — names the style guide
-  explicitly, fixes `coding_standards`.
-- `README.md` — links `GOVERNANCE.md`, `CODE_OF_CONDUCT.md`, `ROADMAP.md`
-  from the front page's "Mitwirken" section (front-page discoverability, in
-  the spirit of `documentation_achievements`/`roles_responsibilities`
-  though the badge link itself remains blocked).
-- This file and `openssf-best-practices-silver-questionnaire-answers.md` —
-  the gap analysis and pre-filled questionnaire text itself.
+Not documentation-only this time — the three PARTIAL rows above were real gaps
+and were closed with real changes:
 
-## 4. What remains — genuinely needs `@yves-vogl`'s bestpractices.dev account
+- **`moneymoney-paypal-pos-extension-dev-1.rockspec`** (new) — computer-processable,
+  exactly-pinned manifest for the Lua dev toolchain, in the conventional LuaRocks
+  format. `luarocks lint` exit 0; `--only-deps` resolution verified under Lua 5.4
+  (the CI version) and 5.5.
+- **`.github/workflows/ci.yml`, `.github/workflows/release.yml`** — the four bare
+  `luarocks install <name>` lines replaced by
+  `luarocks install --only-deps moneymoney-paypal-pos-extension-dev-1.rockspec`.
+  Before this, the toolchain floated to whatever luarocks.org served at job start.
+- **`.github/workflows/lua-toolchain-audit.yml`** (new) — weekly pin-vs-upstream
+  comparison, files/updates a drift issue. Both the no-drift and drift paths, the
+  step-summary output and the generated issue body were executed locally before
+  commit, not just written.
+- **`spec/webbanking_declaration_spec.lua`** (new, 6 examples) — regression cover
+  for the `WebBanking{credentials=…}` declaration fixed in `66d9b95`, the one
+  in-scope bug fix that had none. This sat in a genuine blind spot: `.luacov`
+  excludes `^src/webbanking_header$`, no other spec touches the table, and
+  `tools/build.lua` gates only DEBUG/egress — so deleting the `credentials`
+  array would have kept the suite green while breaking every user's account
+  setup. Verified as a real guard by mutation: with the array removed the file
+  goes from 6 passes to 1 failure + 3 errors.
+- **`.github/dependabot.yml`** — the Lua-tooling comment made two contradictory
+  claims ("pinned by the rockspec resolution" vs. "CI installs the latest
+  published version"); the second was the true one. Replaced with an accurate
+  description plus a pointer to the rockspec and audit workflow.
+- **`.planning/REQUIREMENTS.md`** — SEC-09 defined, traced and counted, so the
+  new `SECURITY.md` rows cite a requirement ID that actually exists.
+- **`SECURITY.md`, `CONTRIBUTING.md`** — supply-chain control rows (DE + EN) and
+  contributor install instructions updated to the pinned-manifest workflow.
+- Repository labels `dependencies`, `python`, `github-actions` created — they
+  were referenced by `.github/dependabot.yml` but did not exist, so the audit
+  workflow's `gh issue create --label dependencies` would have failed.
 
-1. Log in at <https://www.bestpractices.dev>, click "Get Your Badge Now,"
-   select this repository — creates the project entry and unblocks
-   `achieve_passing`.
-2. Fill the **Passing** questionnaire first (Silver requires it as a
-   prerequisite). Source material: `README.md`, `CONTRIBUTING.md`,
-   `SECURITY.md`, `docs/`.
-3. Add the Passing badge to `README.md` within 48h of earning it
-   (`documentation_achievements`).
-4. Switch the form to **Silver** and transcribe the answers from
-   `openssf-best-practices-silver-questionnaire-answers.md` in this
-   directory — every criterion above already has its answer text and
-   evidence link ready.
-5. Decide the `SECURITY.md` required-check-count fix (§2 above) — either
-   tighten branch protection or correct the doc — and route it through
-   `loop-security-engineer` before or shortly after Silver submission; it
-   does not block submission but should not stay inaccurate.
-6. Report back on issue #42; close it once the Silver percentage clears the
-   passing threshold on bestpractices.dev.
+Measured after the change: **415 successes / 0 failures, 94.53 % statement
+coverage**, `lua tools/build.lua --verify` → `OK: reproducible` with the
+artifact SHA-256 unchanged (`17ffcdd2…`), `luacheck .` → 0 warnings / 0 errors
+in 45 files (run under Lua 5.4 to match CI).
 
-Not one step above can be completed by an agent — bestpractices.dev has no
-API for questionnaire submission and requires the maintainer's own GitHub
-login.
+---
+
+## 4. What remains — structurally account-gated, not deferrable work
+
+Exactly two Silver criteria are still open, and no amount of repository work can
+close either:
+
+| Criterion | Tier | Why it cannot be closed here |
+|---|---|---|
+| `achieve_passing` | MUST | Silver's first criterion is "the project MUST achieve a passing level badge". A badge presupposes a project entry on bestpractices.dev, and entries can only be created by a signed-in GitHub user via "Get Your Badge Now" — the BadgeApp has no anonymous or token-based project-creation endpoint. Re-verified 2026-08-27: `projects.json?q=moneymoney`, `?q=paypal-pos`, `?q=zettle`, `?q=yves-vogl` and the `?url=` lookup all return `[]`, while the same API returns a populated record for a known project (`?q=curl` → id 63), so the API is live and the emptiness is real. |
+| `documentation_achievements` | MUST | Requires the earned badge to be linked from the README within 48 h. There is no badge ID to link until the row above happens. Nothing false is asserted in the meantime — `SECURITY.md` and `ROADMAP.md` point at issue #42 rather than claiming a badge. |
+
+Both are a single ~15-minute session for `@yves-vogl`:
+
+1. Sign in at <https://www.bestpractices.dev> and register the repository.
+2. Fill the **Passing** questionnaire — answers and evidence URLs are pre-written
+   in `openssf-best-practices-silver-questionnaire-answers.md` in this directory.
+3. Add the badge to `README.md` (closes `documentation_achievements`).
+4. Switch the form to **Silver** and transcribe the same file's Silver answers.
+
+Everything else is green or honestly answered:
+
+- All other MUST criteria are Met or N/A-with-justification.
+- `bus_factor` (SHOULD) is answered **Unmet with justification** — it is factually
+  1, and `GOVERNANCE.md` documents the structural mitigations rather than
+  obscuring the number. This does not block the badge: the BadgeApp requires MUST
+  criteria to be Met/N-A, but permits SHOULD criteria to be Unmet when a
+  justification is supplied.
+- `accessibility_best_practices` and `internationalization` (both SHOULD) are
+  likewise answered Unmet with justification, and are tracked as their own issues
+  rather than being fudged green here.

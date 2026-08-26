@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Sicherheit
+
+- **Lua-Toolchain gepinnt (SEC-09).** `busted`, `luacheck`, `luacov` und
+  `dkjson` sind jetzt in `moneymoney-paypal-pos-extension-dev-1.rockspec` auf
+  exakte Version-Revisionen festgelegt; `ci.yml` und `release.yml` installieren
+  ausschließlich daraus (`luarocks install --only-deps`). Zuvor liefen vier
+  ungepinnte `luarocks install <name>`-Zeilen — die Test- und Lint-Toolchain
+  bezog damit bei jedem Job-Start die jeweils neueste veröffentlichte Version.
+  Das ausgelieferte Artefakt hat weiterhin **keine** Laufzeit-Abhängigkeiten.
+- **Toolchain-Drift wird überwacht (SEC-09).** Neuer Workflow
+  `.github/workflows/lua-toolchain-audit.yml` vergleicht die Pins wöchentlich
+  mit luarocks.org und legt bei Abweichung ein Tracking-Issue an. Bewusst als
+  Frische-Check deklariert, nicht als CVE-Check: für LuaRocks existiert kein
+  Schwachstellen-Feed (weder OSV.dev noch die GitHub Advisory Database führen
+  das Ökosystem).
+
+### Hinzugefügt
+
+- `spec/webbanking_declaration_spec.lua` — Regressionstest für die
+  `WebBanking{credentials=…}`-Deklaration. Ohne diese Deklaration fällt
+  MoneyMoney auf Benutzername/Passwort-Felder zurück und die Extension kann
+  sich nie authentifizieren; die Datei war bislang der einzige ungetestete
+  Bereich (`.luacov` schließt `src/webbanking_header` aus, kein anderer Spec
+  berührt die Tabelle). Suite jetzt 415 Tests, 94,53 % Statement-Coverage.
+
 ### Dokumentation
 
 - OpenSSF Best Practices **Silver**-Tier-Vorbereitung (Issue #42, ungegateter
@@ -20,6 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `ROADMAP.md` im Abschnitt „Mitwirken".
 - `docs/index.md`: veraltete „Release-Candidate für v1.0.0"-Angabe korrigiert
   (aktuell `v1.0.1`, stabil, aktive Wartung).
+- Silver-Gap-Analyse zweiter Durchgang: die drei als PARTIAL geführten
+  Abhängigkeits-Kriterien (`external_dependencies`, `dependency_monitoring`,
+  `updateable_reused_components`) sind mit den obigen Änderungen geschlossen;
+  die Coverage-Angabe ist jetzt gemessen (94,53 %) statt vom CI-Schwellwert
+  abgeleitet; die Regressionstest-Quote wurde per Commit-Archäologie belegt.
+- `.github/dependabot.yml`: Kommentar zur Lua-Toolchain korrigiert — er
+  behauptete zugleich „gepinnt" und „CI installiert die neueste Version".
+- `.planning/REQUIREMENTS.md`: SEC-09 definiert, verlinkt und gezählt.
 
 ## [1.0.1] - 2026-06-24
 
