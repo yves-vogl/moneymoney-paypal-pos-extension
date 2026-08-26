@@ -84,6 +84,8 @@ Phase 6.1 etabliert wurde. Die aktiven Kontrollen sind:
 | Gitleaks secret scan | Läuft auf jedem PR; `.gitleaks.toml` + `.gitleaksignore` definieren die Detection + per-Fingerprint-Allowlist auditierter Falschmeldungen. | CI-05 |
 | Signed releases | GPG-signierter Git-Tag (`v[0-9]+.[0-9]+.[0-9]+`) löst die Release-Pipeline aus; `verify-signed-tag`-Job prüft die Signatur gegen den Maintainer-Fingerprint `FDE07046A6178E89ADB57FD3DE300C53D8E18642`. | BUILD-04 |
 | Reproducible build | `lua tools/build.lua --verify` baut deterministisch byte-identisch; CI failt bei Diff. | BUILD-02 |
+| Lua-Toolchain gepinnt | `busted`, `luacheck`, `luacov` und `dkjson` sind in `moneymoney-paypal-pos-extension-dev-1.rockspec` auf exakte Version-Revisionen festgelegt; CI installiert ausschließlich daraus (`luarocks install --only-deps`). Zuvor liefen vier ungepinnte `luarocks install <name>`-Zeilen, die Toolchain war damit unversioniert. | SEC-09 |
+| Lua-Toolchain-Drift überwacht | `.github/workflows/lua-toolchain-audit.yml` vergleicht die Pins wöchentlich mit luarocks.org und legt bei Abweichung ein Issue an. Bewusst nur ein Frische-Check, kein CVE-Check: für LuaRocks existiert kein Schwachstellen-Feed (OSV.dev kennt das Ökosystem nicht, GitHub Advisory Database ebenfalls nicht). | SEC-09 |
 | Redact-before-log | Jede `print()`-Ausgabe läuft durch `M_log.*`-Redaktor, der JWT- und Bearer-Substrings entfernt (D-79-Gate). | SEC-01 |
 | Egress-Allowlist | Im gebauten Artefakt sind nur Hosts `oauth.zettle.com`, `purchase.izettle.com`, `finance.izettle.com` referenzierbar; CI-Grep blockiert sonstige Hostnamen. | SEC-04 |
 
@@ -135,6 +137,8 @@ in Phase 6.1. Active controls:
 | Gitleaks secret scan | Runs on every PR; `.gitleaks.toml` + `.gitleaksignore` define detection + per-fingerprint allowlist of audited false positives. | CI-05 |
 | Signed releases | GPG-signed git tag (`v[0-9]+.[0-9]+.[0-9]+`) triggers the release pipeline; `verify-signed-tag` asserts the maintainer fingerprint `FDE07046A6178E89ADB57FD3DE300C53D8E18642`. | BUILD-04 |
 | Reproducible build | `lua tools/build.lua --verify` builds byte-identically; CI fails on diff. | BUILD-02 |
+| Pinned Lua toolchain | `busted`, `luacheck`, `luacov` and `dkjson` are pinned to exact version-revisions in `moneymoney-paypal-pos-extension-dev-1.rockspec`; CI installs only from it (`luarocks install --only-deps`). Previously four unpinned `luarocks install <name>` lines let the toolchain float to whatever was newest at job start. | SEC-09 |
+| Lua toolchain drift monitored | `.github/workflows/lua-toolchain-audit.yml` compares the pins against luarocks.org weekly and files a tracking issue on drift. Deliberately a freshness check only, not a CVE check: no vulnerability feed exists for LuaRocks (OSV.dev has no such ecosystem, nor does the GitHub Advisory Database). | SEC-09 |
 | Redact-before-log | Every `print()` output flows through the `M_log.*` redactor stripping JWT and Bearer substrings (D-79 gate). | SEC-01 |
 | Egress allowlist | The built artifact may reference only the hosts `oauth.zettle.com`, `purchase.izettle.com`, `finance.izettle.com`; a CI grep blocks any other hostname. | SEC-04 |
 

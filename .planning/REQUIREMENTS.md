@@ -83,6 +83,7 @@ Requirements for the v1.0.0 release. Each maps to roadmap phases (filled in duri
 - [ ] **SEC-06**: Every `uses:` reference in `.github/workflows/*.yml` is pinned to a 40-char commit SHA followed by a `# vX.Y.Z` comment; a CI grep gate fails any PR introducing a floating tag; Dependabot bumps SHA + comment in lockstep; Scorecard `Pinned-Dependencies.score == 10` post-merge.
 - [ ] **SEC-07**: Every workflow declares `permissions: read-all` at top level; write scopes (`contents: write`, `id-token: write`, `security-events: write`, `pages: write`) are job-local and minimal; every `actions/checkout` step that does not need git-stored credentials carries `persist-credentials: false`; Scorecard `Token-Permissions.score == 10` post-merge.
 - [ ] **SEC-08**: A Semgrep SAST workflow runs on every push and pull request with `p/security-audit` + `p/secrets`; ERROR-severity findings fail the workflow; SARIF results are uploaded to GitHub code-scanning; the workflow is a required status check on `main`; a backlog issue tracks ossf/scorecard#5103 merge for the Scorecard `SAST.score` to flip from 0 to 10.
+- [x] **SEC-09**: The Lua dev/test toolchain (`busted`, `luacheck`, `luacov`, `dkjson`) is declared in a computer-processable manifest (`moneymoney-paypal-pos-extension-dev-1.rockspec`) pinned to exact version-revisions, and CI installs from that manifest only (`luarocks install --only-deps`) rather than by bare rock name; a scheduled workflow (`.github/workflows/lua-toolchain-audit.yml`) compares each pin against luarocks.org weekly and files a tracking issue on drift. Scope limit recorded deliberately: this is a freshness check, not a CVE check — no vulnerability feed exists for the LuaRocks ecosystem in OSV.dev or the GitHub Advisory Database (verified 2026-08-27). Satisfies OpenSSF Silver `external_dependencies`, `dependency_monitoring` and `updateable_reused_components`.
 
 ### Build & Release Engineering
 
@@ -217,6 +218,7 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 | SEC-06 | Phase 6.1 | Complete by 06.1-01 |
 | SEC-07 | Phase 6.1 | Complete by 06.1-01 |
 | SEC-08 | Phase 6.1 | Complete by 06.1-03 (security control in place; Scorecard score reporting deferred per ADR-0009) |
+| SEC-09 | Post-6.1 | Complete (OpenSSF Silver prep, issue #42) |
 | BUILD-01 | Phase 1 | Pending |
 | BUILD-02 | Phase 1 | Pending |
 | BUILD-03 | Phase 6 | Closed by Plan 06-01 |
@@ -248,9 +250,10 @@ Each v1 requirement maps to exactly one phase. Phase definitions live in `.plann
 
 **Coverage:**
 
-- v1 requirements: **75** total.
-- Mapped to phases: **75 / 75** (Phase 1: 7, Phase 2: 10, Phase 3: 10, Phase 4: 15, Phase 5: 6, Phase 6: 22, Phase 6.1: 5).
+- v1 requirements: **76** total.
+- Mapped to phases: **76 / 76** (Phase 1: 7, Phase 2: 10, Phase 3: 10, Phase 4: 15, Phase 5: 6, Phase 6: 22, Phase 6.1: 5, Post-6.1: 1).
 - Phase 6.1: 5 net-new IDs (SEC-06, SEC-07, SEC-08, BUILD-07, DOC-11) plus SEC-05 modified in-place.
+- Post-6.1: 1 net-new ID (SEC-09), added during the OpenSSF Silver-tier pass (issue #42).
 - Unmapped: **0** — coverage complete.
 
 ---

@@ -16,10 +16,23 @@ updates:
   # queue bloat. (P6.1-R-11: dropped brittle count phrasing — actual
   # pinned-action count drifts as the workflow surface grows.)
   #
-  # LuaRocks is not supported by Dependabot. Lua tooling versions are
-  # pinned by the rockspec resolution at install time; CI installs the
-  # latest published version of each tool, which keeps the toolchain
-  # current without manual bumps.
+  # LuaRocks is not supported by Dependabot, and there is no LuaRocks
+  # ecosystem in OSV.dev or the GitHub Advisory Database either, so there is
+  # no vulnerability feed to subscribe to for that surface.
+  #
+  # An earlier version of this comment claimed the Lua tooling was "pinned by
+  # the rockspec resolution at install time" while CI "installs the latest
+  # published version of each tool". Those two claims contradict each other,
+  # and the second one was the true one: ci.yml ran four bare
+  # `luarocks install <name>` lines, so the toolchain floated to whatever was
+  # newest at job start — unpinned and unauditable.
+  #
+  # That is now fixed outside Dependabot:
+  #   * moneymoney-paypal-pos-extension-dev-1.rockspec pins busted, luacheck,
+  #     luacov and dkjson to exact version-revisions, and CI installs from it
+  #     via `luarocks install --only-deps`.
+  #   * .github/workflows/lua-toolchain-audit.yml runs weekly, compares each
+  #     pin against luarocks.org and files a tracking issue on drift.
   - package-ecosystem: github-actions
     directory: /
     schedule:

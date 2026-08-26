@@ -1,0 +1,175 @@
+name: Lua toolchain audit
+
+# Periodic freshness check for the Lua dev/test toolchain.
+#
+# Why this workflow exists
+# ------------------------
+# Dependabot has no LuaRocks ecosystem, so the pins in
+# moneymoney-paypal-pos-extension-dev-1.rockspec would otherwise never move
+# and nobody would be told when they went stale. GitHub Actions and the Python
+# CI toolchain are covered by Dependabot (.github/dependabot.yml); this
+# workflow is the equivalent coverage for the remaining dependency surface.
+#
+# Scope and honest limits
+# -----------------------
+# This is a FRESHNESS check, not a vulnerability check. There is no CVE feed
+# for LuaRocks to subscribe to: OSV.dev rejects `"ecosystem":"LuaRocks"` with
+# `{"code":3,"message":"invalid ecosystem"}` (verified 2026-08-27) and the
+# GitHub Advisory Database carries no LuaRocks advisories either. So the best
+# available signal is "a newer version has been published — go look at why",
+# and that is exactly what this reports. It deliberately does not claim more.
+#
+# The shipped artifact (dist/paypal-pos.lua) has zero runtime dependencies;
+# everything audited here is build/test-time only.
+
+on:
+  schedule:
+    # Mondays 06:00 UTC — same cadence as the Dependabot windows so all
+    # dependency noise lands on the same morning.
+    - cron: "0 6 * * 1"
+  # Re-check whenever the manifest itself changes, so a bump PR gets an
+  # immediate confirmation that it now matches upstream.
+  push:
+    paths:
+      - "moneymoney-paypal-pos-extension-dev-1.rockspec"
+      - ".github/workflows/lua-toolchain-audit.yml"
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  audit:
+    name: Lua toolchain freshness
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # Needed to file / update the drift tracking issue.
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Lua 5.4
+        uses: leafo/gh-actions-lua@6919171ccf181b826f44b9bca76307b577217377 # v13.0.0
+        with:
+          luaVersion: "5.4"
+
+      - name: Set up LuaRocks
+        uses: leafo/gh-actions-luarocks@35d062def313a7699a0d513e996bcf4352f05389 # v6.1.0
+
+      - name: Compare pinned versions against luarocks.org
+        id: audit
+        run: |
+          set -euo pipefail
+          ROCKSPEC=moneymoney-paypal-pos-extension-dev-1.rockspec
+          # Scratch file, not written into the working tree — a stray
+          # artifact here would show up as an untracked repo change.
+          PINS="$(mktemp)"
+          trap 'rm -f "$PINS"' EXIT
+
+          # Pull the pinned "<name> == <version>" dependency lines out of the
+          # rockspec. `lua` reads the manifest rather than grep, so the parse
+          # cannot drift from what LuaRocks itself would resolve.
+          lua -e '
+            local env = {}
+            local chunk = assert(loadfile("'"$ROCKSPEC"'", "t", env))
+            chunk()
+            for _, dep in ipairs(env.dependencies or {}) do
+              local name, version = dep:match("^(%S+)%s*==%s*(%S+)$")
+              if name then print(name .. " " .. version) end
+            end
+          ' > "$PINS"
+
+          if [ ! -s "$PINS" ]; then
+            echo "FAIL: no pinned dependencies parsed from ${ROCKSPEC}"
+            exit 1
+          fi
+          echo "Pinned toolchain:"
+          cat "$PINS"
+
+          DRIFT=""
+          while read -r NAME PINNED; do
+            # `luarocks search --porcelain` emits: <name>\t<version>\t<type>\t<repo>
+            # `|| true` keeps a transient luarocks.org failure from aborting the
+            # whole audit under `set -euo pipefail` — an unresolvable rock is
+            # reported as a WARN below instead of killing the run.
+            LATEST=$(luarocks search --porcelain "$NAME" 2>/dev/null \
+              | awk -v n="$NAME" '$1 == n && $3 == "rockspec" { print $2 }' \
+              | sort -V | tail -1 || true)
+
+            if [ -z "$LATEST" ]; then
+              echo "WARN: could not resolve a published version for ${NAME}; skipping"
+              continue
+            fi
+
+            if [ "$LATEST" != "$PINNED" ]; then
+              echo "DRIFT: ${NAME} pinned ${PINNED}, latest ${LATEST}"
+              DRIFT="${DRIFT}- \`${NAME}\`: pinned **${PINNED}**, latest **${LATEST}**"$'\n'
+            else
+              echo "OK: ${NAME} ${PINNED} is current"
+            fi
+          done < "$PINS"
+
+          {
+            echo "## Lua toolchain audit"
+            if [ -n "$DRIFT" ]; then
+              echo "Drift detected:"
+              echo ""
+              echo "$DRIFT"
+            else
+              echo "All pins current."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          {
+            echo "drift<<__EOF__"
+            echo "$DRIFT"
+            echo "__EOF__"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: File or update the drift tracking issue
+        if: steps.audit.outputs.drift != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DRIFT: ${{ steps.audit.outputs.drift }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          TITLE="chore(deps): Lua toolchain pins are behind upstream"
+
+          BODY=$(cat <<EOF
+          The weekly Lua toolchain audit found newer published versions than the
+          pins in \`moneymoney-paypal-pos-extension-dev-1.rockspec\`:
+
+          ${DRIFT}
+
+          LuaRocks is not covered by Dependabot, so this bump is manual. To act on it:
+
+          1. Edit the pin(s) in \`moneymoney-paypal-pos-extension-dev-1.rockspec\`.
+          2. Run \`luarocks install --only-deps moneymoney-paypal-pos-extension-dev-1.rockspec\`,
+             then \`luacheck .\` and \`busted --coverage spec/\` locally.
+          3. Open a PR and let CI confirm the suite is still green at >= 85 % coverage.
+
+          Note: this is a freshness signal, not a vulnerability report — there is no
+          CVE feed for LuaRocks (see the rockspec header). Read the upstream release
+          notes before bumping.
+
+          Audit run: ${RUN_URL}
+          EOF
+          )
+
+          # Reuse the existing open issue instead of opening a new one every
+          # Monday; a fresh comment is enough to re-surface it.
+          EXISTING=$(gh issue list --repo "$REPO" --state open --search "$TITLE in:title" \
+            --json number,title --jq "map(select(.title == \"$TITLE\")) | .[0].number // empty")
+
+          if [ -n "$EXISTING" ]; then
+            echo "Updating existing issue #${EXISTING}"
+            gh issue comment "$EXISTING" --repo "$REPO" --body "$BODY"
+          else
+            echo "Opening new drift issue"
+            gh issue create --repo "$REPO" --title "$TITLE" --body "$BODY" --label dependencies
+          fi

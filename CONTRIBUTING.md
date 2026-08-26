@@ -30,13 +30,20 @@ documented in [`GOVERNANCE.md`](GOVERNANCE.md).
   ```bash
   brew install lua@5.4 luarocks
   ```
-- LuaRocks-installed development dependencies:
+- LuaRocks-installed development dependencies. Install them from the pinned
+  manifest rather than by name, so you get the same versions CI uses:
   ```bash
-  luarocks install busted
-  luarocks install luacheck
-  luarocks install luacov
-  luarocks install dkjson
+  luarocks install --only-deps moneymoney-paypal-pos-extension-dev-1.rockspec
   ```
+  [`moneymoney-paypal-pos-extension-dev-1.rockspec`](moneymoney-paypal-pos-extension-dev-1.rockspec)
+  is a dev-only manifest — the shipped artifact has no runtime dependencies.
+  It pins `busted`, `luacheck`, `luacov` and `dkjson` to exact
+  version-revisions. Do not bump a pin by hand-installing a newer rock
+  locally; change the manifest in a PR so CI validates it. LuaRocks is not
+  covered by Dependabot, so
+  [`.github/workflows/lua-toolchain-audit.yml`](.github/workflows/lua-toolchain-audit.yml)
+  checks the pins against luarocks.org weekly and files an issue when they
+  drift.
 - `gpg` (for signing commits and tags) and a published GPG public key
   associated with your committer email.
 
