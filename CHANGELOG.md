@@ -30,7 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   MoneyMoney auf Benutzername/Passwort-Felder zurück und die Extension kann
   sich nie authentifizieren; die Datei war bislang der einzige ungetestete
   Bereich (`.luacov` schließt `src/webbanking_header` aus, kein anderer Spec
-  berührt die Tabelle). Suite jetzt 415 Tests, 94,53 % Statement-Coverage.
+  berührt die Tabelle). Suite jetzt 415 Tests bei unveränderten 93,78 %
+  Statement-Coverage — der neue Spec deckt `src/webbanking_header.lua` ab, das
+  `.luacov` bewusst ausschließt, liefert also eine echte Regressionssicherung
+  ohne Coverage-Zuwachs.
 
 ### Dokumentation
 
