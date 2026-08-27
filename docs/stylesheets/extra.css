@@ -1,0 +1,26 @@
+/* Accessibility fixes on top of the Material theme defaults.
+   Findings from the axe-core 4.13.0 audit (2026-08-27, issue #86):
+
+   1. WCAG 1.4.3 (contrast): the theme renders .md-copyright with
+      --md-footer-fg-color--lighter, which falls below 4.5:1 on the
+      indigo footer in both colour schemes. Use the full-contrast
+      footer foreground colour instead.
+   2. WCAG 1.4.1 (use of colour): the theme distinguishes body links
+      from surrounding text by colour only. Underline links inside
+      typeset content; keep decoration off elements that are visually
+      distinct without it (buttons, heading permalinks). */
+
+.md-copyright,
+.md-copyright__highlight,
+.md-copyright a {
+  color: var(--md-footer-fg-color);
+}
+
+.md-typeset a {
+  text-decoration: underline;
+}
+
+.md-typeset .md-button,
+.md-typeset .headerlink {
+  text-decoration: none;
+}

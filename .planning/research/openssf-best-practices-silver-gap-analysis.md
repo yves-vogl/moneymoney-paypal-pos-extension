@@ -57,8 +57,8 @@ the maintainer's badge-site account).
 | `documentation_quick_start` | MUST | **MET** | `docs/installation.md` "In drei Schritten" / `docs/index.md` — five numbered steps from download to first refresh. |
 | `documentation_current` | MUST | **MET (fixed by this PR)** | `docs/index.md` previously stated "Release-Candidate-Phase für v1.0.0" while `v1.0.1` has been the shipped release since 2026-06-24 (`CHANGELOG.md`, `git tag`) — a real `documentation_current` violation, corrected in this PR. |
 | `documentation_achievements` | MUST | **BLOCKED** | No badge exists yet to hyperlink (depends on `achieve_passing`). `SECURITY.md` and `ROADMAP.md` already point at issue #42 instead of a stale claim, so nothing false is currently asserted. |
-| `accessibility_best_practices` | SHOULD | **PARTIAL** | No formal accessibility audit of the MkDocs Material site exists; Material's default theme has reasonable baseline a11y (semantic HTML, keyboard nav, contrast-checked palette) but this project has not verified it. Answer "Unmet" honestly. |
-| `internationalization` | SHOULD | **PARTIAL** | German is primary (extension UI strings, `docs/`), English is used for `CONTRIBUTING.md`/ADRs/code comments. This is bilingual-by-audience, not full i18n (no runtime locale switching — `src/i18n.lua` ships one German string table). Answer "Unmet" with the bilingual-docs justification. |
+| `accessibility_best_practices` | SHOULD | **MET (2026-08-27)** | WCAG 2.1 AA audit performed with axe-core 4.13.0 (light + dark) and pa11y 9.1.1; three theme-level findings fixed (`docs/stylesheets/extra.css`, `docs/js/a11y.js`), re-run clean. Record: `.planning/research/accessibility-audit-2026-08-27.md` (issue #86). |
+| `internationalization` | SHOULD | **MET (2026-08-27)** | `src/i18n.lua` is locale-keyed (`{de, en}`) behind `M_i18n.t()` with test-enforced DE/EN key parity; adding a locale is a data change. No runtime locale switch because the MoneyMoney API exposes no UI-language signal — posture decided in ADR-0010 (issue #87). |
 | `sites_password_security` | MUST | **N/A** | The project operates no site that stores end-user passwords. The extension's only credential (the Zettle API key) is stored by MoneyMoney's own encrypted credentials store, not by any project-operated site. |
 
 ### Change control
@@ -220,6 +220,7 @@ Everything else is green or honestly answered:
   obscuring the number. This does not block the badge: the BadgeApp requires MUST
   criteria to be Met/N-A, but permits SHOULD criteria to be Unmet when a
   justification is supplied.
-- `accessibility_best_practices` and `internationalization` (both SHOULD) are
-  likewise answered Unmet with justification, and are tracked as their own issues
-  rather than being fudged green here.
+- `accessibility_best_practices` and `internationalization` (both SHOULD) were
+  initially answered Unmet with justification and tracked as issues #86/#87;
+  both were closed as **Met** on 2026-08-27 (WCAG 2.1 AA audit + fixes, and
+  ADR-0010 respectively) — see the updated rows above.

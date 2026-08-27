@@ -56,6 +56,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.github/dependabot.yml`: Kommentar zur Lua-Toolchain korrigiert — er
   behauptete zugleich „gepinnt" und „CI installiert die neueste Version".
 - `.planning/REQUIREMENTS.md`: SEC-09 definiert, verlinkt und gezählt.
+- **Barrierefreiheits-Audit der Doku-Site** (Issue #86, OpenSSF Silver
+  `accessibility_best_practices`): WCAG-2.1-AA-Prüfung aller vier Seiten mit
+  axe-core 4.13.0 (Light- und Dark-Scheme) und pa11y 9.1.1. Drei
+  Theme-Findings behoben — Footer-Kontrast und Link-Unterstreichung via
+  `docs/stylesheets/extra.css`, Accessible Name des Such-Dialogs via
+  `docs/js/a11y.js`. Re-Run ohne Violations; Audit-Protokoll unter
+  `.planning/research/accessibility-audit-2026-08-27.md`.
+- **Internationalisierungs-Posture entschieden** (Issue #87, OpenSSF Silver
+  `internationalization`): ADR-0010 dokumentiert, dass `src/i18n.lua` mit
+  locale-keyed `{de, en}`-Tabellen, zentralem Zugriffspunkt `M_i18n.t()` und
+  test-erzwungener DE/EN-Schlüssel-Parität bereits internationalisiert ist;
+  Laufzeit-Locale-Wahl entfällt, weil die MoneyMoney-API keine UI-Sprache an
+  Extensions durchreicht. Kein Code-Change am Extension-Artefakt.
 
 ## [1.0.1] - 2026-06-24
 

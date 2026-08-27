@@ -37,6 +37,12 @@ theme:
 plugins:
   - search
 
+extra_css:
+  - stylesheets/extra.css
+
+extra_javascript:
+  - js/a11y.js
+
 validation:
   links:
     not_found: warn

@@ -87,19 +87,31 @@ Evidence: `CHANGELOG.md`, `docs/index.md`
 > 48h of the badge being issued.
 Evidence: (n/a until badge exists)
 
-**`accessibility_best_practices`** — **Unmet**
-> No formal accessibility audit has been performed on the MkDocs Material
-> documentation site or the German user-facing extension strings; the
-> theme's defaults are reasonable but unverified.
-Evidence: (none — honestly unmet)
+**`accessibility_best_practices`** — **Met**
+> The documentation site was audited against WCAG 2.1 AA on 2026-08-27
+> with axe-core 4.13.0 (light and dark colour schemes) and
+> pa11y/HTML_CodeSniffer 9.1.1. Three theme-level findings (footer
+> contrast, colour-only link styling, unnamed search dialog) were fixed;
+> the re-run reports zero violations on all pages in both schemes.
+> Heading order and image alt text were verified manually. The extension
+> software renders no UI of its own — MoneyMoney owns the interface; the
+> project-authored surface is plain-text strings that convey no
+> information by colour or layout.
+Evidence: `.planning/research/accessibility-audit-2026-08-27.md`,
+`docs/stylesheets/extra.css`, `docs/js/a11y.js`
 
-**`internationalization`** — **Unmet**
-> German is the primary language for user-facing content (extension
-> strings, installation docs); English is used for contributor-facing
-> docs (CONTRIBUTING.md, ADRs, code comments). This is bilingual-by-
-> audience rather than a runtime-switchable i18n system — `src/i18n.lua`
-> ships a single German string table.
-Evidence: `src/i18n.lua`, `CONTRIBUTING.md` (intro note on language split)
+**`internationalization`** — **Met**
+> The software is internationalized: every user-facing string goes
+> through a locale-keyed table (`{de, en}`) behind the single access
+> point `M_i18n.t()`, with German active, English parity enforced by a
+> bidirectional key-parity test, and fallback locale → en → key.
+> Localizing to a further language is a data change. Amounts, dates and
+> balances are passed to MoneyMoney as typed values and rendered
+> locale-correctly by the host. Runtime locale selection is not offered
+> because the MoneyMoney extension API exposes no UI-language signal —
+> a host-API constraint documented in ADR-0010.
+Evidence: `src/i18n.lua`, `spec/i18n_spec.lua` (DE/EN parity tests),
+`docs/adr/0010-internationalization-posture.md`
 
 **`sites_password_security`** — **N/A**
 > The project operates no site or service that stores end-user passwords.
