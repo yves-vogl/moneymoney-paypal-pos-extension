@@ -124,12 +124,12 @@ jobs:
       - name: Set up LuaRocks
         uses: leafo/gh-actions-luarocks@35d062def313a7699a0d513e996bcf4352f05389 # v6.1.0
 
-      - name: Install Lua dependencies
-        run: |
-          luarocks install busted
-          luarocks install luacheck
-          luarocks install luacov
-          luarocks install dkjson
+      - name: Install pinned Lua toolchain
+        # Versions come from moneymoney-paypal-pos-extension-dev-1.rockspec,
+        # not from whatever luarocks.org happens to serve at job start.
+        # See that file's header for the bump procedure and for why LuaRocks
+        # has no vulnerability feed to subscribe to.
+        run: luarocks install --only-deps moneymoney-paypal-pos-extension-dev-1.rockspec
 
       - name: Lint with luacheck
         run: luacheck .
